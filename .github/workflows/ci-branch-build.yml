@@ -1,10 +1,8 @@
 name: Branch build
 
+# Manual only: a build (and its public release) happens when the repository owner asks for one, never on push.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - 'claude/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
