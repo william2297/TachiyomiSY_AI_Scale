@@ -350,3 +350,27 @@ Penilaian jujur: daftar dan tab jelas berubah ke arah aplikasi sekarang (sampul 
 4. Lencana masih dibedakan hanya lewat warna (belum dibaca vs diunduh), tanpa ikon atau label.
 5. Pratinjau "sebelum" sudah memakai lencana pil dari putaran 2, jadi tidak 100% sama dengan build lama.
 6. Drawable `animated_*` dan `presentation/util/AnimatedVectorPainter.kt` kini tidak dipakai tab. Saya biarkan; bisa dihapus terpisah.
+
+## Putaran 5: tiga arah ikon dan rail (belum diterapkan ke aplikasi)
+
+Peter benar bahwa ikon di putaran 4 tidak terasa berganti. Ikon barunya masih Material Symbols Rounded dengan bobot garis 400, keluarga yang sama dengan ikon lama. Putaran ini menyajikan tiga arah yang berbeda jelas, masing-masing dengan keluarga ikon dan bentuk rail sendiri. Belum ada yang dipasang di `app/src/main`.
+
+| Gaya | Keluarga ikon (lisensi, sumber) | Keadaan ikon | Bentuk rail |
+| --- | --- | --- | --- |
+| A | Phosphor, MIT, phosphor-icons/core (`assets/bold`, `assets/fill`) | Bold saat tidak terpilih, fill saat terpilih ("More" tetap bold) | Rail tipis 68 dp, ikon 28 dp, label hanya di bawah item terpilih, pil `secondaryContainer` |
+| B | Fluent UI System Icons, MIT, microsoft/fluentui-system-icons (`_24_regular`, `_24_filled`) | Regular / filled | Rail melayang: kolom bersudut 36 dp di `surfaceContainerHigh` dengan jarak 12 dp, item terpilih = lingkaran `primary` penuh |
+| C | Tabler Icons, MIT, tabler/tabler-icons (`icons/outline`) | Garis 1,75 saat tidak terpilih, 2,6 saat terpilih | Rail klasik 88 dp, label selalu tampil, pil `primary` penuh yang tegas |
+
+Remix Icon tidak dipakai: sejak Januari 2026 lisensinya "Remix Icon License v1.0", bukan MIT atau Apache. Material Symbols dengan bobot lain tidak tersedia sebagai SVG di repo Google (hanya bobot 400).
+
+SVG dan lisensinya ada di `tools/preview/icon-candidates/{phosphor,fluent,tabler}`. Pratinjau membaca path-nya lewat `app/src/uiPreview/.../IconCandidates.kt` (dibangkitkan skrip). Ikon bar atas (search, filter, more vertikal) ikut keluarga masing-masing.
+
+PNG di `/home/user/preview-out9/`: `rail-styles-{portrait,landscape}.png` (berdampingan; di potret tiap sel hanya sekitar 390 dp tinggi, jadi rail B terpotong, lihat versi penuh), `rail-style-{a,b,c}-{portrait,landscape}.png` (ukuran penuh), `rail-icons-closeup-{portrait,landscape}.png` (kelima ikon, tidak terpilih dan terpilih, diperbesar 1,6x).
+
+### Penilaian
+
+1. A, Phosphor slim: paling jelas berbeda dari Material. Glyph bold berbentuk tebal dan geometris, versi fill terbaca sebagai "aktif". Rail paling sempit, jadi daftar dapat ruang paling banyak. Pil memakai `secondaryContainer` yang tenang, cocok dengan tujuan baca di ruang remang. Kelemahannya: label tujuan yang tidak terpilih tersembunyi, jadi orang baru harus menebak dari ikon. Ikon bar atas yang tebal juga lebih berat daripada teks di sekitarnya.
+2. B, Fluent floating: bentuk rail paling khas dan lingkaran terpilih paling mencolok. Kelemahannya: ikon regular Fluent bergaris tipis, jadi dalam keadaan tidak terpilih masih mirip Material. Keluhan "ikon tidak berubah" bisa terulang. Lingkaran `primary` penuh juga bidang terang terbesar di layar.
+3. C, Tabler bold classic: paling mudah dipakai karena label selalu tampil dan pil terpilih paling tegas. Kelemahannya: ikon garis Tabler masih keluarga outline, jadi bedanya dari Material lebih kecil daripada A. Pil `primary` penuh juga lebih terang daripada gaya tenang lainnya.
+
+Rekomendasi: A [Kemungkinan Besar memenuhi keluhan Peter, karena perubahan bentuk ikonnya paling besar; belum dilihat di tablet]. Kalau Peter ingin label selalu terlihat, C adalah pilihan kedua.

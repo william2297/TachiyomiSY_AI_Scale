@@ -145,7 +145,7 @@ class LibraryListLandscapePreviewTest : LibraryListPreviewTest() {
 }
 
 /** Sample titles (public series names) with unread and downloaded counts. */
-private val SampleRows = listOf(
+internal val SampleRows = listOf(
     Triple("The Max Level Hero has Returned!", 31L, 0),
     Triple("The Hero Cannot Rest", 0L, 4),
     Triple("Swordmaster's Youngest Son", 141L, 12),
@@ -163,7 +163,7 @@ private val SampleRows = listOf(
     Triple("God Of Blackfield", 134L, 0),
 )
 
-private val SampleGradients = listOf(
+internal val SampleGradients = listOf(
     0xFFE9B48A to 0xFF8A3B4A,
     0xFF7FB6E6 to 0xFF283D73,
     0xFFF3E2C2 to 0xFFB0644A,
@@ -172,7 +172,7 @@ private val SampleGradients = listOf(
     0xFFE7738A to 0xFF3B1B3A,
 )
 
-private fun gradientCover(id: Long): Bitmap {
+internal fun gradientCover(id: Long): Bitmap {
     val (top, bottom) = SampleGradients[(id % SampleGradients.size).toInt()]
     val bitmap = Bitmap.createBitmap(200, 300, Bitmap.Config.ARGB_8888)
     val paint = Paint().apply {
@@ -182,7 +182,7 @@ private fun gradientCover(id: Long): Bitmap {
     return bitmap
 }
 
-private fun cover(id: Long) = MangaCoverModel(
+internal fun cover(id: Long) = MangaCoverModel(
     mangaId = id,
     sourceId = 0L,
     isMangaFavorite = true,
@@ -190,7 +190,7 @@ private fun cover(id: Long) = MangaCoverModel(
     lastModified = null,
 )
 
-private val SampleCategories = listOf(
+internal val SampleCategories = listOf(
     Category(id = 0L, name = "", order = 0L, flags = 0L),
     Category(id = 1L, name = "FOLLOWING", order = 1L, flags = 0L),
     Category(id = 2L, name = "Completed", order = 2L, flags = 0L),
