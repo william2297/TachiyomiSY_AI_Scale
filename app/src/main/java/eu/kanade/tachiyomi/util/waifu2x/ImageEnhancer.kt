@@ -381,6 +381,18 @@ object ImageEnhancer {
         }
     }
 
+    /**
+     * True while any enhancement of pages [fromPage]..[toPage] of this chapter is queued or running, whatever
+     * their display variant. Auto scroll waits on this so pages are not swapped to their enhanced version while
+     * they move across the screen.
+     */
+    fun hasPendingWork(mangaId: Long, chapterId: Long, fromPage: Int, toPage: Int): Boolean {
+        return pendingRequests.values.any {
+            it.mangaId == mangaId && it.chapterId == chapterId && it.pageIndex in fromPage..toPage &&
+                !it.cancelled.get()
+        }
+    }
+
     fun hasRequest(mangaId: Long, chapterId: Long, pageIndex: Int, pageVariant: String = ""): Boolean {
         return pendingRequests.containsKey(requestKey(mangaId, chapterId, pageIndex, pageVariant)) ||
             ImageEnhancementCache.isSavePending(mangaId, chapterId, pageIndex, pageVariant)

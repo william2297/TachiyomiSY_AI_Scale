@@ -31,6 +31,11 @@ class ReaderPreferences(
         } else if (selectedModel in REMOVED_ENHANCEMENT_MODELS || selectedModel >= FIRST_CUSTOM_MODEL_ID) {
             model.set(8)
         }
+        // Only the models offered in the settings remain; a stored choice of a hidden Vulkan-only model moves to
+        // Real-CUGAN SE.
+        if (model.get() !in OFFERED_ENHANCEMENT_MODELS) {
+            model.set(0)
+        }
     }
 
     // region General
@@ -384,6 +389,13 @@ class ReaderPreferences(
     companion object {
         private const val FIRST_CUSTOM_MODEL_ID = 1000
         private val REMOVED_ENHANCEMENT_MODELS = setOf(7, 10, 11, 12, 13, 14, 15, 17)
+        private val OFFERED_ENHANCEMENT_MODELS = setOf(
+            0,
+            1,
+            Waifu2x.MODEL_REAL_ESRGAN_ANIME,
+            Waifu2x.MODEL_W2XEX_PHOTO_SMALL,
+            Waifu2x.MODEL_SPAN_NOMOSUNI_PHOTO,
+        )
 
         const val WEBTOON_PADDING_MIN = 0
         const val WEBTOON_PADDING_MAX = 25

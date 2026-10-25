@@ -16,14 +16,13 @@ object EnhancementPreset {
 
     fun apply(preferences: ReaderPreferences, screenWidthPx: Int, screenHeightPx: Int) {
         val shortSide = minOf(screenWidthPx, screenHeightPx)
-        val backend = if (Waifu2x.isQualcommNpuAvailable()) {
-            Waifu2x.PROCESSING_BACKEND_QUALCOMM_NPU
-        } else {
-            Waifu2x.PROCESSING_BACKEND_VULKAN
+        // Never falls back to Vulkan, which force-closes the app on this tablet; without an NPU it leaves the
+        // backend as it is.
+        if (Waifu2x.isQualcommNpuAvailable()) {
+            preferences.realCuganProcessingBackend().set(Waifu2x.PROCESSING_BACKEND_QUALCOMM_NPU)
         }
 
         preferences.realCuganEnabled().set(true)
-        preferences.realCuganProcessingBackend().set(backend)
         preferences.realCuganModel().set(0)
         preferences.realCuganScale().set(2)
         preferences.realCuganNoiseLevel().set(4)
@@ -33,9 +32,5 @@ object EnhancementPreset {
         preferences.realCuganMaxSizeHeight().set(0)
         preferences.realCuganSkipMaxSizeWidth().set(shortSide)
         preferences.realCuganSkipMaxSizeHeight().set(0)
-        if (backend == Waifu2x.PROCESSING_BACKEND_VULKAN) {
-            preferences.realCuganPerformanceMode().set(1)
-            preferences.realCuganTileSize().set(128)
-        }
     }
 }

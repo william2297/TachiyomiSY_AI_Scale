@@ -995,9 +995,16 @@ object Waifu2x {
 
     // Preserve an explicit NPU choice even if the device/model cannot execute it.
     // Initialization then fails and the reader keeps the original image.
-    fun resolveProcessingBackend(requestedBackend: Int, model: Int, scale: Int): Int =
-        requestedBackend.takeIf { it in PROCESSING_BACKEND_VULKAN..PROCESSING_BACKEND_MEDIATEK_NPU }
+    fun resolveProcessingBackend(requestedBackend: Int, model: Int, scale: Int): Int {
+        val backend = requestedBackend.takeIf { it in PROCESSING_BACKEND_VULKAN..PROCESSING_BACKEND_MEDIATEK_NPU }
             ?: PROCESSING_BACKEND_VULKAN
+        // Vulkan is not offered in the UI (it crashes on the target device); use the NPU whenever there is one.
+        return if (backend == PROCESSING_BACKEND_VULKAN && isQualcommNpuAvailable()) {
+            PROCESSING_BACKEND_QUALCOMM_NPU
+        } else {
+            backend
+        }
+    }
 
     fun resolvePrecision(requestedPrecision: Int, processingBackend: Int, model: Int, scale: Int): Int {
         if (resolveProcessingBackend(processingBackend, model, scale) != PROCESSING_BACKEND_VULKAN) return 0

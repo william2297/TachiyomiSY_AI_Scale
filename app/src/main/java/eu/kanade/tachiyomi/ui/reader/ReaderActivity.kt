@@ -93,6 +93,7 @@ import eu.kanade.tachiyomi.ui.reader.spatial.DepthSpatialPipeline
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialDepthSceneIO
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneControlsView
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneView
+import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
@@ -104,6 +105,7 @@ import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.setComposeContent
+import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import eu.kanade.tachiyomi.util.waifu2x.Waifu2x
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -728,6 +730,7 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun stopAutoScroll() {
+        ReaderPageImageView.instantProcessedSwap = false
         autoScrollJob?.cancel()
         autoScrollJob = null
         autoScrollActive = false
@@ -740,6 +743,7 @@ class ReaderActivity : BaseActivity() {
     private fun startAutoScroll() {
         autoScrollJob?.cancel()
         autoScrollActive = true
+        ReaderPageImageView.instantProcessedSwap = true
         setMenuVisibility(false)
         autoScrollJob = lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -748,6 +752,7 @@ class ReaderActivity : BaseActivity() {
                         delay(200)
                         continue
                     }
+                    awaitEnhancementAhead()
                     val interval = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f).toDouble().seconds
                     when (val viewer = viewModel.state.value.viewer) {
                         is PagerViewer -> viewer.moveToNext()
@@ -761,6 +766,25 @@ class ReaderActivity : BaseActivity() {
                     delay(interval)
                 }
             }
+        }
+    }
+
+    /**
+     * Holds auto scroll back while the current and next pages are still being enhanced (at most 10 s), so the text
+     * does not change sharpness while it is moving.
+     */
+    private suspend fun awaitEnhancementAhead() {
+        if (!readerPreferences.realCuganEnabled().get()) return
+        val mangaId = viewModel.manga?.id ?: return
+        val chapterId = viewModel.state.value.currentChapter?.chapter?.id ?: return
+        val page = viewModel.state.value.currentPage
+        var waitedMs = 0L
+        while (waitedMs < MAX_ENHANCEMENT_WAIT_MS &&
+            !viewModel.state.value.menuVisible &&
+            ImageEnhancer.hasPendingWork(mangaId, chapterId, page - 1, page + 2)
+        ) {
+            delay(ENHANCEMENT_POLL_MS)
+            waitedMs += ENHANCEMENT_POLL_MS
         }
     }
 
@@ -1429,3 +1453,6 @@ class ReaderActivity : BaseActivity() {
         }
     }
 }
+
+private const val MAX_ENHANCEMENT_WAIT_MS = 10_000L
+private const val ENHANCEMENT_POLL_MS = 250L

@@ -228,14 +228,15 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             }
         }
 
+        // The Vulkan option is hidden: it force-closes the app on the target tablet. A stored Vulkan choice moves
+        // to the Qualcomm NPU whenever the device has one.
+        LaunchedEffect(processingBackend, npuDeviceAvailable) {
+            if (processingBackend == Waifu2x.PROCESSING_BACKEND_VULKAN && npuDeviceAvailable) {
+                viewModel.preferences.realCuganProcessingBackend().set(Waifu2x.PROCESSING_BACKEND_QUALCOMM_NPU)
+            }
+        }
+
         SettingsChipRow(stringResource(MR.strings.reader_processing_backend)) {
-            FilterChip(
-                selected = processingBackend == Waifu2x.PROCESSING_BACKEND_VULKAN,
-                onClick = {
-                    viewModel.preferences.realCuganProcessingBackend().set(Waifu2x.PROCESSING_BACKEND_VULKAN)
-                },
-                label = { Text(stringResource(MR.strings.reader_backend_vulkan)) },
-            )
             FilterChip(
                 selected = useQualcommNpu,
                 onClick = {

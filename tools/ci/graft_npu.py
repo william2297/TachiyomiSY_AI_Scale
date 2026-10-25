@@ -25,6 +25,25 @@ GRAFT_FILES = {
 }
 GRAFT_PREFIX = "assets/qnn-models/"
 EXPECTED_MODELS = 15
+
+# Parts this build never uses are left out to make the APK smaller (about 50 MB compressed):
+# - HTP skel/stub libraries for other Snapdragon generations. This build targets HTP v81 (Snapdragon 8 Gen 5,
+#   the Oppo Pad Mini). Remove a line to support another generation.
+# - MediaTek NPU libraries (the MediaTek backend is hidden).
+# - Models for the Vulkan-only enhancement options that are hidden in the settings.
+DROP_PREFIXES = (
+    "lib/arm64-v8a/libQnnHtpV69",
+    "lib/arm64-v8a/libQnnHtpV73",
+    "lib/arm64-v8a/libQnnHtpV75",
+    "lib/arm64-v8a/libQnnHtpV79",
+    "lib/arm64-v8a/libLiteRt",
+    "lib/arm64-v8a/liblitert_jni",
+    "assets/waifu2x-models/",
+    "assets/waifu2x-models-nose/",
+    "assets/waifu2x-models-upconv7/",
+    "assets/animejanai-ncnn-vulkan/",
+    "assets/sudo-ultracompact/",
+)
 SIGNATURE_SUFFIXES = (".SF", ".RSA", ".DSA", ".EC")
 
 
@@ -44,9 +63,13 @@ def main(ci_apk: str, release_apk: str, output_apk: str) -> None:
             if "lib/arm64-v8a/libwaifu2x-jni.so" not in ci.namelist():
                 sys.exit("CI APK has no arm64-v8a libwaifu2x-jni.so; wrong APK?")
             kept = 0
+            dropped = 0
             for info in ci.infolist():
                 name = info.filename
                 if is_signature_entry(name) or name in GRAFT_FILES or name.startswith(GRAFT_PREFIX):
+                    continue
+                if name.startswith(DROP_PREFIXES):
+                    dropped += 1
                     continue
                 out.writestr(info, ci.read(name), compress_type=info.compress_type)
                 kept += 1
@@ -55,7 +78,10 @@ def main(ci_apk: str, release_apk: str, output_apk: str) -> None:
                 if name in GRAFT_FILES or name.startswith(GRAFT_PREFIX):
                     out.writestr(name, release.read(name), compress_type=zipfile.ZIP_DEFLATED)
                     grafted += 1
-    print(f"kept {kept} entries from the CI APK, grafted {grafted} from the release APK -> {output_apk}")
+    print(
+        f"kept {kept} entries from the CI APK, dropped {dropped} unused ones, "
+        f"grafted {grafted} from the release APK -> {output_apk}",
+    )
 
 
 if __name__ == "__main__":

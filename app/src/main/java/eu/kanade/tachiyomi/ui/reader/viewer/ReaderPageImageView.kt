@@ -643,7 +643,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         alpha = 0f
 
                         val animator = ValueAnimator.ofFloat(0f, 1f).apply {
-                            duration = PROCESSED_SWAP_DURATION_MS
+                            duration = if (instantProcessedSwap) 0L else PROCESSED_SWAP_DURATION_MS
                             interpolator = FastOutSlowInInterpolator()
                             addUpdateListener { animator ->
                                 alpha = animator.animatedValue as Float
@@ -1584,6 +1584,10 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     companion object {
         var currentGlobalPageIndex: Int = -1
+
+        /** While auto scroll runs, enhanced images replace the original at once instead of fading in. */
+        @Volatile
+        var instantProcessedSwap: Boolean = false
 
         /**
          * Global semaphore to serialize image decoding.
