@@ -192,6 +192,7 @@ class ReaderActivity : BaseActivity() {
     private var spatialSceneActive by mutableStateOf(false)
     private var spatialSceneBusy by mutableStateOf(false)
     private var autoScrollActive by mutableStateOf(false)
+    private var autoScrollPanelVisible by mutableStateOf(false)
     private var autoScrollJob: Job? = null
     private var showSpatialModelDownloadDialog by mutableStateOf(false)
     private var spatialModelDownloadProgress by mutableStateOf<Int?>(null)
@@ -628,6 +629,7 @@ class ReaderActivity : BaseActivity() {
         val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
         val imageEnhancementEnabled by readerPreferences.realCuganEnabled().collectAsState()
+        val autoScrollInterval by readerPreferences.autoScrollInterval.collectAsState()
         val isPagerType = ReadingMode.isPagerType(viewModel.getMangaReadingMode())
         val cropEnabled = if (isPagerType) cropBorderPaged else cropBorderWebtoon
 
@@ -706,7 +708,11 @@ class ReaderActivity : BaseActivity() {
                 )
             },
             autoScrollActive = autoScrollActive,
-            onClickAutoScroll = ::toggleAutoScroll,
+            onClickAutoScroll = { autoScrollPanelVisible = !autoScrollPanelVisible },
+            autoScrollPanelVisible = autoScrollPanelVisible,
+            autoScrollInterval = autoScrollInterval,
+            onToggleAutoScroll = ::toggleAutoScroll,
+            onAutoScrollIntervalChange = { readerPreferences.autoScrollInterval.set(it) },
             onClickSettings = viewModel::openSettingsDialog,
         )
     }

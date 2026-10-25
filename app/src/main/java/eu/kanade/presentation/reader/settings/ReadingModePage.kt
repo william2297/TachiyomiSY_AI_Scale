@@ -238,8 +238,6 @@ private fun ColumnScope.PagerViewerSettings(viewModel: ReaderSettingsViewModel) 
             pref = viewModel.preferences.dualPageRotateToFitInvert,
         )
     }
-
-    AutoScrollSettings(viewModel, showSmooth = false)
 }
 
 @Composable
@@ -309,29 +307,10 @@ private fun ColumnScope.WebtoonViewerSettings(viewModel: ReaderSettingsViewModel
         pref = viewModel.preferences.webtoonDisableZoomOut,
     )
 
-    AutoScrollSettings(viewModel, showSmooth = true)
-}
-
-@Composable
-private fun ColumnScope.AutoScrollSettings(viewModel: ReaderSettingsViewModel, showSmooth: Boolean) {
-    HeadingItem(MR.strings.reader_auto_scroll)
-
-    val interval by viewModel.preferences.autoScrollInterval.collectAsState()
-    SettingsChipRow(MR.strings.reader_auto_scroll_interval) {
-        listOf(1f, 2f, 3f, 5f, 8f, 10f, 15f).map { seconds ->
-            FilterChip(
-                selected = interval == seconds,
-                onClick = { viewModel.preferences.autoScrollInterval.set(seconds) },
-                label = { Text("${seconds.toInt()} s") },
-            )
-        }
-    }
-    if (showSmooth) {
-        CheckboxItem(
-            label = stringResource(MR.strings.reader_auto_scroll_smooth),
-            pref = viewModel.preferences.smoothAutoScroll,
-        )
-    }
+    CheckboxItem(
+        label = stringResource(MR.strings.reader_auto_scroll_smooth),
+        pref = viewModel.preferences.smoothAutoScroll,
+    )
 }
 
 @Composable
