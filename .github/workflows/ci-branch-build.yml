@@ -33,7 +33,7 @@ jobs:
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - name: Build app
-        run: ./gradlew assembleRelease -Pdist=ci
+        run: ./gradlew assembleRelease -Pdist=ci -Penable-updater=false
 
       # The Qualcomm NPU backend needs the QAIRT SDK headers at compile time and 15 model files that are not in Git.
       # Both ship in the upstream release APK, so graft them onto our build (see tools/ci/graft_npu.py).
