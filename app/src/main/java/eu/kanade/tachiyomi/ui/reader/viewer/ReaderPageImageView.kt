@@ -317,7 +317,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     private val enhancedOverlay: AppCompatImageView by lazy {
-        AppCompatImageView(context).apply {
+        AspectFitImageView(context).apply {
             layoutParams = LayoutParams(MATCH_PARENT, MATCH_PARENT)
             scaleType = ImageView.ScaleType.FIT_CENTER
             isVisible = false

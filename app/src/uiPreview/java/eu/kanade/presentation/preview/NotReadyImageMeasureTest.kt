@@ -61,3 +61,28 @@ class NotReadyImageMeasureTest {
         assertEquals(1080, frame.measuredWidth)
     }
 }
+
+/** The enhanced preview is twice the page's size; it must not make the page twice as tall. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@ConscryptMode(ConscryptMode.Mode.OFF)
+@Config(sdk = [35], application = Application::class)
+class EnhancedPreviewMeasureTest {
+    private fun height(view: androidx.appcompat.widget.AppCompatImageView): Int {
+        view.setImageBitmap(android.graphics.Bitmap.createBitmap(2160, 2700, android.graphics.Bitmap.Config.ARGB_8888))
+        val frame = FrameLayout(view.context)
+        frame.addView(view, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        frame.measure(
+            View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        return frame.measuredHeight
+    }
+
+    @Test
+    fun overlayFollowsTheShapeOfItsPicture() {
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        assertEquals(2700, height(androidx.appcompat.widget.AppCompatImageView(context)))
+        assertEquals(1350, height(eu.kanade.tachiyomi.ui.reader.viewer.AspectFitImageView(context)))
+    }
+}
