@@ -440,7 +440,10 @@ class TachiyomiImageDecoder(private val resources: ImageSource, private val opti
                                                     }
                                                     // --- End Output Resolution Limit ---
 
-                                                    if (ImageEnhancementCache.isDisplayable(result)) {
+                                                    if (
+                                                        ImageEnhancementCache.isDisplayable(result) &&
+                                                        ImageEnhancementCache.isPlausibleEnhancement(bitmap, result)
+                                                    ) {
                                                         // enqueueSaveToCache owns the bitmap once invoked, even if suspended or rejected.
                                                         ownsResult = false
                                                         val queued = ImageEnhancementCache.enqueueSaveToCache(
@@ -462,7 +465,7 @@ class TachiyomiImageDecoder(private val resources: ImageSource, private val opti
                                                         }
                                                     } else {
                                                         logcat(LogPriority.ERROR) {
-                                                            "TachiyomiImageDecoder: Page $pageIndex/$pageVariant produced a nearly transparent result, keeping original image"
+                                                            "TachiyomiImageDecoder: Page $pageIndex/$pageVariant produced a transparent or solid black result, keeping original image"
                                                         }
                                                     }
                                                 } finally {

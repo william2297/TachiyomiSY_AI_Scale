@@ -36,6 +36,8 @@ object ImageEnhancementCache {
     private const val MONOCHROME_INPUT_NORMALIZATION_REVISION = 3
     private const val REAL_ESRGAN_PHOTO_NCNN_REVISION = 2
     private const val MAX_CACHE_SIZE = 3L * 1024 * 1024 * 1024 // 3GB
+    private const val BLACK_RESULT_MAX_CHANNEL = 8
+    private const val SOURCE_VISIBLE_MIN_CHANNEL = 48
     private var cacheDir: File? = null
 
     // A model change clears this directory while completed pages can still be
@@ -440,6 +442,39 @@ object ImageEnhancementCache {
 
         if (total == 0) return false
         return visible > total / 20 || alphaSum / total > 32
+    }
+
+    /**
+     * Rejects an opaque result that is solid black while the source has visible content.
+     * [isDisplayable] only catches transparent output, so a failed inference that writes
+     * black pixels would otherwise be cached and shown as an empty page.
+     */
+    fun isPlausibleEnhancement(source: Bitmap, result: Bitmap): Boolean {
+        return try {
+            if (source.isRecycled || result.isRecycled) return true
+            val resultBrightest = sampledBrightestChannel(result)
+            resultBrightest > BLACK_RESULT_MAX_CHANNEL || sampledBrightestChannel(source) < SOURCE_VISIBLE_MIN_CHANNEL
+        } catch (e: Exception) {
+            // Hardware bitmaps cannot be sampled; do not block them.
+            true
+        }
+    }
+
+    private fun sampledBrightestChannel(bitmap: Bitmap): Int {
+        val stepX = (bitmap.width / 32).coerceAtLeast(1)
+        val stepY = (bitmap.height / 32).coerceAtLeast(1)
+        var brightest = 0
+        var y = 0
+        while (y < bitmap.height) {
+            var x = 0
+            while (x < bitmap.width) {
+                val pixel = bitmap.getPixel(x, y)
+                brightest = maxOf(brightest, (pixel shr 16) and 0xFF, (pixel shr 8) and 0xFF, pixel and 0xFF)
+                x += stepX
+            }
+            y += stepY
+        }
+        return brightest
     }
 
     /**
