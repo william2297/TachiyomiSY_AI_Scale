@@ -55,6 +55,7 @@ fun AutoScrollPanel(
                 Text(
                     text = stringResource(MR.strings.reader_auto_scroll),
                     style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f),
                 )
                 Switch(checked = active, onCheckedChange = { onToggle() })
@@ -63,12 +64,14 @@ fun AutoScrollPanel(
                 Text(
                     text = stringResource(MR.strings.reader_auto_scroll_speed),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
                 Slider(
                     value = (MAX_INTERVAL + MIN_INTERVAL - interval).toFloat(),
                     onValueChange = { onIntervalChange((MAX_INTERVAL + MIN_INTERVAL - it.roundToInt()).toFloat()) },
                     valueRange = MIN_INTERVAL.toFloat()..MAX_INTERVAL.toFloat(),
-                    steps = MAX_INTERVAL - MIN_INTERVAL - 1,
+                    // No tick marks: 15 dots read as clutter; the value is rounded in onValueChange instead.
+                    steps = 0,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 12.dp),
@@ -76,6 +79,7 @@ fun AutoScrollPanel(
                 Text(
                     text = stringResource(MR.strings.reader_auto_scroll_seconds, interval),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

@@ -262,6 +262,26 @@ android {
         }
     }
 
+    // Screenshot previews of real Compose components on the JVM, no emulator: ./gradlew :app:testDebugUnitTest -PuiPreview
+    // (see tools/preview/README.md). Off by default, so normal builds and CI do not pull in the extra test libraries.
+    if (providers.gradleProperty("uiPreview").isPresent) {
+        sourceSets.getByName("test").kotlin.directories.add("src/uiPreview/java")
+        testOptions {
+            unitTests {
+                isIncludeAndroidResources = true
+                all {
+                    it.systemProperty("robolectric.offline", "true")
+                    it.systemProperty(
+                        "robolectric.dependency.dir",
+                        System.getenv("ROBOLECTRIC_DEPS") ?: "robolectric-deps",
+                    )
+                    it.systemProperty("roborazzi.test.record", "true")
+                    it.systemProperty("preview.output.dir", System.getenv("PREVIEW_OUT") ?: "build/ui-preview")
+                }
+            }
+        }
+    }
+
     splits {
         abi {
             isEnable = !isBundleBuild
@@ -518,6 +538,16 @@ dependencies {
     implementation(libs.leakCanary.plumber)
 
     testImplementation(libs.kotlinx.coroutines.test)
+
+    if (providers.gradleProperty("uiPreview").isPresent) {
+        testImplementation("junit:junit:4.13.2")
+        testRuntimeOnly("org.junit.vintage:junit-vintage-engine:6.1.3")
+        testImplementation("org.robolectric:robolectric:4.17")
+        testImplementation("io.github.takahirom.roborazzi:roborazzi:1.77.0")
+        testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.77.0")
+        testImplementation("androidx.compose.ui:ui-test-junit4")
+        debugImplementation("androidx.compose.ui:ui-test-manifest")
+    }
 }
 
 apollo {
