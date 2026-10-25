@@ -171,6 +171,46 @@
         <item name="colorSurfaceContainerLowest">@color/tokyonight_surfaceContainerLowest</item>
     </style>
 
+    <!--== Jade Ink Theme ==-->
+    <style name="Theme.Tachiyomi.JadeInk">
+        <!-- Theme Colors -->
+        <item name="colorPrimary">@color/jadeink_primary</item>
+        <item name="colorOnPrimary">@color/jadeink_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/jadeink_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/jadeink_onPrimaryContainer</item>
+        <item name="colorPrimaryInverse">@color/jadeink_inversePrimary</item>
+        <item name="colorSecondary">@color/jadeink_secondary</item>
+        <item name="colorOnSecondary">@color/jadeink_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/jadeink_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/jadeink_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/jadeink_tertiary</item>
+        <item name="colorOnTertiary">@color/jadeink_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/jadeink_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/jadeink_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/jadeink_background</item>
+        <item name="colorOnBackground">@color/jadeink_onBackground</item>
+        <item name="colorSurface">@color/jadeink_surface</item>
+        <item name="colorOnSurface">@color/jadeink_onSurface</item>
+        <item name="colorSurfaceVariant">@color/jadeink_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/jadeink_onSurfaceVariant</item>
+        <item name="colorSurfaceInverse">@color/jadeink_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/jadeink_inverseOnSurface</item>
+        <item name="colorError">@color/jadeink_error</item>
+        <item name="colorOnError">@color/jadeink_onError</item>
+        <item name="colorErrorContainer">@color/jadeink_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/jadeink_onErrorContainer</item>
+        <item name="colorOutline">@color/jadeink_outline</item>
+        <item name="colorOutlineVariant">@color/jadeink_outlineVariant</item>
+        <item name="scrimBackground">@color/jadeink_scrim</item>
+        <item name="colorSurfaceBright">@color/jadeink_surfaceBright</item>
+        <item name="colorSurfaceDim">@color/jadeink_surfaceDim</item>
+        <item name="colorSurfaceContainer">@color/jadeink_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/jadeink_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/jadeink_surfaceContainerHighest</item>
+        <item name="colorSurfaceContainerLow">@color/jadeink_surfaceContainerLow</item>
+        <item name="colorSurfaceContainerLowest">@color/jadeink_surfaceContainerLowest</item>
+    </style>
+
     <!--== Green Apple Theme ==-->
     <style name="Theme.Tachiyomi.GreenApple">
         <!-- Theme Colors -->
