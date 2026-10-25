@@ -824,7 +824,7 @@ class ReaderActivity : BaseActivity() {
     }
 
     /**
-     * Holds auto scroll back while the current and next pages are still being enhanced (at most 3 s), so the text
+     * Holds auto scroll back while the current and next pages are still being enhanced (at most 1.5 s), so the text
      * does not change sharpness while it is moving.
      */
     private suspend fun awaitEnhancementAhead() {
@@ -840,32 +840,22 @@ class ReaderActivity : BaseActivity() {
     /**
      * Scrolls the webtoon reader at a constant speed, advancing a little every display frame. Restarting a timed
      * scroll every interval leaves tiny stops and jumps that are easy to feel as judder; stepping per frame with the
-     * time elapsed since the previous frame keeps the motion even. It stands still while the menu is open or while
-     * the pages ahead are still being enhanced (for at most 3 s), and returns when the viewer is replaced.
+     * time elapsed since the previous frame keeps the motion even. It never waits for enhancement, so it cannot
+     * look stuck, and returns when the viewer is replaced.
      */
     private suspend fun scrollContinuously(viewer: Viewer, scrollByPx: (Int) -> Unit) {
         val screenHeight = resources.displayMetrics.heightPixels
         var lastFrameNanos = awaitFrameNanos()
         var carryPx = 0f
-        var waitedMs = 0f
         while (viewModel.state.value.viewer === viewer) {
             if (viewModel.state.value.menuVisible) {
-                delay(100)
-                lastFrameNanos = awaitFrameNanos()
-                continue
+                // Opening the menu ends auto scroll; only the start button begins it again
+                stopAutoScroll()
+                return
             }
             val now = awaitFrameNanos()
             val elapsedSeconds = ((now - lastFrameNanos) / 1_000_000_000f).coerceIn(0f, MAX_FRAME_SECONDS)
             lastFrameNanos = now
-
-            if (isEnhancementPendingAhead()) {
-                if (waitedMs < MAX_ENHANCEMENT_WAIT_MS) {
-                    waitedMs += elapsedSeconds * 1000f
-                    continue
-                }
-            } else {
-                waitedMs = 0f
-            }
 
             val intervalSeconds = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f)
             carryPx += screenHeight / intervalSeconds * elapsedSeconds
@@ -1549,6 +1539,6 @@ class ReaderActivity : BaseActivity() {
     }
 }
 
-private const val MAX_ENHANCEMENT_WAIT_MS = 3_000L
+private const val MAX_ENHANCEMENT_WAIT_MS = 1_500L
 private const val ENHANCEMENT_POLL_MS = 250L
 private const val MAX_FRAME_SECONDS = 0.1f

@@ -462,7 +462,15 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private fun createSubsamplingPageView(): SubsamplingScaleImageView {
         return if (isWebtoon) {
-            SubsamplingScaleImageView(context)
+            // Webtoon pages never take touches (like WebtoonStripImageView): taps, scrolling and pinch all belong to
+            // the recycler. A touchable page view would swallow every tap, so the tap zones would stop working
+            // whenever enhancement puts this view on a page.
+            object : SubsamplingScaleImageView(context) {
+                override fun onTouchEvent(event: MotionEvent): Boolean = false
+            }.apply {
+                isClickable = false
+                isFocusable = false
+            }
         } else {
             SubsamplingScaleImageView(context)
         }.apply {
@@ -481,7 +489,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     override fun onCenterChanged(newCenter: PointF?, origin: Int) = Unit
                 },
             )
-            setOnClickListener { this@ReaderPageImageView.onViewClicked() }
+            if (!isWebtoon) setOnClickListener { this@ReaderPageImageView.onViewClicked() }
         }
     }
 
