@@ -17,13 +17,14 @@ fun PreferenceGroupHeader(title: String, highlighted: Boolean = false) {
         modifier = Modifier
             .fillMaxWidth()
             .highlightBackground(highlighted)
-            .padding(bottom = 8.dp, top = 14.dp),
+            .padding(bottom = 8.dp, top = 16.dp),
     ) {
+        // Aligned with the text inside the grouped cards below it
         Text(
             text = title,
-            color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.padding(horizontal = PrefsHorizontalPadding),
-            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = PrefsGroupHorizontalInset + PrefsHorizontalPadding),
+            style = MaterialTheme.typography.titleSmall,
         )
     }
 }

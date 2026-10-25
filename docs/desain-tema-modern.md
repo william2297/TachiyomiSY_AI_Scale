@@ -113,7 +113,7 @@ Yang saya yakini sesuai pola kode:
 
 Yang masih tebakan atau belum terverifikasi:
 
-1. Kompilasi belum dijalankan. Tidak ada Android SDK di sesi ini. Risiko kompilasi terbesar yang saya lihat adalah pemanggilan konstruktor `Typography(...)` dengan 15 argumen, karena kelas itu juga punya konstruktor 30 argumen. Menurut aturan resolusi overload Kotlin, kandidat yang tidak memakai nilai default menang, dan pustaka itu sendiri memanggil `Typography()` tanpa masalah [Kemungkinan Besar]. Kalau build gagal di baris itu, ganti dengan `Typography().copy(...)`.
+1. Koreksi dari putaran 2: kompilasi sudah dijalankan dan lolos (`:app:compileDebugKotlin`, BUILD SUCCESSFUL), termasuk konstruktor `Typography(...)` 15 argumen yang tadinya saya anggap risiko terbesar [Pasti].
 2. Apakah tampilannya terasa modern: [Tidak Diketahui] sampai ada foto.
 3. Tracking negatif di headline bisa terlihat terlalu rapat kalau ColorOS mengganti font sistem ke OPPO Sans [Menebak, belum pernah dilihat].
 4. Bar navigasi 1,15 : 1 terhadap hitam mungkin terlalu samar (lihat bagian kontras).
@@ -136,3 +136,74 @@ Mode gelap, tablet posisi tegak dan mendatar bila sempat:
 
 1. Pratinjau di `AppThemePreferenceWidget.kt` memakai `RoundedCornerShape(17.dp)` dan `13.dp` yang ditulis langsung, jadi tidak ikut skala bentuk baru. Bukan rusak, hanya tidak konsisten.
 2. Masih ada sekitar 11 `RoundedCornerShape(...)` dengan angka langsung di `app/src/main/java/eu/kanade/presentation`; bagian itu tidak ikut skala bentuk baru. Layak dirapikan setelah putaran 2 bila fotonya menunjukkan sudut yang tidak seragam.
+
+## Putaran 2: struktur tampilan
+
+Peter merasa vibe-nya masih beda dari aplikasi modern, jadi putaran ini mengubah bentuk komponen, bukan hanya warna. Semua masih tanpa render; yang saya periksa adalah kode, kompilasi, dan kontras.
+
+### Sumber kesan "old school" yang saya temukan di kode
+
+1. Lencana di sampul (belum dibaca, diunduh, bahasa) digambar sebagai potongan persegi yang dilekatkan jadi satu strip (`Badge` default `RectangleShape`, padding 3 dp, `BadgeGroup` memotong satu bentuk untuk semuanya). Ini ciri visual Tachiyomi lama yang paling kentara.
+2. Item grid yang dipilih diisi blok warna aksen penuh (`drawRect(secondary)`), dan teksnya dibalik warnanya.
+3. Scrim judul pada grid ringkas tingginya hanya 33%, lalu dipotong dengan sudut bawah 4 dp yang ditulis langsung. Sejak putaran 1 sudut sampul jadi 8 dp, jadi sudut scrim itu tidak lagi pas dengan sampulnya.
+4. Tombol aksi di detail manga (Pustaka, interval, tracking, WebView) yang tidak aktif digambar dengan `onSurface` alfa 38%, sehingga tampak seperti tombol yang dimatikan.
+5. Rail navigasi, top app bar mode seleksi, dan bar reader memakai `surfaceColorAtElevation(3.dp)`, yaitu cara M3 versi 2021 yang mencampur warna aksen ke permukaan. Versi M3 sekarang memakai peran `surfaceContainer*`.
+6. Pengaturan berupa daftar rata dari tepi ke tepi dengan judul grup kecil (`bodyMedium`). Pengaturan Android sekarang mengelompokkan baris dalam kartu bersudut.
+
+### Yang saya ubah
+
+| Area | Berkas | Perubahan |
+| --- | --- | --- |
+| Lencana | `presentation-core/.../components/Badges.kt` | Pil terpisah (bentuk `CircleShape`, padding 6 dp, jarak 4 dp), huruf `labelMedium` SemiBold. Berlaku di perpustakaan, browse, migrasi, dialog duplikat. |
+| Grid perpustakaan | `app/.../library/components/CommonMangaItem.kt` | Seleksi jadi `secondaryContainer` dengan cincin `primary` 2 dp mengikuti sudut item. Scrim judul 45% tinggi, gradasi tiga titik sampai 85% hitam, sudut bawahnya ikut `shapes.extraSmall`. Judul grid 12 ke 13 sp. Jarak grid 4 ke 6 dp (horizontal) dan 8 dp (vertikal). Berlaku juga untuk grid browse karena konstanta jaraknya sama. |
+| Navigasi | `app/.../tachiyomi/ui/home/HomeScreen.kt` | Rail tablet memakai `surfaceContainer`. Label tab `labelLarge` ke `labelMedium` supaya tidak terpotong di rail. |
+| Top app bar | `app/.../presentation/components/AppBar.kt` | Mode seleksi memakai `secondaryContainer` dengan ikon dan judul `onSecondaryContainer`, jadi jelas sedang memilih. Mode biasa tetap `surface` (sama dengan `surfaceColorAtElevation(0.dp)` sebelumnya). |
+| Detail manga | `app/.../manga/components/MangaInfoHeader.kt` | Empat tombol aksi jadi ubin tonal (`shapes.medium`, jarak 8 dp). Tidak aktif: `surfaceContainerHigh` dengan teks `onSurfaceVariant` (7,7 : 1). Aktif: `secondaryContainer` dengan ikon jade (8,3 : 1). Label `labelMedium`, maksimal 2 baris. |
+| Daftar bab | `app/.../manga/components/MangaChapterListItem.kt` | Judul bab yang belum dibaca memakai `FontWeight.Medium`; yang sudah dibaca tetap redup seperti sebelumnya. |
+| Pengaturan | `app/.../more/settings/PreferenceScreen.kt`, `PreferenceItem.kt`, `widget/BasePreferenceWidget.kt`, `widget/PreferenceGroupHeader.kt` | Item dalam satu grup jadi satu kartu `surfaceContainer`, inset 16 dp, sudut luar 20 dp, sudut dalam 4 dp, celah 2 dp. Item yang tersembunyi tidak ikut dihitung, jadi sudut atas dan bawah tetap pas. Judul grup `titleSmall` warna `primary`, sejajar dengan teks di dalam kartu. |
+| Reader | `app/.../reader/appbars/AutoScrollPanel.kt` | Panel auto scroll jadi kartu melayang dengan inset dan sudut 24 dp yang sama dengan pil navigator bab di atasnya. Warna dan logikanya tidak berubah. |
+
+Total 11 berkas, +145/−50 baris. Tidak ada perubahan pada data, preferensi, navigasi Voyager, reader viewer, upscale, atau loader.
+
+### Kontras pasangan baru (mode gelap Jade Ink, rumus WCAG) [Pasti]
+
+| Pasangan | Rasio |
+| --- | --- |
+| Teks ubin aksi tidak aktif | 7,7 : 1 |
+| Ikon / teks ubin aksi aktif | 8,3 / 10,5 : 1 |
+| Teks / subjudul di kartu pengaturan | 15,3 / 8,4 : 1 |
+| Judul top app bar saat mode seleksi | 10,5 : 1 |
+| Cincin seleksi terhadap hitam | 13,2 : 1 |
+| Terang: ubin tidak aktif / ikon ubin aktif | 7,4 / 5,2 : 1 |
+
+### Yang yakin
+
+1. Semua perubahan lolos `:app:compileDebugKotlin` (BUILD SUCCESSFUL) [Pasti]. Satu-satunya peringatan di berkas yang saya sentuh adalah `Slider` lama di `AutoScrollPanel.kt` baris 67, yang memang sudah ada sebelumnya.
+2. Semua API yang saya pakai sudah dipakai di kode ini: `ButtonDefaults.buttonColors` dan parameter `shape`/`contentPadding` pada `TextButton` milik presentation-core, `topAppBarColors`, `Modifier.border`, `CornerBasedShape.copy`, `isTabletUi()` [Pasti].
+3. Tidak ada pemanggil `Badge` kustom yang mengirim `shape` sendiri, jadi default baru berlaku seragam [Pasti, dicek dengan grep].
+
+### Yang masih tebakan
+
+1. Lencana pil di sampul bisa terasa terlalu ramai bila satu judul punya tiga lencana sekaligus (diunduh, belum dibaca, bahasa) di kolom sempit [Menebak].
+2. Kartu pengaturan memakai `surfaceContainer`. Di Jade Ink itu `#121614` di atas hitam (1,15 : 1); kartu bisa nyaris tidak terlihat di kecerahan rendah. Bila begitu, ganti ke `surfaceContainerHigh` di `PreferenceScreen.kt` [Menebak].
+3. Layar pengaturan yang itemnya tidak berada dalam grup tetap rata tanpa kartu, jadi bisa ada campuran gaya di satu layar [Kemungkinan Besar, dari struktur `PreferenceScreen`].
+4. Jarak grid yang lebih lega mengurangi jumlah sampul per layar bila kolom diatur "otomatis" (`GridCells.Adaptive(128.dp)`) [Kemungkinan Besar]. Jumlah kolom tetap mengikuti setelan Peter bila dia mengatur angkanya sendiri.
+
+### Ditunda karena berisiko
+
+1. Warna bar atas dan bawah reader serta `ChapterNavigator`. Keduanya ada di bawah komentar "Match with toolbar background color set in ReaderActivity", jadi warnanya harus sama dengan yang diatur `ReaderActivity` di `ui/reader`. Mengubah satu sisi saja akan membuat bar sistem dan bar menu beda warna.
+2. Header detail manga (ukuran sampul, latar blur). Tata letaknya berbeda antara ponsel dan tablet dan bergantung pada `appBarPadding`; tanpa foto saya tidak mau menebak.
+3. Menu aksi bawah saat bab dipilih (`MangaBottomActionMenu.kt`). Sudah memakai `surfaceContainerHigh` dan sudut `shapes.large`, jadi sudah cukup modern.
+4. Merapikan sekitar 11 `RoundedCornerShape(...)` berangka tetap di `presentation/`. Lebih aman dikerjakan setelah ada foto.
+
+### Yang perlu difoto untuk putaran 3
+
+Mode gelap, tablet mendatar, kecerahan yang biasa Peter pakai saat membaca:
+
+1. Perpustakaan, grid ringkas: beberapa judul dengan lencana diunduh dan belum dibaca, plus satu atau dua item yang dipilih (tekan lama) supaya top app bar mode seleksi ikut terlihat.
+2. Perpustakaan, grid nyaman (judul di bawah sampul), satu layar penuh.
+3. Detail manga bagian atas: ubin aksi, satu judul yang sudah di pustaka dan satu yang belum.
+4. Daftar bab yang berisi campuran bab sudah dan belum dibaca.
+5. Pengaturan > Tampilan dan Pengaturan > Pembaca (kartu grup dan judul grup).
+6. Reader dengan menu terbuka dan panel auto scroll terlihat.
+7. Satu foto rail navigasi kiri dengan tab Pembaruan yang punya lencana angka.

@@ -26,7 +26,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTooltipState
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -49,7 +48,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.drop
 import mihon.icons.materialsymbols.MaterialSymbols
@@ -153,11 +151,20 @@ fun AppBar(
             },
             title = titleContent,
             actions = actions,
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = backgroundColor ?: MaterialTheme.colorScheme.surfaceColorAtElevation(
-                    elevation = if (isActionMode) 3.dp else 0.dp,
-                ),
-            ),
+            colors = if (isActionMode && backgroundColor == null) {
+                // Selection mode reads as a distinct state, like modern gallery/file apps
+                TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    scrolledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            } else {
+                TopAppBarDefaults.topAppBarColors(
+                    containerColor = backgroundColor ?: MaterialTheme.colorScheme.surface,
+                )
+            },
             scrollBehavior = scrollBehavior,
         )
     }

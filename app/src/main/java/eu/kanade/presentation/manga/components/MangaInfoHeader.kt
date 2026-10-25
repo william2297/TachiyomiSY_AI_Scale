@@ -63,7 +63,6 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -100,6 +99,7 @@ import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.ast.findChildOfType
 import tachiyomi.domain.manga.model.Manga
 import tachiyomi.i18n.MR
+import tachiyomi.presentation.core.components.material.ButtonDefaults
 import tachiyomi.presentation.core.components.material.DISABLED_ALPHA
 import tachiyomi.presentation.core.components.material.TextButton
 import tachiyomi.presentation.core.components.material.padding
@@ -186,8 +186,6 @@ fun MangaActionRow(
     onEditCategory: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val defaultActionButtonColor = MaterialTheme.colorScheme.onSurface.copy(alpha = DISABLED_ALPHA)
-
     // TODO: show something better when using custom interval
     val nextUpdateDays = remember(nextUpdate) {
         return@remember if (nextUpdate != null) {
@@ -198,7 +196,10 @@ fun MangaActionRow(
         }
     }
 
-    Row(modifier = modifier.padding(start = 16.dp, top = 8.dp, end = 16.dp)) {
+    Row(
+        modifier = modifier.padding(start = 16.dp, top = 12.dp, end = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         MangaActionButton(
             title = if (favorite) {
                 stringResource(MR.strings.in_library)
@@ -206,7 +207,7 @@ fun MangaActionRow(
                 stringResource(MR.strings.add_to_library)
             },
             icon = if (favorite) MaterialSymbols.RoundedFilled.Favorite else MaterialSymbols.Rounded.Favorite,
-            color = if (favorite) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
+            active = favorite,
             onClick = onAddToLibraryClicked,
             onLongClick = onEditCategory,
         )
@@ -221,7 +222,7 @@ fun MangaActionRow(
                 )
             },
             icon = MaterialSymbols.Rounded.HourglassEmpty,
-            color = if (isUserIntervalMode) MaterialTheme.colorScheme.primary else defaultActionButtonColor,
+            active = isUserIntervalMode,
             onClick = { onEditIntervalClicked?.invoke() },
         )
         MangaActionButton(
@@ -231,14 +232,14 @@ fun MangaActionRow(
                 pluralStringResource(MR.plurals.num_trackers, count = trackingCount, trackingCount)
             },
             icon = if (trackingCount == 0) MaterialSymbols.Rounded.Sync else MaterialSymbols.Rounded.Check,
-            color = if (trackingCount == 0) defaultActionButtonColor else MaterialTheme.colorScheme.primary,
+            active = trackingCount != 0,
             onClick = onTrackingClicked,
         )
         if (onWebViewClicked != null) {
             MangaActionButton(
                 title = stringResource(MR.strings.action_web_view),
                 icon = MaterialSymbols.Rounded.Public,
-                color = defaultActionButtonColor,
+                active = false,
                 onClick = onWebViewClicked,
                 onLongClick = onWebViewLongClicked,
             )
@@ -722,27 +723,50 @@ private fun TagsChip(
 private fun RowScope.MangaActionButton(
     title: String,
     icon: ImageVector,
-    color: Color,
+    active: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
+    // Tonal tiles: inactive actions stay fully legible instead of looking disabled at 38% alpha,
+    // active ones switch to the secondary container with an accent icon.
+    val containerColor = if (active) {
+        MaterialTheme.colorScheme.secondaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+    val contentColor = if (active) {
+        MaterialTheme.colorScheme.onSecondaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val iconColor = if (active) MaterialTheme.colorScheme.primary else contentColor
     TextButton(
         onClick = onClick,
         modifier = Modifier.weight(1f),
         onLongClick = onLongClick,
+        shape = MaterialTheme.shapes.medium,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = containerColor,
+            contentColor = contentColor,
+            disabledContainerColor = containerColor,
+            disabledContentColor = contentColor.copy(alpha = DISABLED_ALPHA),
+        ),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(20.dp),
+                tint = iconColor,
+                modifier = Modifier.size(22.dp),
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = title,
-                color = color,
-                fontSize = 12.sp,
+                color = contentColor,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
             )
         }
