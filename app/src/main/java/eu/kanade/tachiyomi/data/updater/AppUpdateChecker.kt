@@ -36,13 +36,8 @@ class AppUpdateChecker(
     }
 }
 
-val GITHUB_REPO: String by lazy {
-    if (isNightlyBuildType) {
-        "HaoweiLi97/mihon_img_upscale"
-    } else {
-        "HaoweiLi97/mihon_img_upscale"
-    }
-}
+// Updates come from this fork's own releases, signed with the same CI key as the installed app.
+const val GITHUB_REPO: String = "william2297/TachiyomiSY_AI_Scale"
 
 val RELEASE_TAG: String by lazy {
     if (isNightlyBuildType) {

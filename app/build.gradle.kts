@@ -154,8 +154,9 @@ android {
     defaultConfig {
         applicationId = "app.mihon"
 
-        versionCode = 43
-        versionName = "1.3.16"
+        // CI passes -PappVersionCode and -PappVersionName so every published build is newer than the last one.
+        versionCode = providers.gradleProperty("appVersionCode").orNull?.toInt() ?: 43
+        versionName = providers.gradleProperty("appVersionName").orNull ?: "1.3.16"
         buildConfigField("int", "UPSTREAM_VERSION_CODE", "38")
 
         buildConfigField("boolean", "TELEMETRY_INCLUDED", "${Config.includeTelemetry}")
