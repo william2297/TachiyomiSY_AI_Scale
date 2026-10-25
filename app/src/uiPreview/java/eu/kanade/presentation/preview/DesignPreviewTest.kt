@@ -55,9 +55,12 @@ import tachiyomi.presentation.core.components.BadgeGroup
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @ConscryptMode(ConscryptMode.Mode.OFF)
 @Config(sdk = [35], application = android.app.Application::class, qualifiers = "w1680dp-h1050dp-xhdpi")
-class DesignPreviewTest {
+open class DesignPreviewTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    /** Appended to every file name, so another orientation can reuse the same screens. */
+    protected open val suffix: String = ""
 
     @Test
     fun jadeInkDark() = capture("jade-ink-dark.png") { Sheet() }
@@ -145,7 +148,7 @@ class DesignPreviewTest {
                 }
             }
         }
-        composeRule.onRoot().captureRoboImage(System.getProperty("preview.output.dir") + "/" + fileName)
+        composeRule.onRoot().captureRoboImage(System.getProperty("preview.output.dir") + "/" + fileName.removeSuffix(".png") + suffix + ".png")
     }
 }
 
@@ -221,4 +224,13 @@ private fun Sheet() {
             }
         }
     }
+}
+
+/** Portrait Oppo Pad Mini: 1680x2520 px at about 344 dpi is roughly 781x1172 dp. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@ConscryptMode(ConscryptMode.Mode.OFF)
+@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w781dp-h1172dp-xhdpi")
+class DesignPreviewPortraitTest : DesignPreviewTest() {
+    override val suffix: String = "-portrait"
 }
