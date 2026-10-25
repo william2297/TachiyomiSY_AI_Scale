@@ -1173,6 +1173,9 @@
     <string name="reader_spatial_scene_download_failed">Model download failed: %1$s</string>
     <string name="reader_spatial_scene_compile_title">Preparing spatial image</string>
     <string name="reader_spatial_scene_compiling">Compiling the depth model for %1$s. This only happens on the first run and may take a few minutes.</string>
+    <string name="reader_auto_scroll">Auto scroll</string>
+    <string name="reader_auto_scroll_interval">Seconds per page or screen</string>
+    <string name="reader_auto_scroll_smooth">Smooth scroll (webtoon)</string>
     <string name="reader_optimize_for_oppo_pad_mini">Optimize for Oppo Pad Mini</string>
     <string name="reader_processing_backend">Processing backend</string>
     <string name="reader_backend_vulkan">Vulkan GPU</string>

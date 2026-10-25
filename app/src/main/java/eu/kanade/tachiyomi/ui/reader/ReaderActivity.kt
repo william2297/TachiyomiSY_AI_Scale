@@ -55,7 +55,9 @@ import androidx.core.transition.doOnEnd
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.transition.platform.MaterialContainerTransform
 import dev.zacsweers.metro.Inject
 import eu.kanade.domain.base.BasePreferences
@@ -94,6 +96,7 @@ import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.system.openInBrowser
@@ -188,6 +191,8 @@ class ReaderActivity : BaseActivity() {
     private var spatialRotationAngleZ = 4.5f
     private var spatialSceneActive by mutableStateOf(false)
     private var spatialSceneBusy by mutableStateOf(false)
+    private var autoScrollActive by mutableStateOf(false)
+    private var autoScrollJob: Job? = null
     private var showSpatialModelDownloadDialog by mutableStateOf(false)
     private var spatialModelDownloadProgress by mutableStateOf<Int?>(null)
     private var spatialModelCompiling by mutableStateOf(false)
@@ -700,11 +705,57 @@ class ReaderActivity : BaseActivity() {
                     ),
                 )
             },
-            spatialSceneActive = spatialSceneActive,
-            spatialSceneBusy = spatialSceneBusy,
-            onClickSpatialScene = ::toggleSpatialScene,
+            autoScrollActive = autoScrollActive,
+            onClickAutoScroll = ::toggleAutoScroll,
             onClickSettings = viewModel::openSettingsDialog,
         )
+    }
+
+    private fun toggleAutoScroll() {
+        if (autoScrollActive) {
+            stopAutoScroll()
+            menuToggleToast?.cancel()
+            menuToggleToast = toast(MR.strings.off)
+        } else {
+            startAutoScroll()
+        }
+    }
+
+    private fun stopAutoScroll() {
+        autoScrollJob?.cancel()
+        autoScrollJob = null
+        autoScrollActive = false
+    }
+
+    /**
+     * Advances pages (paged reader) or scrolls (webtoon reader) every auto scroll interval. It pauses while the
+     * menu is visible, so tapping the screen to open the menu stops the movement until the menu is closed.
+     */
+    private fun startAutoScroll() {
+        autoScrollJob?.cancel()
+        autoScrollActive = true
+        setMenuVisibility(false)
+        autoScrollJob = lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    if (viewModel.state.value.menuVisible) {
+                        delay(200)
+                        continue
+                    }
+                    val interval = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f).toDouble().seconds
+                    when (val viewer = viewModel.state.value.viewer) {
+                        is PagerViewer -> viewer.moveToNext()
+                        is WebtoonViewer -> if (readerPreferences.smoothAutoScroll.get()) {
+                            viewer.linearScroll(interval)
+                        } else {
+                            viewer.scrollDown()
+                        }
+                        else -> Unit
+                    }
+                    delay(interval)
+                }
+            }
+        }
     }
 
     /**

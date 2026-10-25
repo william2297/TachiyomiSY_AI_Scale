@@ -35,6 +35,11 @@ class ReaderPreferences(
 
     // region General
 
+    // Seconds per page (paged reader) or per screen (webtoon reader).
+    val autoScrollInterval: Preference<Float> = preferenceStore.getFloat("pref_auto_scroll_interval", 3f)
+
+    val smoothAutoScroll: Preference<Boolean> = preferenceStore.getBoolean("pref_smooth_auto_scroll", true)
+
     val bookPageTransitions = preferenceStore.getBoolean("pref_book_page_transitions", true)
 
     val pageTransitions: Preference<Boolean> = preferenceStore.getBoolean("pref_enable_transitions_key", true)

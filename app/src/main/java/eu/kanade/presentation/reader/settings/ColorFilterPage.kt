@@ -244,41 +244,27 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
                 enabled = npuDeviceAvailable,
                 label = { Text(stringResource(MR.strings.reader_backend_qualcomm_npu)) },
             )
-            FilterChip(
-                selected = useMediaTekNpu,
-                onClick = {
-                    viewModel.preferences.realCuganProcessingBackend().set(Waifu2x.PROCESSING_BACKEND_MEDIATEK_NPU)
-                },
-                enabled = mediaTekDeviceAvailable,
-                label = { Text(stringResource(MR.strings.reader_backend_mediatek_npu)) },
-            )
+            // MediaTek NPU chip hidden: this build targets a Qualcomm device. The backend code stays in place.
+            if (useMediaTekNpu) {
+                FilterChip(
+                    selected = true,
+                    onClick = {},
+                    enabled = mediaTekDeviceAvailable,
+                    label = { Text(stringResource(MR.strings.reader_backend_mediatek_npu)) },
+                )
+            }
         }
 
         SettingsChipRow(stringResource(MR.strings.reader_model)) {
-            val models = if (useNpu) {
-                listOf(
-                    0 to "Real-CUGAN SE",
-                    1 to "Real-CUGAN Pro",
-                    Waifu2x.MODEL_REAL_ESRGAN_ANIME to "Real-ESRGAN",
-                    Waifu2x.MODEL_W2XEX_PHOTO_SMALL to "W2xEX Photo Small",
-                    Waifu2x.MODEL_SPAN_NOMOSUNI_PHOTO to "SPAN NomosUni Photo",
-                )
-            } else {
-                listOf(
-                    0 to "Real-CUGAN SE",
-                    1 to "Real-CUGAN Pro",
-                    Waifu2x.MODEL_REAL_ESRGAN_ANIME to "Real-ESRGAN",
-                    3 to "Real-CUGAN Nose",
-                    4 to "Waifu2x",
-                    5 to "Waifu2x (Fast)",
-                    6 to "W2xEX Universal Fast",
-                    8 to "W2xEX Omni Mini V2",
-                    Waifu2x.MODEL_W2XEX_PHOTO_SMALL to "W2xEX Photo Small",
-                    16 to "AnimeJaNai v2 UltraCompact",
-                    18 to "sudo UltraCompact",
-                    Waifu2x.MODEL_SPAN_NOMOSUNI_PHOTO to "SPAN NomosUni Photo",
-                )
-            }
+            // Vulkan-only models (Nose, Waifu2x, W2xEX Universal/Omni, AnimeJaNai, sudo) are hidden; both backends
+            // offer the same five models. A previously saved hidden model keeps working.
+            val models = listOf(
+                0 to "Real-CUGAN SE",
+                1 to "Real-CUGAN Pro",
+                Waifu2x.MODEL_REAL_ESRGAN_ANIME to "Real-ESRGAN",
+                Waifu2x.MODEL_W2XEX_PHOTO_SMALL to "W2xEX Photo Small",
+                Waifu2x.MODEL_SPAN_NOMOSUNI_PHOTO to "SPAN NomosUni Photo",
+            )
             models.map { (modelId, name) ->
                 FilterChip(
                     selected = realCuganModel == modelId,

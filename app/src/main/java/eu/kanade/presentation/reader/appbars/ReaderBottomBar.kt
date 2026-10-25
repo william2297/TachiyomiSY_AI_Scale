@@ -33,9 +33,8 @@ fun ReaderBottomBar(
     onClickCropBorder: () -> Unit,
     imageEnhancementEnabled: Boolean,
     onClickImageEnhancement: () -> Unit,
-    spatialSceneActive: Boolean,
-    spatialSceneBusy: Boolean,
-    onClickSpatialScene: () -> Unit,
+    autoScrollActive: Boolean,
+    onClickAutoScroll: () -> Unit,
     onClickSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -84,11 +83,11 @@ fun ReaderBottomBar(
             )
         }
 
-        IconButton(onClick = onClickSpatialScene, enabled = !spatialSceneBusy) {
+        IconButton(onClick = onClickAutoScroll) {
             Icon(
-                painter = painterResource(R.drawable.ic_view_in_ar_24dp),
-                contentDescription = stringResource(MR.strings.reader_spatial_scene),
-                tint = if (spatialSceneActive || spatialSceneBusy) iconTint else inactiveTint,
+                painter = painterResource(if (autoScrollActive) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp),
+                contentDescription = stringResource(MR.strings.reader_auto_scroll),
+                tint = if (autoScrollActive) iconTint else inactiveTint,
             )
         }
 
