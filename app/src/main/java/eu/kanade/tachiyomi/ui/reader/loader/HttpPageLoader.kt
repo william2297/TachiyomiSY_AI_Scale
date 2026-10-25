@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
 import eu.kanade.domain.chapter.model.toSChapter
+import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.data.cache.ChapterCache
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.joinAll
@@ -28,6 +30,7 @@ import tachiyomi.core.common.util.lang.withIOContext
 import tachiyomi.core.common.util.system.logcat
 import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.PriorityBlockingQueue
 import kotlin.concurrent.atomics.AtomicInt
@@ -240,7 +243,7 @@ internal class HttpPageLoader(
      *
      * @param page the page whose source image has to be downloaded.
      */
-    private suspend fun internalLoadPage(page: ReaderPage, force: Boolean = false) {
+    private suspend fun internalLoadPage(page: ReaderPage, force: Boolean = false, attempt: Int = 0) {
         try {
             if (page.imageUrl.isNullOrEmpty()) {
                 page.status = Page.State.LoadPage
@@ -294,9 +297,25 @@ internal class HttpPageLoader(
                 page.status = Page.State.Queue
                 throw e
             }
+            if (attempt < MAX_AUTO_RETRIES && e.isTransient()) {
+                // Dropped connections, timeouts and busy servers usually succeed a moment later. Without this the
+                // page shows an error until the user taps retry.
+                logcat(LogPriority.WARN, e) { "HttpPageLoader: Page ${page.index} failed (attempt ${attempt + 1}), retrying" }
+                page.status = Page.State.Queue
+                delay(AUTO_RETRY_DELAY_MS * (attempt + 1))
+                internalLoadPage(page, force, attempt + 1)
+                return
+            }
             page.status = Page.State.Error(e)
         }
+    }
+
+    private fun Throwable.isTransient(): Boolean {
+        return this is IOException || (this is HttpException && code in TRANSIENT_HTTP_CODES)
     }
 }
 
 private const val LIMITED_PAGES_AHEAD = 4
+private const val MAX_AUTO_RETRIES = 2
+private const val AUTO_RETRY_DELAY_MS = 1500L
+private val TRANSIENT_HTTP_CODES = setOf(408, 429, 500, 502, 503, 504)
