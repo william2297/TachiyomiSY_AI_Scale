@@ -61,7 +61,13 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     /**
      * Layout manager of the recycler view.
      */
-    private val layoutManager = WebtoonLayoutManager(activity, scrollDistance)
+    // Pages are bound this far beyond the visible area so they start loading before they scroll into view.
+    // Upscaling makes each page slower to appear, so two screens of look-ahead keeps the area below the
+    // current page from showing as a black block (upstream used one scroll distance, about 0.75 screens).
+    private val layoutManager = WebtoonLayoutManager(
+        activity,
+        maxOf(scrollDistance, activity.resources.displayMetrics.heightPixels * 2),
+    )
 
     /**
      * Configuration used by this viewer, like allow taps, or crop image borders.
@@ -443,4 +449,4 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 }
 
 // Double the cache size to reduce rebinds/recycles incurred by the extra layout space on scroll direction changes
-private const val RECYCLER_VIEW_CACHE_SIZE = 4
+private const val RECYCLER_VIEW_CACHE_SIZE = 6
