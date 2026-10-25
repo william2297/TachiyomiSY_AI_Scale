@@ -19,7 +19,10 @@ class WebtoonFrame(context: Context) : FrameLayout(context) {
     /**
      * Scale detector, either with pinch or quick scale.
      */
-    private val scaleDetector = ScaleGestureDetector(context, ScaleListener())
+    private val scaleDetector = ScaleGestureDetector(context, ScaleListener()).apply {
+        // Quick scale (double-tap then drag) is on by default; taps should only turn pages
+        isQuickScaleEnabled = false
+    }
 
     /**
      * Fling detector.
@@ -30,7 +33,6 @@ class WebtoonFrame(context: Context) : FrameLayout(context) {
         set(value) {
             field = value
             recycler?.doubleTapZoom = value
-            scaleDetector.isQuickScaleEnabled = value
         }
 
     var zoomOutDisabled = false

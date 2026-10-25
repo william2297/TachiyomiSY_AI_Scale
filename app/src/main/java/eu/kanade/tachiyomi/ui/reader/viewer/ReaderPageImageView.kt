@@ -468,6 +468,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
         }.apply {
             setMaxTileSize(ImageUtil.hardwareBitmapThreshold)
             setDoubleTapZoomStyle(SubsamplingScaleImageView.ZOOM_FOCUS_CENTER)
+            // No double-tap-and-drag zoom either; taps only turn pages
+            isQuickScaleEnabled = false
             setPanLimit(SubsamplingScaleImageView.PAN_LIMIT_INSIDE)
             setMinimumTileDpi(180)
             setOnStateChangedListener(
@@ -1496,14 +1498,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 setScaleLevels(1F, 2F, MAX_ZOOM_SCALE)
                 setOnDoubleTapListener(
                     object : GestureDetector.SimpleOnGestureListener() {
-                        override fun onDoubleTap(e: MotionEvent): Boolean {
-                            if (scale > 1F) {
-                                setScale(1F, e.x, e.y, true)
-                            } else {
-                                setScale(2F, e.x, e.y, true)
-                            }
-                            return true
-                        }
+                        // Double-tap zoom is not offered
+                        override fun onDoubleTap(e: MotionEvent): Boolean = true
 
                         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                             this@ReaderPageImageView.onViewClicked()
