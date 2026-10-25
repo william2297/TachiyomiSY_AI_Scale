@@ -291,6 +291,12 @@ android {
         }
     }
 
+    // English only: the app always shows English whatever the system language is, and the translations of the other
+    // languages are not packaged (smaller APK).
+    androidResources {
+        localeFilters += "en"
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
