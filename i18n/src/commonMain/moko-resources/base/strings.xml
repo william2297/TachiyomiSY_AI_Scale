@@ -1184,7 +1184,7 @@
     <string name="reader_enhancement_not_with_hq_renderer">The high quality renderer is on, and it does not show AI-enhanced pages. Turn it off in Settings, Advanced, to see enhancement.</string>
     <string name="reader_auto_scroll">Auto scroll</string>
     <string name="reader_auto_scroll_interval">Seconds per page or screen</string>
-    <string name="reader_auto_scroll_speed">Speed</string>
+    <string name="reader_auto_scroll_speed">Auto scroll speed (right is faster)</string>
     <string name="reader_auto_scroll_seconds">%1$d s</string>
     <string name="reader_auto_scroll_smooth">Smooth scroll (webtoon)</string>
     <string name="reader_optimize_for_oppo_pad_mini">Optimize for Oppo Pad Mini</string>

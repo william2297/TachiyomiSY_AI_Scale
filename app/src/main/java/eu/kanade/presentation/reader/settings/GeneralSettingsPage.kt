@@ -18,6 +18,7 @@ import tachiyomi.presentation.core.components.SliderItem
 import tachiyomi.presentation.core.i18n.pluralStringResource
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.collectAsState
+import kotlin.math.roundToInt
 
 private val themes = listOf(
     MR.strings.black_background to 1,
@@ -165,4 +166,28 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
             }
         }
     }
+
+    val autoScrollIntervalPref = viewModel.preferences.autoScrollInterval
+    val autoScrollInterval by autoScrollIntervalPref.collectAsState()
+    // Shown as a speed (right is faster) but stored as seconds per page or per screen
+    val autoScrollSpeed = (AUTO_SCROLL_MAX_SECONDS + 1 - autoScrollInterval.roundToInt())
+        .coerceIn(1, AUTO_SCROLL_MAX_SECONDS)
+    SliderItem(
+        value = autoScrollSpeed,
+        valueRange = 1..AUTO_SCROLL_MAX_SECONDS,
+        label = stringResource(MR.strings.reader_auto_scroll_speed),
+        valueString = stringResource(
+            MR.strings.reader_auto_scroll_seconds,
+            AUTO_SCROLL_MAX_SECONDS + 1 - autoScrollSpeed,
+        ),
+        onChange = { autoScrollIntervalPref.set((AUTO_SCROLL_MAX_SECONDS + 1 - it).toFloat()) },
+        steps = 0,
+        pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
+    CheckboxItem(
+        label = stringResource(MR.strings.reader_auto_scroll_smooth),
+        pref = viewModel.preferences.smoothAutoScroll,
+    )
 }
+
+private const val AUTO_SCROLL_MAX_SECONDS = 15

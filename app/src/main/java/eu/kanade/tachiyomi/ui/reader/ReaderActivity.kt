@@ -201,7 +201,6 @@ class ReaderActivity : BaseActivity() {
     private var spatialSceneActive by mutableStateOf(false)
     private var spatialSceneBusy by mutableStateOf(false)
     private var autoScrollActive by mutableStateOf(false)
-    private var autoScrollPanelVisible by mutableStateOf(false)
     private var autoScrollJob: Job? = null
     private var showSpatialModelDownloadDialog by mutableStateOf(false)
     private var spatialModelDownloadProgress by mutableStateOf<Int?>(null)
@@ -639,7 +638,6 @@ class ReaderActivity : BaseActivity() {
         val cropBorderPaged by readerPreferences.cropBorders.collectAsState()
         val cropBorderWebtoon by readerPreferences.cropBordersWebtoon.collectAsState()
         val imageEnhancementEnabled by readerPreferences.realCuganEnabled().collectAsState()
-        val autoScrollInterval by readerPreferences.autoScrollInterval.collectAsState()
         val isPagerType = ReadingMode.isPagerType(viewModel.getMangaReadingMode())
         val cropEnabled = if (isPagerType) cropBorderPaged else cropBorderWebtoon
 
@@ -718,11 +716,7 @@ class ReaderActivity : BaseActivity() {
                 )
             },
             autoScrollActive = autoScrollActive,
-            onClickAutoScroll = { autoScrollPanelVisible = !autoScrollPanelVisible },
-            autoScrollPanelVisible = autoScrollPanelVisible,
-            autoScrollInterval = autoScrollInterval,
-            onToggleAutoScroll = ::toggleAutoScroll,
-            onAutoScrollIntervalChange = { readerPreferences.autoScrollInterval.set(it) },
+            onClickAutoScroll = ::toggleAutoScroll,
             onClickSettings = viewModel::openSettingsDialog,
         )
     }
@@ -745,8 +739,8 @@ class ReaderActivity : BaseActivity() {
     }
 
     /**
-     * Advances pages (paged reader) or scrolls (webtoon reader) every auto scroll interval. It pauses while the
-     * menu is visible, so tapping the screen to open the menu stops the movement until the menu is closed.
+     * Advances pages (paged reader) or scrolls (webtoon reader) every auto scroll interval. Opening the menu (a tap
+     * on the screen) stops it for good; only the start button begins it again.
      */
     private fun startAutoScroll() {
         autoScrollJob?.cancel()
@@ -757,8 +751,8 @@ class ReaderActivity : BaseActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (true) {
                     if (viewModel.state.value.menuVisible) {
-                        delay(200)
-                        continue
+                        stopAutoScroll()
+                        return@repeatOnLifecycle
                     }
                     val interval = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f).toDouble().seconds
                     when (val viewer = viewModel.state.value.viewer) {

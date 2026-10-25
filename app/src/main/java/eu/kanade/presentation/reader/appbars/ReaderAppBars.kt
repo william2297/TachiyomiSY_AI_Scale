@@ -83,10 +83,6 @@ fun ReaderAppBars(
     onClickImageEnhancement: () -> Unit,
     autoScrollActive: Boolean,
     onClickAutoScroll: () -> Unit,
-    autoScrollPanelVisible: Boolean,
-    autoScrollInterval: Float,
-    onToggleAutoScroll: () -> Unit,
-    onAutoScrollIntervalChange: (Float) -> Unit,
     onClickSettings: () -> Unit,
 ) {
     val backgroundColor = MaterialTheme.colorScheme
@@ -174,14 +170,6 @@ fun ReaderAppBars(
                         onPageIndexChangeFinished = onPageIndexChangeFinished,
                     )
                 }
-                AutoScrollPanel(
-                    visible = autoScrollPanelVisible,
-                    active = autoScrollActive,
-                    intervalSeconds = autoScrollInterval,
-                    onToggle = onToggleAutoScroll,
-                    onIntervalChange = onAutoScrollIntervalChange,
-                    backgroundColor = backgroundColor,
-                )
                 ReaderBottomBar(
                     modifier = Modifier
                         .fillMaxWidth()
