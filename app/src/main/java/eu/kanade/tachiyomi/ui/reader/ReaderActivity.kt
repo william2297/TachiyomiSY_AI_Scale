@@ -813,18 +813,18 @@ class ReaderActivity : BaseActivity() {
     }
 
     /**
-     * True while the current and next pages are still being enhanced.
+     * True while the current and next page are still being enhanced.
      */
     private fun isEnhancementPendingAhead(): Boolean {
         if (!readerPreferences.realCuganEnabled().get()) return false
         val mangaId = viewModel.manga?.id ?: return false
         val chapterId = viewModel.state.value.currentChapter?.chapter?.id ?: return false
         val page = viewModel.state.value.currentPage
-        return ImageEnhancer.hasPendingWork(mangaId, chapterId, page - 1, page + 2)
+        return ImageEnhancer.hasPendingWork(mangaId, chapterId, page, page + 1)
     }
 
     /**
-     * Holds auto scroll back while the current and next pages are still being enhanced (at most 10 s), so the text
+     * Holds auto scroll back while the current and next pages are still being enhanced (at most 3 s), so the text
      * does not change sharpness while it is moving.
      */
     private suspend fun awaitEnhancementAhead() {
@@ -841,7 +841,7 @@ class ReaderActivity : BaseActivity() {
      * Scrolls the webtoon reader at a constant speed, advancing a little every display frame. Restarting a timed
      * scroll every interval leaves tiny stops and jumps that are easy to feel as judder; stepping per frame with the
      * time elapsed since the previous frame keeps the motion even. It stands still while the menu is open or while
-     * the pages ahead are still being enhanced (for at most 10 s), and returns when the viewer is replaced.
+     * the pages ahead are still being enhanced (for at most 3 s), and returns when the viewer is replaced.
      */
     private suspend fun scrollContinuously(viewer: Viewer, scrollByPx: (Int) -> Unit) {
         val screenHeight = resources.displayMetrics.heightPixels
@@ -1549,6 +1549,6 @@ class ReaderActivity : BaseActivity() {
     }
 }
 
-private const val MAX_ENHANCEMENT_WAIT_MS = 10_000L
+private const val MAX_ENHANCEMENT_WAIT_MS = 3_000L
 private const val ENHANCEMENT_POLL_MS = 250L
 private const val MAX_FRAME_SECONDS = 0.1f

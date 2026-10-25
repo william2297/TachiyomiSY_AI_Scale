@@ -39,7 +39,7 @@ object ImageEnhancementCache {
     private const val BLACK_RESULT_MAX_CHANNEL = 8
     private const val SOURCE_VISIBLE_MIN_CHANNEL = 48
     private const val ASPECT_TOLERANCE = 0.02f
-    private const val BAND_COUNT = 8
+    private const val BAND_COUNT = 32
     private var cacheDir: File? = null
 
     // A model change clears this directory while completed pages can still be
@@ -475,10 +475,10 @@ object ImageEnhancementCache {
     }
 
     private fun sampledBrightestChannel(bitmap: Bitmap, band: Int, bandCount: Int): Int {
-        val stepX = (bitmap.width / 32).coerceAtLeast(1)
+        val stepX = (bitmap.width / 48).coerceAtLeast(1)
         val bandStart = bitmap.height * band / bandCount
         val bandEnd = bitmap.height * (band + 1) / bandCount
-        val stepY = ((bandEnd - bandStart) / 8).coerceAtLeast(1)
+        val stepY = ((bandEnd - bandStart) / 4).coerceAtLeast(1)
         var brightest = 0
         var y = bandStart
         while (y < bandEnd) {
@@ -655,7 +655,7 @@ object ImageEnhancementCache {
                 append("_rp$REAL_ESRGAN_PHOTO_NCNN_REVISION")
             }
             if (resolvedBackend == Waifu2x.PROCESSING_BACKEND_QUALCOMM_NPU) {
-                append("_qv${Waifu2x.QNN_CONTEXT_CACHE_VERSION}_nf1")
+                append("_qv${Waifu2x.QNN_CONTEXT_CACHE_VERSION}_nf2")
             }
             if (resolvedBackend == Waifu2x.PROCESSING_BACKEND_MEDIATEK_NPU) {
                 append("_mtv${eu.kanade.tachiyomi.util.mediatek.MediaTekNpu.CACHE_VERSION}")
