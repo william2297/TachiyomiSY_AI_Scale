@@ -44,6 +44,13 @@ valkyrie {
             sourceFolder = "fill"
             autoMirror = false
         }
+
+        // Direction-sensitive glyphs (back arrow), flipped in right-to-left layouts
+        nested {
+            name = "BoldAutoMirrored"
+            sourceFolder = "boldAutoMirrored"
+            autoMirror = true
+        }
     }
 }
 

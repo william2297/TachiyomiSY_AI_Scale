@@ -384,3 +384,9 @@ Kelima tab memakai bold saat tidak terpilih dan fill saat terpilih ("More" bold 
 Di tablet, `HomeScreen` memakai rail tipis sendiri: 68 dp, ikon 28 dp, pil `secondaryContainer` 52x36 dp dengan transisi warna 200 ms dan ripple hanya di pil, label hanya di bawah item terpilih, semantik `Role.Tab`, dan lencana tetap di ikon. Rail ini dipasang lewat `NavigationSuiteScaffoldLayout`. Ponsel tetap memakai `NavigationSuiteScaffold` dengan bar bawah M3.
 
 Kandidat Fluent dan Tabler, `tools/preview/icon-candidates`, `IconCandidates.kt`, dan `RailStylesPreviewTest.kt` sudah dihapus. Render akhir ada di `/home/user/preview-out10/library-list-after-{portrait,landscape,phone}.png`.
+
+## Putaran 6: label rail dan ikon yang tersisa
+
+Rail tablet sekarang menampilkan label kecil (`labelSmall`, 11 sp) di bawah setiap ikon, bukan hanya di item terpilih. Label yang tidak aktif memakai `onSurfaceVariant` dengan bobot Medium (6,3 : 1 di Warm Charcoal, cukup tenang tapi tetap di atas 4,5 : 1). Label yang aktif memakai `onSurface` SemiBold. Lebar rail tetap 68 dp, dan jarak antaritem diturunkan dari 6 ke 4 dp supaya label tidak membuat rail lebih tinggi dari yang perlu.
+
+Ikon Material yang tersisa di layar utama diganti padanan Phosphor bold: kembali (`ArrowLeft`, paket baru `BoldAutoMirrored` agar tercermin di RTL), tutup, pilih semua dan balik pilihan, segarkan, jadwal, hapus riwayat, cari global, bantuan, daftar More, daftar Pengaturan utama, serta bar reader (penanda, peningkatan gambar, putar/jeda auto scroll, pengaturan, bab sebelumnya/berikutnya). Lembar semua ikon yang dipakai dirender di `phosphor-icons-*.png`.

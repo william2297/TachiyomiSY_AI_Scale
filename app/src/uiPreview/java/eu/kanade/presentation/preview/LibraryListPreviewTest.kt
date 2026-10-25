@@ -71,19 +71,53 @@ import eu.kanade.presentation.library.components.LibraryTabs
 import eu.kanade.presentation.library.components.MangaListItem
 import eu.kanade.presentation.library.components.UnreadBadge
 import eu.kanade.presentation.manga.components.MangaCover
+import eu.kanade.presentation.more.MoreScreen
 import eu.kanade.presentation.theme.TachiyomiShapes
 import eu.kanade.presentation.theme.TachiyomiTypography
 import eu.kanade.presentation.theme.colorscheme.WarmCharcoalColorScheme
 import eu.kanade.tachiyomi.R
+import eu.kanade.tachiyomi.ui.more.DownloadQueueState
 import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.ArrowClockwise
+import mihon.icons.phosphor.bold.ArrowsClockwise
 import mihon.icons.phosphor.bold.Bell
+import mihon.icons.phosphor.bold.BookOpen
+import mihon.icons.phosphor.bold.BookmarkSimple
 import mihon.icons.phosphor.bold.Books
+import mihon.icons.phosphor.bold.CalendarBlank
+import mihon.icons.phosphor.bold.ChartBar
 import mihon.icons.phosphor.bold.ClockCounterClockwise
+import mihon.icons.phosphor.bold.CloudSlash
+import mihon.icons.phosphor.bold.Code
 import mihon.icons.phosphor.bold.Compass
+import mihon.icons.phosphor.bold.Database
 import mihon.icons.phosphor.bold.DotsThree
+import mihon.icons.phosphor.bold.DotsThreeVertical
+import mihon.icons.phosphor.bold.DownloadSimple
+import mihon.icons.phosphor.bold.Eyeglasses
 import mihon.icons.phosphor.bold.FunnelSimple
+import mihon.icons.phosphor.bold.GearSix
+import mihon.icons.phosphor.bold.GlobeSimple
+import mihon.icons.phosphor.bold.HandHeart
+import mihon.icons.phosphor.bold.HardDrives
+import mihon.icons.phosphor.bold.Image
+import mihon.icons.phosphor.bold.Info
 import mihon.icons.phosphor.bold.MagnifyingGlass
+import mihon.icons.phosphor.bold.Palette
+import mihon.icons.phosphor.bold.Pause
+import mihon.icons.phosphor.bold.Play
+import mihon.icons.phosphor.bold.Question
+import mihon.icons.phosphor.bold.SelectionAll
+import mihon.icons.phosphor.bold.SelectionInverse
+import mihon.icons.phosphor.bold.ShieldCheck
+import mihon.icons.phosphor.bold.SkipBack
+import mihon.icons.phosphor.bold.SkipForward
+import mihon.icons.phosphor.bold.Tag
+import mihon.icons.phosphor.bold.Trash
+import mihon.icons.phosphor.bold.X
+import mihon.icons.phosphor.boldautomirrored.ArrowLeft
 import mihon.icons.phosphor.fill.Bell
+import mihon.icons.phosphor.fill.BookmarkSimple
 import mihon.icons.phosphor.fill.Books
 import mihon.icons.phosphor.fill.ClockCounterClockwise
 import mihon.icons.phosphor.fill.Compass
@@ -124,6 +158,40 @@ open class LibraryListPreviewTest {
 
     @Test
     fun after() = capture("library-list-after") { LibraryScreen(after = true, phone = phone) }
+
+    @Test
+    fun more() {
+        if (phone) return
+        capture("more-after") {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Row(Modifier.fillMaxSize()) {
+                    RailAfter(selectedIndex = 4)
+                    Box(Modifier.weight(1f)) {
+                        MoreScreen(
+                            downloadQueueStateProvider = { DownloadQueueState.Stopped },
+                            downloadedOnly = false,
+                            onDownloadedOnlyChange = {},
+                            incognitoMode = true,
+                            onIncognitoModeChange = {},
+                            onClickDownloadQueue = {},
+                            onClickCategories = {},
+                            onClickStats = {},
+                            onClickDataAndStorage = {},
+                            onClickSettings = {},
+                            onClickSupport = {},
+                            onClickAbout = {},
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun iconSheet() {
+        if (phone) return
+        capture("phosphor-icons") { PhosphorSheet() }
+    }
 
     @OptIn(ExperimentalCoilApi::class)
     private fun capture(name: String, content: @Composable () -> Unit) {
@@ -285,9 +353,9 @@ private fun phosphorEntries(): List<Triple<String, ImageVector, ImageVector>> = 
     Triple("More", Phosphor.Bold.DotsThree, Phosphor.Bold.DotsThree),
 )
 
-/** Mirrors HomeScreen.SlimNavigationRail: 68 dp, 28 dp icons, label only under the selected item. */
+/** Mirrors HomeScreen.SlimNavigationRail: 68 dp, 28 dp icons, small label under every item. */
 @Composable
-private fun RailAfter() {
+private fun RailAfter(selectedIndex: Int = 0) {
     val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
@@ -296,10 +364,10 @@ private fun RailAfter() {
             .background(colors.surface)
             .padding(top = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         phosphorEntries().forEachIndexed { i, (label, idle, active) ->
-            val selected = i == 0
+            val selected = i == selectedIndex
             Column(Modifier.width(68.dp).heightIn(min = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     Modifier
@@ -317,15 +385,13 @@ private fun RailAfter() {
                         )
                     }
                 }
-                if (selected) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.onSurface,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                }
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
         }
     }
@@ -425,4 +491,48 @@ private fun RowBefore(i: Int, title: String, unread: Long, downloads: Int) {
 class LibraryListPhonePreviewTest : LibraryListPreviewTest() {
     override val suffix: String = "-phone"
     override val phone: Boolean = true
+}
+
+/** Every Phosphor glyph now used on the main screens, with where it is used, at rail and toolbar size. */
+@Composable
+private fun PhosphorSheet() {
+    val items = listOf(
+        "Library tab" to Phosphor.Bold.Books, "Library tab, selected" to Phosphor.Fill.Books,
+        "Updates tab" to Phosphor.Bold.Bell, "History tab" to Phosphor.Bold.ClockCounterClockwise,
+        "Browse tab" to Phosphor.Bold.Compass, "More tab" to Phosphor.Bold.DotsThree,
+        "Back" to Phosphor.BoldAutoMirrored.ArrowLeft, "Close" to Phosphor.Bold.X,
+        "Search" to Phosphor.Bold.MagnifyingGlass, "Filter" to Phosphor.Bold.FunnelSimple,
+        "Overflow" to Phosphor.Bold.DotsThreeVertical, "Select all" to Phosphor.Bold.SelectionAll,
+        "Invert selection" to Phosphor.Bold.SelectionInverse, "Refresh" to Phosphor.Bold.ArrowClockwise,
+        "Upcoming" to Phosphor.Bold.CalendarBlank, "Clear history" to Phosphor.Bold.Trash,
+        "Global search" to Phosphor.Bold.GlobeSimple, "Help" to Phosphor.Bold.Question,
+        "Categories" to Phosphor.Bold.Tag, "Downloaded only" to Phosphor.Bold.CloudSlash,
+        "Downloads" to Phosphor.Bold.DownloadSimple, "Incognito" to Phosphor.Bold.Eyeglasses,
+        "About" to Phosphor.Bold.Info, "Statistics" to Phosphor.Bold.ChartBar,
+        "Settings" to Phosphor.Bold.GearSix, "Data and storage (More)" to Phosphor.Bold.HardDrives,
+        "Support" to Phosphor.Bold.HandHeart, "Reader settings" to Phosphor.Bold.BookOpen,
+        "Advanced" to Phosphor.Bold.Code, "Appearance" to Phosphor.Bold.Palette,
+        "Security" to Phosphor.Bold.ShieldCheck, "Data and storage (Settings)" to Phosphor.Bold.Database,
+        "Tracking" to Phosphor.Bold.ArrowsClockwise, "Bookmark" to Phosphor.Bold.BookmarkSimple,
+        "Bookmarked" to Phosphor.Fill.BookmarkSimple, "Image enhancement" to Phosphor.Bold.Image,
+        "Previous chapter" to Phosphor.Bold.SkipBack, "Next chapter" to Phosphor.Bold.SkipForward,
+        "Auto scroll off" to Phosphor.Bold.Play, "Auto scroll on" to Phosphor.Bold.Pause,
+    )
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(240.dp),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+    ) {
+        items(items) { (name, icon) ->
+            Row(Modifier.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = name, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    name,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
+    }
 }

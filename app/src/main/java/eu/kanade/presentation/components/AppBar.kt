@@ -50,12 +50,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.drop
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
-import mihon.icons.materialsymbols.rounded.Close
 import mihon.icons.phosphor.Phosphor
 import mihon.icons.phosphor.bold.DotsThreeVertical
 import mihon.icons.phosphor.bold.MagnifyingGlass
+import mihon.icons.phosphor.bold.X
+import mihon.icons.phosphor.boldautomirrored.ArrowLeft
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
@@ -138,7 +137,7 @@ fun AppBar(
                 if (isActionMode) {
                     IconButton(onClick = onCancelActionMode) {
                         Icon(
-                            imageVector = MaterialSymbols.Rounded.Close,
+                            imageVector = Phosphor.Bold.X,
                             contentDescription = stringResource(MR.strings.action_cancel),
                         )
                     }
@@ -410,7 +409,7 @@ fun SearchToolbar(
                             },
                         ) {
                             Icon(
-                                MaterialSymbols.Rounded.Close,
+                                Phosphor.Bold.X,
                                 contentDescription = stringResource(MR.strings.action_reset),
                             )
                         }
@@ -431,7 +430,7 @@ fun UpIcon(
     navigationIcon: ImageVector? = null,
 ) {
     val icon = navigationIcon
-        ?: MaterialSymbols.AutoMirroredRounded.ArrowBack
+        ?: Phosphor.BoldAutoMirrored.ArrowLeft
     Icon(
         imageVector = icon,
         contentDescription = stringResource(MR.strings.action_bar_up_description),

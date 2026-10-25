@@ -1,0 +1,7 @@
+<!--
+  Phosphor Icons 'x', bold.
+  Source: phosphor-icons/core, assets/bold/x-bold.svg.
+  Copyright (c) 2023 Phosphor Icons
+  SPDX-License-Identifier: MIT
+-->
+<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 256 256" width="24"><path d="M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.52a12,12,0,0,1,17,17L145,128Z"/></svg>

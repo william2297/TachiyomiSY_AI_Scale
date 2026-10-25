@@ -9,13 +9,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.res.painterResource
-import eu.kanade.tachiyomi.R
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.Photo
-import mihon.icons.materialsymbols.rounded.Settings
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.GearSix
+import mihon.icons.phosphor.bold.Image
+import mihon.icons.phosphor.bold.Pause
+import mihon.icons.phosphor.bold.Play
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -54,7 +54,7 @@ fun ReaderBottomBar(
 
         IconButton(onClick = onClickImageEnhancement) {
             Icon(
-                imageVector = mihon.icons.materialsymbols.MaterialSymbols.Rounded.Photo,
+                imageVector = Phosphor.Bold.Image,
                 contentDescription = stringResource(MR.strings.reader_image_enhancement),
                 tint = if (imageEnhancementEnabled) iconTint else inactiveTint,
             )
@@ -62,9 +62,7 @@ fun ReaderBottomBar(
 
         IconButton(onClick = onClickAutoScroll) {
             Icon(
-                painter = painterResource(
-                    if (autoScrollActive) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp,
-                ),
+                imageVector = if (autoScrollActive) Phosphor.Bold.Pause else Phosphor.Bold.Play,
                 contentDescription = stringResource(MR.strings.reader_auto_scroll),
                 tint = if (autoScrollActive) iconTint else inactiveTint,
             )
@@ -72,7 +70,7 @@ fun ReaderBottomBar(
 
         IconButton(onClick = onClickSettings) {
             Icon(
-                imageVector = MaterialSymbols.Rounded.Settings,
+                imageVector = Phosphor.Bold.GearSix,
                 contentDescription = stringResource(MR.strings.action_settings),
             )
         }

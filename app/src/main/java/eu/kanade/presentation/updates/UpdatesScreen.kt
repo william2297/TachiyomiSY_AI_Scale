@@ -29,13 +29,12 @@ import eu.kanade.tachiyomi.ui.updates.UpdatesViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.CalendarMonth
-import mihon.icons.materialsymbols.rounded.FlipToBack
-import mihon.icons.materialsymbols.rounded.Refresh
-import mihon.icons.materialsymbols.rounded.SelectAll
 import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.ArrowClockwise
+import mihon.icons.phosphor.bold.CalendarBlank
 import mihon.icons.phosphor.bold.FunnelSimple
+import mihon.icons.phosphor.bold.SelectionAll
+import mihon.icons.phosphor.bold.SelectionInverse
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.FastScrollLazyColumn
 import tachiyomi.presentation.core.components.material.PullRefresh
@@ -181,12 +180,12 @@ private fun UpdatesAppBar(
                     ),
                     AppBar.Action(
                         title = stringResource(MR.strings.action_view_upcoming),
-                        icon = MaterialSymbols.Rounded.CalendarMonth,
+                        icon = Phosphor.Bold.CalendarBlank,
                         onClick = onCalendarClicked,
                     ),
                     AppBar.Action(
                         title = stringResource(MR.strings.action_update_library),
-                        icon = MaterialSymbols.Rounded.Refresh,
+                        icon = Phosphor.Bold.ArrowClockwise,
                         onClick = onUpdateLibrary,
                     ),
                 ),
@@ -199,12 +198,12 @@ private fun UpdatesAppBar(
                 listOf(
                     AppBar.Action(
                         title = stringResource(MR.strings.action_select_all),
-                        icon = MaterialSymbols.Rounded.SelectAll,
+                        icon = Phosphor.Bold.SelectionAll,
                         onClick = onSelectAll,
                     ),
                     AppBar.Action(
                         title = stringResource(MR.strings.action_select_inverse),
-                        icon = MaterialSymbols.Rounded.FlipToBack,
+                        icon = Phosphor.Bold.SelectionInverse,
                         onClick = onInvertSelection,
                     ),
                 ),

@@ -51,10 +51,9 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import mihon.feature.migration.config.MigrationConfigScreen
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.automirroredrounded.Help
 import mihon.icons.phosphor.Phosphor
 import mihon.icons.phosphor.bold.Books
+import mihon.icons.phosphor.bold.Question
 import mihon.icons.phosphor.fill.Books
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.category.model.Category
@@ -176,7 +175,7 @@ data object LibraryTab : Tab {
                         actions = listOf(
                             EmptyScreenAction(
                                 stringRes = MR.strings.getting_started_guide,
-                                icon = MaterialSymbols.AutoMirroredRounded.Help,
+                                icon = Phosphor.Bold.Question,
                                 onClick = { handler.openUri(GETTING_STARTED_URL) },
                             ),
                         ),

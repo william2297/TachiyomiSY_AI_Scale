@@ -150,7 +150,7 @@ object HomeScreen : Screen() {
                 }
 
                 if (tabletUi) {
-                    // Tablet: slim custom rail (68 dp, big icons, label only on the selected destination).
+                    // Tablet: slim custom rail (68 dp, big icons, small labels under every destination).
                     // NavigationSuiteScaffold's rail is fixed at 80 dp with labels on every item.
                     Surface(color = MaterialTheme.colorScheme.background) {
                         NavigationSuiteScaffoldLayout(
@@ -229,7 +229,7 @@ object HomeScreen : Screen() {
                 .padding(top = 12.dp)
                 .selectableGroup(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             TABS.fastForEach { SlimNavigationRailItem(it) }
         }
@@ -286,17 +286,17 @@ object HomeScreen : Screen() {
                     )
                 }
             }
-            if (selected) {
-                Text(
-                    text = tab.options.title,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp),
-                )
-            }
+            // Every destination keeps a small label so nothing has to be guessed from the icon alone.
+            // Idle labels use onSurfaceVariant (quieter than the selected label but still above 4.5:1).
+            Text(
+                text = tab.options.title,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (selected) colors.onSurface else colors.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp),
+            )
         }
     }
 

@@ -45,9 +45,9 @@ import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.reader.appbars.READER_BARS_ALPHA
 import eu.kanade.presentation.theme.TachiyomiPreviewTheme
 import eu.kanade.presentation.util.isTabletUi
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.SkipNext
-import mihon.icons.materialsymbols.rounded.SkipPrevious
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.SkipBack
+import mihon.icons.phosphor.bold.SkipForward
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import kotlin.math.roundToInt
@@ -186,7 +186,7 @@ fun HorizontalChapterNavigator(
                 colors = buttonColor,
             ) {
                 Icon(
-                    imageVector = MaterialSymbols.Rounded.SkipPrevious,
+                    imageVector = Phosphor.Bold.SkipBack,
                     contentDescription = stringResource(
                         if (isRtl) MR.strings.action_next_chapter else MR.strings.action_previous_chapter,
                     ),
@@ -232,7 +232,7 @@ fun HorizontalChapterNavigator(
                 colors = buttonColor,
             ) {
                 Icon(
-                    imageVector = MaterialSymbols.Rounded.SkipNext,
+                    imageVector = Phosphor.Bold.SkipForward,
                     contentDescription = stringResource(
                         if (isRtl) MR.strings.action_previous_chapter else MR.strings.action_next_chapter,
                     ),
@@ -271,7 +271,7 @@ fun VerticalChapterNavigator(
             colors = buttonColor,
         ) {
             Icon(
-                imageVector = MaterialSymbols.Rounded.SkipPrevious,
+                imageVector = Phosphor.Bold.SkipBack,
                 contentDescription = stringResource(MR.strings.action_previous_chapter),
                 modifier = Modifier.rotate(90f),
             )
@@ -310,7 +310,7 @@ fun VerticalChapterNavigator(
             colors = buttonColor,
         ) {
             Icon(
-                imageVector = MaterialSymbols.Rounded.SkipNext,
+                imageVector = Phosphor.Bold.SkipForward,
                 contentDescription = stringResource(MR.strings.action_next_chapter),
                 modifier = Modifier.rotate(90f),
             )
