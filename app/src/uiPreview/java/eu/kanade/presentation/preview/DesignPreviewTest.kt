@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.PreferenceScreen
-import eu.kanade.presentation.reader.appbars.AutoScrollPanel
 import eu.kanade.presentation.reader.appbars.ReaderBottomBar
 import eu.kanade.presentation.theme.TachiyomiShapes
 import eu.kanade.presentation.theme.TachiyomiTypography
@@ -101,14 +100,6 @@ open class DesignPreviewTest {
     fun readerOverlay() = capture("reader-overlay.png") {
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color(0xFF2A2A2A))) {
             Column(Modifier.align(Alignment.BottomCenter)) {
-                AutoScrollPanel(
-                    visible = true,
-                    active = false,
-                    intervalSeconds = 3f,
-                    onToggle = {},
-                    onIntervalChange = {},
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainer,
-                )
                 ReaderBottomBar(
                     modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceContainer),
                     readingMode = ReadingMode.WEBTOON,
@@ -213,15 +204,6 @@ private fun Sheet() {
                     Switch(checked = true, onCheckedChange = {})
                 }
                 Text("Reader", style = MaterialTheme.typography.titleLarge)
-                AutoScrollPanel(
-                    visible = true,
-                    active = true,
-                    intervalSeconds = 5f,
-                    onToggle = {},
-                    onIntervalChange = {},
-                    backgroundColor = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.width(560.dp),
-                )
                 Spacer(Modifier.fillMaxWidth())
             }
         }

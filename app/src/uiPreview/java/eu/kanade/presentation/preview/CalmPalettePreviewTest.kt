@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import eu.kanade.presentation.more.settings.Preference
 import eu.kanade.presentation.more.settings.PreferenceScreen
-import eu.kanade.presentation.reader.appbars.AutoScrollPanel
 import eu.kanade.presentation.reader.appbars.ReaderBottomBar
 import eu.kanade.presentation.reader.appbars.ReaderTopBar
 import eu.kanade.presentation.theme.TachiyomiShapes
@@ -350,14 +349,6 @@ private fun ReaderMock() {
                 onShare = null,
             )
             Spacer(Modifier.weight(1f))
-            AutoScrollPanel(
-                visible = true,
-                active = true,
-                intervalSeconds = 5f,
-                onToggle = {},
-                onIntervalChange = {},
-                backgroundColor = bars,
-            )
             Spacer(Modifier.height(8.dp))
             ReaderBottomBar(
                 modifier = Modifier.fillMaxWidth().background(bars),
