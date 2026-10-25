@@ -108,6 +108,7 @@ object ImageEnhancer {
         val priority: Int, // 1 = promoted/high priority, 0 = preload
         val generation: Int,
         val seq: Int = 0,
+        val attempt: Int = 0,
     ) : Comparable<EnhanceRequest> {
         val cancelled = AtomicBoolean(false)
         val requeueOnCancel = AtomicBoolean(false)
@@ -208,6 +209,7 @@ object ImageEnhancer {
         pageIndex: Int,
         highPriority: Boolean,
         pageVariant: String = "",
+        attempt: Int = 0,
         dataProvider: () -> Any?,
     ) {
         val requestGeneration = generation.get()
@@ -221,7 +223,7 @@ object ImageEnhancer {
         }
         if (ImageEnhancementCache.isSavePending(mangaId, chapterId, pageIndex, pageVariant, configHash)) return
 
-        enqueueRequest(context, mangaId, chapterId, pageIndex, highPriority, pageVariant, requestGeneration, dataProvider)
+        enqueueRequest(context, mangaId, chapterId, pageIndex, highPriority, pageVariant, requestGeneration, attempt, dataProvider)
     }
 
     // Only in-memory queue state is protected here. Cache I/O must never hold
@@ -235,6 +237,7 @@ object ImageEnhancer {
         highPriority: Boolean,
         pageVariant: String,
         requestGeneration: Int,
+        attempt: Int,
         dataProvider: () -> Any?,
     ) {
         if (requestGeneration != generation.get()) return
@@ -283,6 +286,7 @@ object ImageEnhancer {
             priorityLevel,
             requestGeneration,
             seqGenerator.getAndIncrement(),
+            attempt,
         )
         pendingRequests[requestKey] = req
         queue.offer(req)
@@ -496,6 +500,7 @@ object ImageEnhancer {
                 }
             }
             job.await()
+            retryIfNotEnhanced(req)
         } finally {
             synchronized(this) {
                 if (activeRequest === req) {
@@ -523,6 +528,38 @@ object ImageEnhancer {
                     )
                 }
             }
+        }
+    }
+
+    // A finished request that left neither an enhanced image, a skip marker nor a pending save did not produce
+    // anything (inference or model preparation failed). Retrying a couple of times covers transient failures;
+    // otherwise the page would stay unenhanced until the reader is reopened.
+    private fun retryIfNotEnhanced(req: EnhanceRequest) {
+        if (req.cancelled.get() || req.generation != generation.get() || req.attempt >= MAX_RETRIES) return
+        val configHash = currentConfigHash()
+        if (
+            ImageEnhancementCache.isCached(req.mangaId, req.chapterId, req.pageIndex, configHash, req.pageVariant) ||
+            ImageEnhancementCache.isSkipped(req.mangaId, req.chapterId, req.pageIndex, configHash, req.pageVariant) ||
+            ImageEnhancementCache.isSavePending(req.mangaId, req.chapterId, req.pageIndex, req.pageVariant, configHash)
+        ) {
+            return
+        }
+        logcat(LogPriority.WARN) {
+            "ImageEnhancer: Page ${req.pageIndex}/${req.pageVariant} produced no result (attempt ${req.attempt + 1}), retrying"
+        }
+        scope.launch {
+            kotlinx.coroutines.delay(RETRY_DELAY_MS * (req.attempt + 1))
+            if (req.generation != generation.get()) return@launch
+            enhanceLazy(
+                context = req.context,
+                mangaId = req.mangaId,
+                chapterId = req.chapterId,
+                pageIndex = req.pageIndex,
+                highPriority = req.priority > 0,
+                pageVariant = req.pageVariant,
+                attempt = req.attempt + 1,
+                dataProvider = req.dataProvider,
+            )
         }
     }
 
@@ -606,4 +643,7 @@ object ImageEnhancer {
         Waifu2x.abortProcessing()
         activeJob?.cancel(CancellationException("Image enhancement preempted: $reason"))
     }
+
+    private const val MAX_RETRIES = 2
+    private const val RETRY_DELAY_MS = 1500L
 }

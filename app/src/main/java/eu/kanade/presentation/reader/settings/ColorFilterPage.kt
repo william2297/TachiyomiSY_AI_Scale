@@ -32,6 +32,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.util.mediatek.MediaTekNpu
 import eu.kanade.tachiyomi.util.npu.NpuModelStatus
 import eu.kanade.tachiyomi.util.qnn.QnnModelContexts
+import eu.kanade.tachiyomi.util.waifu2x.EnhancementPreset
 import eu.kanade.tachiyomi.util.waifu2x.Waifu2x
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -157,6 +158,19 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             viewModel.preferences.realCuganEnabled().set(!realCuganEnabled)
         },
     )
+    val displayMetrics = LocalContext.current.resources.displayMetrics
+    TextButton(
+        onClick = {
+            EnhancementPreset.apply(
+                viewModel.preferences,
+                displayMetrics.widthPixels,
+                displayMetrics.heightPixels,
+            )
+        },
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        Text(stringResource(MR.strings.reader_optimize_for_oppo_pad_mini))
+    }
     if (realCuganEnabled) {
         val realCuganModel by viewModel.preferences.realCuganModel().collectAsState()
         val realEsrganStyle by viewModel.preferences.realEsrganStyle().collectAsState()
