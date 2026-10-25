@@ -11,6 +11,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import cafe.adriel.voyager.navigator.tab.LocalTabNavigator
 import cafe.adriel.voyager.navigator.tab.TabOptions
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.category.components.ChangeCategoryDialog
@@ -27,8 +28,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
 import mihon.feature.migration.dialog.MigrateMangaDialog
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.History
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.ClockCounterClockwise
+import mihon.icons.phosphor.fill.ClockCounterClockwise
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.chapter.model.Chapter
 import tachiyomi.i18n.MR
@@ -43,10 +45,13 @@ data object HistoryTab : Tab {
     override val options: TabOptions
         @Composable
         get() {
+            val isSelected = LocalTabNavigator.current.current.key == key
             return TabOptions(
                 index = 2u,
                 title = stringResource(MR.strings.label_recent_manga),
-                icon = rememberVectorPainter(MaterialSymbols.Rounded.History),
+                icon = rememberVectorPainter(
+                    if (isSelected) Phosphor.Fill.ClockCounterClockwise else Phosphor.Bold.ClockCounterClockwise,
+                ),
             )
         }
 

@@ -25,9 +25,9 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.updates.UpdatesViewModel.Event
 import kotlinx.coroutines.flow.collectLatest
 import mihon.feature.upcoming.UpcomingScreen
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.NewReleases
-import mihon.icons.materialsymbols.roundedfilled.NewReleases
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.Bell
+import mihon.icons.phosphor.fill.Bell
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -41,9 +41,7 @@ data object UpdatesTab : Tab {
             return TabOptions(
                 index = 1u,
                 title = stringResource(MR.strings.label_recent_updates),
-                icon = rememberVectorPainter(
-                    if (isSelected) MaterialSymbols.RoundedFilled.NewReleases else MaterialSymbols.Rounded.NewReleases,
-                ),
+                icon = rememberVectorPainter(if (isSelected) Phosphor.Fill.Bell else Phosphor.Bold.Bell),
             )
         }
 

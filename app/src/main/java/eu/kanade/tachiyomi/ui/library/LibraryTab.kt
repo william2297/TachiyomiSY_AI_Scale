@@ -53,8 +53,9 @@ import kotlinx.coroutines.launch
 import mihon.feature.migration.config.MigrationConfigScreen
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.Help
-import mihon.icons.materialsymbols.rounded.CollectionsBookmark
-import mihon.icons.materialsymbols.roundedfilled.CollectionsBookmark
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.Books
+import mihon.icons.phosphor.fill.Books
 import tachiyomi.core.common.i18n.stringResource
 import tachiyomi.domain.category.model.Category
 import tachiyomi.domain.library.model.LibraryManga
@@ -76,13 +77,7 @@ data object LibraryTab : Tab {
             return TabOptions(
                 index = 0u,
                 title = stringResource(MR.strings.label_library),
-                icon = rememberVectorPainter(
-                    if (isSelected) {
-                        MaterialSymbols.RoundedFilled.CollectionsBookmark
-                    } else {
-                        MaterialSymbols.Rounded.CollectionsBookmark
-                    },
-                ),
+                icon = rememberVectorPainter(if (isSelected) Phosphor.Fill.Books else Phosphor.Bold.Books),
             )
         }
 

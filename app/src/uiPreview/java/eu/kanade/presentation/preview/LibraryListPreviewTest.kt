@@ -9,22 +9,33 @@ import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
 import androidx.compose.animation.graphics.res.animatedVectorResource
 import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
 import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.PrimaryScrollableTabRow
@@ -36,7 +47,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -61,17 +75,18 @@ import eu.kanade.presentation.theme.TachiyomiShapes
 import eu.kanade.presentation.theme.TachiyomiTypography
 import eu.kanade.presentation.theme.colorscheme.WarmCharcoalColorScheme
 import eu.kanade.tachiyomi.R
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.CollectionsBookmark
-import mihon.icons.materialsymbols.rounded.Explore
-import mihon.icons.materialsymbols.rounded.FilterList
-import mihon.icons.materialsymbols.rounded.History
-import mihon.icons.materialsymbols.rounded.MoreHoriz
-import mihon.icons.materialsymbols.rounded.NewReleases
-import mihon.icons.materialsymbols.rounded.Search
-import mihon.icons.materialsymbols.roundedfilled.CollectionsBookmark
-import mihon.icons.materialsymbols.roundedfilled.Explore
-import mihon.icons.materialsymbols.roundedfilled.NewReleases
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.Bell
+import mihon.icons.phosphor.bold.Books
+import mihon.icons.phosphor.bold.ClockCounterClockwise
+import mihon.icons.phosphor.bold.Compass
+import mihon.icons.phosphor.bold.DotsThree
+import mihon.icons.phosphor.bold.FunnelSimple
+import mihon.icons.phosphor.bold.MagnifyingGlass
+import mihon.icons.phosphor.fill.Bell
+import mihon.icons.phosphor.fill.Books
+import mihon.icons.phosphor.fill.ClockCounterClockwise
+import mihon.icons.phosphor.fill.Compass
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -99,12 +114,16 @@ open class LibraryListPreviewTest {
     val composeRule = createComposeRule()
 
     protected open val suffix: String = "-portrait"
+    protected open val phone: Boolean = false
 
     @Test
-    fun before() = capture("library-list-before") { LibraryScreen(after = false) }
+    fun before() {
+        if (phone) return // the phone check only needs the new bottom bar
+        capture("library-list-before") { LibraryScreen(after = false) }
+    }
 
     @Test
-    fun after() = capture("library-list-after") { LibraryScreen(after = true) }
+    fun after() = capture("library-list-after") { LibraryScreen(after = true, phone = phone) }
 
     @OptIn(ExperimentalCoilApi::class)
     private fun capture(name: String, content: @Composable () -> Unit) {
@@ -197,18 +216,20 @@ internal val SampleCategories = listOf(
 )
 
 @Composable
-private fun LibraryScreen(after: Boolean) {
+private fun LibraryScreen(after: Boolean, phone: Boolean = false) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Row(Modifier.fillMaxSize()) {
-            if (after) RailAfter() else RailBefore()
+            if (!phone) {
+                if (after) RailAfter() else RailBefore()
+            }
             Column(Modifier.weight(1f)) {
                 AppBar(
                     title = "Library",
                     actions = {
                         AppBarActions(
                             listOf(
-                                AppBar.Action(title = "Search", icon = MaterialSymbols.Rounded.Search, onClick = {}),
-                                AppBar.Action(title = "Filter", icon = MaterialSymbols.Rounded.FilterList, onClick = {
+                                AppBar.Action(title = "Search", icon = Phosphor.Bold.MagnifyingGlass, onClick = {}),
+                                AppBar.Action(title = "Filter", icon = Phosphor.Bold.FunnelSimple, onClick = {
                                 }),
                                 AppBar.OverflowAction(title = "Update library", onClick = {}),
                             ),
@@ -227,6 +248,7 @@ private fun LibraryScreen(after: Boolean) {
                 }
                 // Same column rule as LibraryList: adaptive 480 dp (one column portrait, two landscape)
                 LazyVerticalGrid(
+                    modifier = Modifier.weight(1f),
                     columns = if (after) GridCells.Adaptive(480.dp) else GridCells.Fixed(1),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
                 ) {
@@ -249,57 +271,76 @@ private fun LibraryScreen(after: Boolean) {
                         }
                     }
                 }
+                if (phone) PhoneBar()
             }
         }
     }
 }
 
-private data class RailEntry(val label: String, val outline: Painter, val filled: Painter)
+private fun phosphorEntries(): List<Triple<String, ImageVector, ImageVector>> = listOf(
+    Triple("Library", Phosphor.Bold.Books, Phosphor.Fill.Books),
+    Triple("Updates", Phosphor.Bold.Bell, Phosphor.Fill.Bell),
+    Triple("History", Phosphor.Bold.ClockCounterClockwise, Phosphor.Fill.ClockCounterClockwise),
+    Triple("Browse", Phosphor.Bold.Compass, Phosphor.Fill.Compass),
+    Triple("More", Phosphor.Bold.DotsThree, Phosphor.Bold.DotsThree),
+)
 
+/** Mirrors HomeScreen.SlimNavigationRail: 68 dp, 28 dp icons, label only under the selected item. */
 @Composable
 private fun RailAfter() {
-    val entries = listOf(
-        RailEntry(
-            "Library",
-            rememberVectorPainter(MaterialSymbols.Rounded.CollectionsBookmark),
-            rememberVectorPainter(MaterialSymbols.RoundedFilled.CollectionsBookmark),
-        ),
-        RailEntry(
-            "Updates",
-            rememberVectorPainter(MaterialSymbols.Rounded.NewReleases),
-            rememberVectorPainter(MaterialSymbols.RoundedFilled.NewReleases),
-        ),
-        RailEntry(
-            "History",
-            rememberVectorPainter(MaterialSymbols.Rounded.History),
-            rememberVectorPainter(MaterialSymbols.Rounded.History),
-        ),
-        RailEntry(
-            "Browse",
-            rememberVectorPainter(MaterialSymbols.Rounded.Explore),
-            rememberVectorPainter(MaterialSymbols.RoundedFilled.Explore),
-        ),
-        RailEntry(
-            "More",
-            rememberVectorPainter(MaterialSymbols.Rounded.MoreHoriz),
-            rememberVectorPainter(MaterialSymbols.Rounded.MoreHoriz),
-        ),
-    )
-    NavigationRail(containerColor = MaterialTheme.colorScheme.surface) {
-        Spacer(Modifier.height(8.dp))
-        entries.forEachIndexed { i, entry ->
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .width(68.dp)
+            .background(colors.surface)
+            .padding(top = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        phosphorEntries().forEachIndexed { i, (label, idle, active) ->
             val selected = i == 0
-            NavigationRailItem(
-                selected = selected,
-                onClick = {},
-                icon = { Icon(if (selected) entry.filled else entry.outline, contentDescription = entry.label) },
-                label = {
+            Column(Modifier.width(68.dp).heightIn(min = 56.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier
+                        .size(width = 52.dp, height = 36.dp)
+                        .clip(CircleShape)
+                        .background(if (selected) colors.secondaryContainer else Color.Transparent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    BadgedBox(badge = { if (label == "Updates") Badge { Text("12") } }) {
+                        Icon(
+                            if (selected) active else idle,
+                            contentDescription = label,
+                            tint = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp),
+                        )
+                    }
+                }
+                if (selected) {
                     Text(
-                        entry.label,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
-                },
+                }
+            }
+        }
+    }
+}
+
+/** Phone: the stock M3 NavigationBar fed with the same Phosphor icons, as NavigationSuiteScaffold does. */
+@Composable
+private fun PhoneBar() {
+    NavigationBar {
+        phosphorEntries().forEachIndexed { i, (label, idle, active) ->
+            NavigationBarItem(
+                selected = i == 0,
+                onClick = {},
+                icon = { Icon(if (i == 0) active else idle, contentDescription = label) },
+                label = { Text(label, style = MaterialTheme.typography.labelMedium) },
             )
         }
     }
@@ -374,4 +415,14 @@ private fun RowBefore(i: Int, title: String, unread: Long, downloads: Int) {
             UnreadBadge(count = unread)
         }
     }
+}
+
+/** Phone width (about 411x891 dp) to check the bottom navigation with the Phosphor icons. */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@ConscryptMode(ConscryptMode.Mode.OFF)
+@Config(sdk = [35], application = android.app.Application::class, qualifiers = "w411dp-h891dp-xxhdpi")
+class LibraryListPhonePreviewTest : LibraryListPreviewTest() {
+    override val suffix: String = "-phone"
+    override val phone: Boolean = true
 }

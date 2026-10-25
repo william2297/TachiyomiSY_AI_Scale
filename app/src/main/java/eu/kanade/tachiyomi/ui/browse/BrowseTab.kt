@@ -23,9 +23,9 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.receiveAsFlow
-import mihon.icons.materialsymbols.MaterialSymbols
-import mihon.icons.materialsymbols.rounded.Explore
-import mihon.icons.materialsymbols.roundedfilled.Explore
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.Compass
+import mihon.icons.phosphor.fill.Compass
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
@@ -38,9 +38,7 @@ data object BrowseTab : Tab {
             return TabOptions(
                 index = 3u,
                 title = stringResource(MR.strings.browse),
-                icon = rememberVectorPainter(
-                    if (isSelected) MaterialSymbols.RoundedFilled.Explore else MaterialSymbols.Rounded.Explore,
-                ),
+                icon = rememberVectorPainter(if (isSelected) Phosphor.Fill.Compass else Phosphor.Bold.Compass),
             )
         }
 

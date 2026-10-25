@@ -2,29 +2,58 @@ package eu.kanade.tachiyomi.ui.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRailDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldLayout
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.adaptive.navigationsuite.rememberNavigationSuiteScaffoldState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastForEach
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -62,6 +91,12 @@ object HomeScreen : Screen() {
     @Suppress("ConstPropertyName")
     private const val TabNavigatorKey = "HomeTabs"
 
+    private val SlimRailWidth = 68.dp
+    private val SlimRailIconSize = 28.dp
+
+    @Suppress("ConstPropertyName")
+    private const val SlimRailAnimationMillis = 200
+
     private val TABS = listOf(
         LibraryTab,
         UpdatesTab,
@@ -97,19 +132,7 @@ object HomeScreen : Screen() {
                     }
                 }
 
-                NavigationSuiteScaffold(
-                    navigationSuiteType = navigationSuiteType,
-                    state = navigationSuiteState,
-                    navigationSuiteColors = NavigationSuiteDefaults.colors(
-                        // Rail on the page background: no separate slab, and the selected pill stands out against it
-                        navigationRailContainerColor = MaterialTheme.colorScheme.surface,
-                    ),
-                    // Anchor rail items at the top like current Android apps instead of floating mid-screen
-                    navigationItemVerticalArrangement = Arrangement.Top,
-                    navigationItems = {
-                        TABS.fastForEach { NavigationSuiteItem(it, navigationSuiteType) }
-                    },
-                ) {
+                val tabContent: @Composable () -> Unit = {
                     AnimatedContent(
                         targetState = tabNavigator.current,
                         transitionSpec = {
@@ -123,6 +146,36 @@ object HomeScreen : Screen() {
                         tabNavigator.saveableState(key = "currentTab", it) {
                             it.Content()
                         }
+                    }
+                }
+
+                if (tabletUi) {
+                    // Tablet: slim custom rail (68 dp, big icons, label only on the selected destination).
+                    // NavigationSuiteScaffold's rail is fixed at 80 dp with labels on every item.
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        NavigationSuiteScaffoldLayout(
+                            navigationSuite = { SlimNavigationRail() },
+                            navigationSuiteType = NavigationSuiteType.NavigationRail,
+                            state = navigationSuiteState,
+                        ) {
+                            Box(
+                                Modifier.consumeWindowInsets(
+                                    NavigationRailDefaults.windowInsets.only(WindowInsetsSides.Start),
+                                ),
+                            ) {
+                                tabContent()
+                            }
+                        }
+                    }
+                } else {
+                    NavigationSuiteScaffold(
+                        navigationSuiteType = navigationSuiteType,
+                        state = navigationSuiteState,
+                        navigationItems = {
+                            TABS.fastForEach { NavigationSuiteItem(it, navigationSuiteType) }
+                        },
+                    ) {
+                        tabContent()
                     }
                 }
             }
@@ -161,6 +214,88 @@ object HomeScreen : Screen() {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    @Composable
+    private fun SlimNavigationRail() {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(SlimRailWidth)
+                .background(MaterialTheme.colorScheme.surface)
+                .windowInsetsPadding(NavigationRailDefaults.windowInsets)
+                .padding(top = 12.dp)
+                .selectableGroup(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            TABS.fastForEach { SlimNavigationRailItem(it) }
+        }
+    }
+
+    @Composable
+    private fun SlimNavigationRailItem(tab: eu.kanade.presentation.util.Tab) {
+        val tabNavigator = LocalTabNavigator.current
+        val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
+        val selected = tabNavigator.current::class == tab::class
+        val colors = MaterialTheme.colorScheme
+        val pillColor by animateColorAsState(
+            targetValue = if (selected) colors.secondaryContainer else Color.Transparent,
+            animationSpec = tween(SlimRailAnimationMillis),
+            label = "railPill",
+        )
+        val interactionSource = remember { MutableInteractionSource() }
+        val badge = tabBadge(tab)
+        Column(
+            modifier = Modifier
+                .width(SlimRailWidth)
+                .heightIn(min = 56.dp)
+                .selectable(
+                    selected = selected,
+                    interactionSource = interactionSource,
+                    // Ripple is drawn on the pill only, below
+                    indication = null,
+                    role = Role.Tab,
+                    onClick = {
+                        if (!selected) {
+                            tabNavigator.current = tab
+                        } else {
+                            scope.launch { tab.onReselect(navigator) }
+                        }
+                    },
+                ),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 52.dp, height = 36.dp)
+                    .clip(CircleShape)
+                    .background(pillColor)
+                    .indication(interactionSource, ripple()),
+                contentAlignment = Alignment.Center,
+            ) {
+                BadgedBox(badge = { badge?.invoke() }) {
+                    Icon(
+                        painter = tab.options.icon!!,
+                        contentDescription = tab.options.title,
+                        tint = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
+                        modifier = Modifier.size(SlimRailIconSize),
+                    )
+                }
+            }
+            if (selected) {
+                Text(
+                    text = tab.options.title,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp),
+                )
             }
         }
     }

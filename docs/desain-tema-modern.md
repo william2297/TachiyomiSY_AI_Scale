@@ -374,3 +374,13 @@ PNG di `/home/user/preview-out9/`: `rail-styles-{portrait,landscape}.png` (berda
 3. C, Tabler bold classic: paling mudah dipakai karena label selalu tampil dan pil terpilih paling tegas. Kelemahannya: ikon garis Tabler masih keluarga outline, jadi bedanya dari Material lebih kecil daripada A. Pil `primary` penuh juga lebih terang daripada gaya tenang lainnya.
 
 Rekomendasi: A [Kemungkinan Besar memenuhi keluhan Peter, karena perubahan bentuk ikonnya paling besar; belum dilihat di tablet]. Kalau Peter ingin label selalu terlihat, C adalah pilihan kedua.
+
+### Putaran 5, lanjutan: gaya A terpasang
+
+Peter memilih A. Ikon Phosphor sekarang ada di modul baru `icons/phosphor`. Polanya sama dengan `icons/simple-icons`: Valkyrie dengan paket `Phosphor.Bold` dan `Phosphor.Fill`, dan lisensi MIT di `icons/phosphor/LICENSE`. Modul itu didaftarkan di `settings.gradle.kts` dan `app/build.gradle.kts`.
+
+Kelima tab memakai bold saat tidak terpilih dan fill saat terpilih ("More" bold di dua keadaan). Ikon ini juga muncul di bar bawah ponsel lewat `TabOptions`. Bar atas memakai `MagnifyingGlass` dan `DotsThreeVertical` di `AppBar.kt` (berlaku untuk semua bar atas), serta `FunnelSimple` di toolbar Library, Manga, Updates, Upcoming, dan Sources.
+
+Di tablet, `HomeScreen` memakai rail tipis sendiri: 68 dp, ikon 28 dp, pil `secondaryContainer` 52x36 dp dengan transisi warna 200 ms dan ripple hanya di pil, label hanya di bawah item terpilih, semantik `Role.Tab`, dan lencana tetap di ikon. Rail ini dipasang lewat `NavigationSuiteScaffoldLayout`. Ponsel tetap memakai `NavigationSuiteScaffold` dengan bar bawah M3.
+
+Kandidat Fluent dan Tabler, `tools/preview/icon-candidates`, `IconCandidates.kt`, dan `RailStylesPreviewTest.kt` sudah dihapus. Render akhir ada di `/home/user/preview-out10/library-list-after-{portrait,landscape,phone}.png`.

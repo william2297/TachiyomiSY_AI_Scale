@@ -53,8 +53,9 @@ import kotlinx.coroutines.flow.drop
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.automirroredrounded.ArrowBack
 import mihon.icons.materialsymbols.rounded.Close
-import mihon.icons.materialsymbols.rounded.MoreVert
-import mihon.icons.materialsymbols.rounded.Search
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.DotsThreeVertical
+import mihon.icons.phosphor.bold.MagnifyingGlass
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.util.clearFocusOnSoftKeyboardHide
@@ -244,7 +245,7 @@ fun AppBarActions(
                 onClick = { showMenu = !showMenu },
             ) {
                 Icon(
-                    MaterialSymbols.Rounded.MoreVert,
+                    Phosphor.Bold.DotsThreeVertical,
                     contentDescription = stringResource(MR.strings.action_menu_overflow_description),
                 )
             }
@@ -385,7 +386,7 @@ fun SearchToolbar(
                             onClick = onClick,
                         ) {
                             Icon(
-                                MaterialSymbols.Rounded.Search,
+                                Phosphor.Bold.MagnifyingGlass,
                                 contentDescription = stringResource(MR.strings.action_search),
                             )
                         }

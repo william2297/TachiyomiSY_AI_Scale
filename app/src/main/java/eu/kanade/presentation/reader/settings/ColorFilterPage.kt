@@ -37,6 +37,7 @@ import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import eu.kanade.tachiyomi.util.waifu2x.Waifu2x
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import mihon.app.di.appGraph
 import tachiyomi.core.common.preference.getAndSet
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.CheckboxItem
@@ -159,6 +160,16 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             viewModel.preferences.realCuganEnabled().set(!realCuganEnabled)
         },
     )
+    val highQualityRenderer by LocalContext.current.appGraph.basePreferences.highQualityRenderer.collectAsState()
+    if (realCuganEnabled && highQualityRenderer) {
+        // The high quality renderer draws pages itself and never shows the enhanced images
+        Text(
+            text = stringResource(MR.strings.reader_enhancement_not_with_hq_renderer),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
     val displayMetrics = LocalContext.current.resources.displayMetrics
     TextButton(
         onClick = {

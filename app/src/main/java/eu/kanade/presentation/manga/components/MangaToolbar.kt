@@ -19,9 +19,10 @@ import eu.kanade.presentation.manga.DownloadAction
 import mihon.icons.materialsymbols.MaterialSymbols
 import mihon.icons.materialsymbols.rounded.ArrowUpward
 import mihon.icons.materialsymbols.rounded.Download
-import mihon.icons.materialsymbols.rounded.FilterList
 import mihon.icons.materialsymbols.rounded.FlipToBack
 import mihon.icons.materialsymbols.rounded.SelectAll
+import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.bold.FunnelSimple
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 import tachiyomi.presentation.core.theme.active
@@ -116,7 +117,7 @@ fun MangaToolbar(
                     add(
                         AppBar.Action(
                             title = stringResource(MR.strings.action_filter),
-                            icon = MaterialSymbols.Rounded.FilterList,
+                            icon = Phosphor.Bold.FunnelSimple,
                             iconTint = filterTint,
                             onClick = onClickFilter,
                         ),

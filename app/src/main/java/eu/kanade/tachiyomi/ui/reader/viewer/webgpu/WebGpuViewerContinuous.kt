@@ -14,8 +14,9 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
 
     // How many pages the viewport shows depends on the zoom, and a page on screen has to be
     // decoded rather than merely reserved - so the window follows what the last frame reached.
-    override val preloadAhead get() = max(3, state.pagesBelow)
-    override val preloadBehind get() = max(2, state.pagesAbove)
+    // Scrolling back up after a jump showed empty pages because only two pages behind were kept ready.
+    override val preloadAhead get() = max(4, state.pagesBelow)
+    override val preloadBehind get() = max(4, state.pagesAbove)
 
     override val cacheSize get() = 2 + 2 * max(4, state.pagesAbove + state.pagesBelow)
 
@@ -78,6 +79,11 @@ class WebGpuViewerContinuous(activity: ReaderActivity, val useGap: Boolean = fal
         lastReadThrough = null
         wasAtEdge = null
         super.destroy()
+    }
+
+    /** Moves the view by [pixels] (positive = down), used by auto scroll. */
+    fun autoScrollBy(pixels: Float) {
+        state.scrollBy(pixels)
     }
 
     private fun scrollByHalfPage(direction: Int) {

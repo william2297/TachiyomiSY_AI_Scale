@@ -1181,6 +1181,7 @@
     <string name="reader_background_enhancement_chapter">Whole chapter</string>
     <string name="reader_enhancement_stats">This session: %1$d pages enhanced, %2$s s on average, %3$d without a result, %4$d retries</string>
     <string name="reader_enhancement_stats_reset">Reset counters</string>
+    <string name="reader_enhancement_not_with_hq_renderer">The high quality renderer is on, and it does not show AI-enhanced pages. Turn it off in Settings, Advanced, to see enhancement.</string>
     <string name="reader_auto_scroll">Auto scroll</string>
     <string name="reader_auto_scroll_interval">Seconds per page or screen</string>
     <string name="reader_auto_scroll_speed">Speed</string>

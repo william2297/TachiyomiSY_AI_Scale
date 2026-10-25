@@ -96,9 +96,11 @@ import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneControlsView
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
+import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewerContinuous
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
 import eu.kanade.tachiyomi.util.qnn.QnnModelContexts
@@ -760,8 +762,22 @@ class ReaderActivity : BaseActivity() {
                     }
                     val interval = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f).toDouble().seconds
                     when (val viewer = viewModel.state.value.viewer) {
+                        // The high quality renderer (Settings > Advanced) has its own viewers; the continuous one
+                        // must be matched before the plain WebGpuViewer it extends.
+                        is WebGpuViewerContinuous -> if (readerPreferences.smoothAutoScroll.get()) {
+                            scrollContinuously(viewer) { viewer.autoScrollBy(it.toFloat()) }
+                        } else {
+                            awaitEnhancementAhead()
+                            viewer.autoScrollBy(resources.displayMetrics.heightPixels * 3 / 4f)
+                            delay(interval)
+                        }
+                        is WebGpuViewer -> {
+                            awaitEnhancementAhead()
+                            viewer.moveToNext()
+                            delay(interval)
+                        }
                         is WebtoonViewer -> if (readerPreferences.smoothAutoScroll.get()) {
-                            scrollContinuously(viewer)
+                            scrollContinuously(viewer) { viewer.recycler.scrollBy(0, it) }
                         } else {
                             awaitEnhancementAhead()
                             viewer.scrollDown()
@@ -833,7 +849,7 @@ class ReaderActivity : BaseActivity() {
      * time elapsed since the previous frame keeps the motion even. It stands still while the menu is open or while
      * the pages ahead are still being enhanced (for at most 10 s), and returns when the viewer is replaced.
      */
-    private suspend fun scrollContinuously(viewer: WebtoonViewer) {
+    private suspend fun scrollContinuously(viewer: Viewer, scrollByPx: (Int) -> Unit) {
         val screenHeight = resources.displayMetrics.heightPixels
         var lastFrameNanos = awaitFrameNanos()
         var carryPx = 0f
@@ -861,7 +877,7 @@ class ReaderActivity : BaseActivity() {
             carryPx += screenHeight / intervalSeconds * elapsedSeconds
             val wholePx = carryPx.toInt()
             if (wholePx > 0) {
-                viewer.recycler.scrollBy(0, wholePx)
+                scrollByPx(wholePx)
                 carryPx -= wholePx
             }
         }
