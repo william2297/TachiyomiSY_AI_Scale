@@ -32,6 +32,7 @@ import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 @AssistedInject
 class NewUpdateScreenModel(
@@ -94,7 +95,13 @@ class NewUpdateScreenModel(
             }
         }
 
-        val response = network.client.newCachelessCallWithProgress(GET(downloadLink), progressListener).awaitSuccess()
+        // The shared client gives a whole call two minutes, which a 150 MB APK on a slow connection exceeds
+        // every time. Only a stalled connection (no bytes for a minute) should fail.
+        val client = network.client.newBuilder()
+            .callTimeout(0, TimeUnit.MILLISECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+        val response = client.newCachelessCallWithProgress(GET(downloadLink), progressListener).awaitSuccess()
         response.body.source().saveTo(apkFile)
     }
 
