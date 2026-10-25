@@ -14,6 +14,7 @@ import eu.kanade.presentation.util.formattedMessage
 import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
@@ -35,6 +36,8 @@ import tachiyomi.core.common.util.lang.withUIContext
 import tachiyomi.core.common.util.system.ImageUtil
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.i18n.MR
+import uy.kohesive.injekt.Injekt
+import uy.kohesive.injekt.api.get
 
 /**
  * Holder of the webtoon reader for a single page of a chapter.
@@ -118,6 +121,16 @@ class WebtoonPageHolder(
         loadJob = scope.launch { loadPageAndProcessStatus() }
         refreshLayoutParams()
         sizePlaceholder(page)
+        tintLayers()
+    }
+
+    /** Troubleshooting aid: red = loading placeholder, green = page content, blue = image view, yellow = holder. */
+    private fun tintLayers() {
+        val on = Injekt.get<ReaderPreferences>().debugPageLayers.get()
+        frame.setBackgroundColor(if (on) 0x55FFFF00 else 0)
+        progressContainer.setBackgroundColor(if (on) 0x55FF0000 else 0)
+        pageContainer.setBackgroundColor(if (on) 0x5500FF00 else 0)
+        if (on) segmentFrames.forEach { it.setBackgroundColor(0x550000FF) }
     }
 
     /**
@@ -419,6 +432,7 @@ class WebtoonPageHolder(
         progressContainer.isVisible = false
         removeErrorLayout()
         // Measure after the layout pass that follows the image becoming visible
+        tintLayers()
         page?.let { shown -> frame.post { if (page === shown) rememberHeight(shown) } }
     }
 

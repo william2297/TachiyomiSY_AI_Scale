@@ -247,7 +247,9 @@ class WebtoonRecyclerView @JvmOverloads constructor(
         override fun onSingleTapUp(ev: MotionEvent): Boolean {
             // The reader can be gone by the time a tap arrives, and scrolling a detached list lays out pages that
             // can't compose
-            if (!tapDuringManualScroll && isAttachedToWindow) {
+            // A tap always counts: the old rule that ignored taps right after a flick could stay stuck and swallow
+            // every tap when a flick did not end in a scroll
+            if (isAttachedToWindow) {
                 tapListener?.invoke(ev)
             }
             return false

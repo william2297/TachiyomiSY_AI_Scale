@@ -131,14 +131,20 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             },
         )
         recycler.tapListener = { event ->
-            val viewPosition = IntArray(2)
-            recycler.getLocationOnScreen(viewPosition)
-            val viewPositionRelativeToWindow = IntArray(2)
-            recycler.getLocationInWindow(viewPositionRelativeToWindow)
-            val pos = PointF(
-                (event.rawX - viewPosition[0] + viewPositionRelativeToWindow[0]) / recycler.width,
-                (event.rawY - viewPosition[1] + viewPositionRelativeToWindow[1]) / recycler.originalHeight,
-            )
+            val height = recycler.originalHeight.takeIf { it > 0 } ?: recycler.height
+            val pos = if (recycler.scaleX == 1f && recycler.width > 0 && height > 0) {
+                // Not zoomed: the event is already in the list's own coordinates
+                PointF(event.x / recycler.width, event.y / height)
+            } else {
+                val viewPosition = IntArray(2)
+                recycler.getLocationOnScreen(viewPosition)
+                val viewPositionRelativeToWindow = IntArray(2)
+                recycler.getLocationInWindow(viewPositionRelativeToWindow)
+                PointF(
+                    (event.rawX - viewPosition[0] + viewPositionRelativeToWindow[0]) / recycler.width,
+                    (event.rawY - viewPosition[1] + viewPositionRelativeToWindow[1]) / recycler.originalHeight,
+                )
+            }
             when (config.navigator.getAction(pos)) {
                 NavigationRegion.MENU -> activity.toggleMenu()
                 NavigationRegion.NEXT, NavigationRegion.RIGHT -> scrollDown()

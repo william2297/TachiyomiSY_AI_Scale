@@ -45,6 +45,9 @@ class ReaderPreferences(
 
     val smoothAutoScroll: Preference<Boolean> = preferenceStore.getBoolean("pref_smooth_auto_scroll", true)
 
+    /** Tints the layers of each webtoon page, so a screenshot shows which layer a black bar belongs to. */
+    val debugPageLayers: Preference<Boolean> = preferenceStore.getBoolean("pref_debug_page_layers", false)
+
     val bookPageTransitions = preferenceStore.getBoolean("pref_book_page_transitions", true)
 
     val pageTransitions: Preference<Boolean> = preferenceStore.getBoolean("pref_enable_transitions_key", true)

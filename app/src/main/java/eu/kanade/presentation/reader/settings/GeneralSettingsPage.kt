@@ -188,6 +188,10 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         label = stringResource(MR.strings.reader_auto_scroll_smooth),
         pref = viewModel.preferences.smoothAutoScroll,
     )
+    CheckboxItem(
+        label = stringResource(MR.strings.reader_debug_page_layers),
+        pref = viewModel.preferences.debugPageLayers,
+    )
 }
 
 private const val AUTO_SCROLL_MAX_SECONDS = 15
