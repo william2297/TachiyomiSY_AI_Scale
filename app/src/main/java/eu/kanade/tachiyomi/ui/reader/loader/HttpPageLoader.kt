@@ -1,8 +1,8 @@
 package eu.kanade.tachiyomi.ui.reader.loader
 
 import eu.kanade.domain.chapter.model.toSChapter
-import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.data.cache.ChapterCache
+import eu.kanade.tachiyomi.network.HttpException
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.source.online.HttpSource
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
@@ -300,7 +300,9 @@ internal class HttpPageLoader(
             if (attempt < MAX_AUTO_RETRIES && e.isTransient()) {
                 // Dropped connections, timeouts and busy servers usually succeed a moment later. Without this the
                 // page shows an error until the user taps retry.
-                logcat(LogPriority.WARN, e) { "HttpPageLoader: Page ${page.index} failed (attempt ${attempt + 1}), retrying" }
+                logcat(LogPriority.WARN, e) {
+                    "HttpPageLoader: Page ${page.index} failed (attempt ${attempt + 1}), retrying"
+                }
                 page.status = Page.State.Queue
                 delay(AUTO_RETRY_DELAY_MS * (attempt + 1))
                 internalLoadPage(page, force, attempt + 1)

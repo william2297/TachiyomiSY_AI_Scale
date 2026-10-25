@@ -167,6 +167,9 @@ class ReaderPreferences(
 
     fun realCuganPreloadSize() = preferenceStore.getInt("pref_realcugan_preload_size", 3)
 
+    // Pages beyond the preload that keep being enhanced in the background: 0 = off, 100 = the whole chapter.
+    fun realCuganBackgroundAhead() = preferenceStore.getInt("pref_realcugan_background_ahead", 0)
+
     fun realCuganProEnabled() = preferenceStore.getBoolean("pref_realcugan_pro_enabled", false)
 
     fun realCuganPerformanceMode() = preferenceStore.getInt("pref_realcugan_performance_mode", 0) // 0: 90%, 1: 50%, 2: 30%

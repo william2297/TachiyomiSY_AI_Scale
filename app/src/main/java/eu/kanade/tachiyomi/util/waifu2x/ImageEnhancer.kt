@@ -20,6 +20,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
@@ -49,6 +53,23 @@ object ImageEnhancer {
     private val generation = AtomicInteger(0)
     private val runtimeInitialized = AtomicBoolean(false)
     private val preferences: ReaderPreferences by lazy { Injekt.get() }
+
+    /** Counters for the settings screen, so slow or failing enhancement can be measured instead of guessed. */
+    data class Stats(
+        val enhanced: Int = 0,
+        val noResult: Int = 0,
+        val retries: Int = 0,
+        val totalMs: Long = 0L,
+    ) {
+        val averageSeconds: Double get() = if (enhanced == 0) 0.0 else totalMs / enhanced / 1000.0
+    }
+
+    private val mutableStats = MutableStateFlow(Stats())
+    val stats: StateFlow<Stats> = mutableStats.asStateFlow()
+
+    fun resetStats() {
+        mutableStats.value = Stats()
+    }
 
     @Volatile
     private var lastResetTime = 0L
@@ -322,7 +343,10 @@ object ImageEnhancer {
     fun onVisibleImageDisplayed(pageIndex: Int, pageVariant: String = "") {
         if (!waitingForVisibleImage || !isFocusedTarget(pageIndex, pageVariant)) return
         waitingForVisibleImage = false
-        android.util.Log.i("ImageEnhancer", "First visible image displayed: $pageIndex/$pageVariant; releasing ${queue.size} queued requests")
+        android.util.Log.i(
+            "ImageEnhancer",
+            "First visible image displayed: $pageIndex/$pageVariant; releasing ${queue.size} queued requests",
+        )
         queueSignal.trySend(Unit)
     }
 
@@ -483,7 +507,10 @@ object ImageEnhancer {
             // A reset must finish before this attempt can initialize a new model.
             resetJob?.join()
             if (req.generation != generation.get() || req.cancelled.get()) return
-            android.util.Log.i("ImageEnhancer", "Processing page ${req.pageIndex}/${req.pageVariant}, generation=${req.generation}")
+            android.util.Log.i(
+                "ImageEnhancer",
+                "Processing page ${req.pageIndex}/${req.pageVariant}, generation=${req.generation}",
+            )
             logcat(LogPriority.DEBUG) {
                 "ImageEnhancer: Processing page ${req.pageIndex}/${req.pageVariant} (priority=${req.priority})"
             }
@@ -502,6 +529,7 @@ object ImageEnhancer {
                 .pageVariant(req.pageVariant)
                 .build()
 
+            val startedAtNanos = System.nanoTime()
             val disposable = SingletonImageLoader.get(req.context).enqueue(request)
             val job = disposable.job
             synchronized(this) {
@@ -512,6 +540,7 @@ object ImageEnhancer {
                 }
             }
             job.await()
+            recordResult(req, (System.nanoTime() - startedAtNanos) / 1_000_000L)
             retryIfNotEnhanced(req)
         } finally {
             synchronized(this) {
@@ -546,16 +575,26 @@ object ImageEnhancer {
     // A finished request that left neither an enhanced image, a skip marker nor a pending save did not produce
     // anything (inference or model preparation failed). Retrying a couple of times covers transient failures;
     // otherwise the page would stay unenhanced until the reader is reopened.
-    private fun retryIfNotEnhanced(req: EnhanceRequest) {
-        if (req.cancelled.get() || req.generation != generation.get() || req.attempt >= MAX_RETRIES) return
+    private fun producedResult(req: EnhanceRequest): Boolean {
         val configHash = currentConfigHash()
-        if (
-            ImageEnhancementCache.isCached(req.mangaId, req.chapterId, req.pageIndex, configHash, req.pageVariant) ||
+        return ImageEnhancementCache.isCached(req.mangaId, req.chapterId, req.pageIndex, configHash, req.pageVariant) ||
             ImageEnhancementCache.isSkipped(req.mangaId, req.chapterId, req.pageIndex, configHash, req.pageVariant) ||
             ImageEnhancementCache.isSavePending(req.mangaId, req.chapterId, req.pageIndex, req.pageVariant, configHash)
-        ) {
-            return
+    }
+
+    private fun recordResult(req: EnhanceRequest, elapsedMs: Long) {
+        if (req.cancelled.get() || req.generation != generation.get()) return
+        if (producedResult(req)) {
+            mutableStats.update { it.copy(enhanced = it.enhanced + 1, totalMs = it.totalMs + elapsedMs) }
+        } else {
+            mutableStats.update { it.copy(noResult = it.noResult + 1) }
         }
+    }
+
+    private fun retryIfNotEnhanced(req: EnhanceRequest) {
+        if (req.cancelled.get() || req.generation != generation.get() || req.attempt >= MAX_RETRIES) return
+        if (producedResult(req)) return
+        mutableStats.update { it.copy(retries = it.retries + 1) }
         logcat(LogPriority.WARN) {
             "ImageEnhancer: Page ${req.pageIndex}/${req.pageVariant} produced no result (attempt ${req.attempt + 1}), retrying"
         }

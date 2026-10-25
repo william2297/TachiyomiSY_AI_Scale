@@ -13,6 +13,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
  */
 object EnhancementPreset {
     private const val MAX_PROCESSING_WIDTH = 1200
+    private const val BACKGROUND_AHEAD_CHAPTER = 100
 
     fun apply(preferences: ReaderPreferences, screenWidthPx: Int, screenHeightPx: Int) {
         val shortSide = minOf(screenWidthPx, screenHeightPx)
@@ -28,6 +29,7 @@ object EnhancementPreset {
         preferences.realCuganNoiseLevel().set(4)
         preferences.realCuganPrecision().set(0)
         preferences.realCuganPreloadSize().set(3)
+        preferences.realCuganBackgroundAhead().set(BACKGROUND_AHEAD_CHAPTER)
         preferences.realCuganMaxSizeWidth().set(MAX_PROCESSING_WIDTH)
         preferences.realCuganMaxSizeHeight().set(0)
         preferences.realCuganSkipMaxSizeWidth().set(shortSide)

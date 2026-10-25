@@ -33,6 +33,7 @@ import eu.kanade.tachiyomi.util.mediatek.MediaTekNpu
 import eu.kanade.tachiyomi.util.npu.NpuModelStatus
 import eu.kanade.tachiyomi.util.qnn.QnnModelContexts
 import eu.kanade.tachiyomi.util.waifu2x.EnhancementPreset
+import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import eu.kanade.tachiyomi.util.waifu2x.Waifu2x
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -405,6 +406,22 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             }
         }
 
+        SettingsChipRow(stringResource(MR.strings.reader_background_enhancement)) {
+            val backgroundAhead by viewModel.preferences.realCuganBackgroundAhead().collectAsState()
+            listOf(
+                0 to stringResource(MR.strings.reader_background_enhancement_off),
+                10 to "10",
+                30 to "30",
+                100 to stringResource(MR.strings.reader_background_enhancement_chapter),
+            ).map { (pages, name) ->
+                FilterChip(
+                    selected = backgroundAhead == pages,
+                    onClick = { viewModel.preferences.realCuganBackgroundAhead().set(pages) },
+                    label = { Text(name) },
+                )
+            }
+        }
+
         if (!useNpu) {
             SettingsChipRow(stringResource(MR.strings.reader_gpu_performance_mode)) {
                 val performanceMode by viewModel.preferences.realCuganPerformanceMode().collectAsState()
@@ -489,6 +506,25 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             label = stringResource(MR.strings.reader_show_processing_status),
             pref = viewModel.preferences.realCuganShowStatus(),
         )
+
+        val enhancementStats by ImageEnhancer.stats.collectAsState()
+        Text(
+            text = stringResource(
+                MR.strings.reader_enhancement_stats,
+                enhancementStats.enhanced,
+                "%.1f".format(enhancementStats.averageSeconds),
+                enhancementStats.noResult,
+                enhancementStats.retries,
+            ),
+            modifier = Modifier.padding(horizontal = 24.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        TextButton(
+            onClick = ImageEnhancer::resetStats,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        ) {
+            Text(stringResource(MR.strings.reader_enhancement_stats_reset))
+        }
     }
 }
 

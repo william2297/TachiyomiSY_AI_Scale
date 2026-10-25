@@ -223,6 +223,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private val preloadSize: Int
         get() = if (preferences.realCuganEnabled().get()) preferences.realCuganPreloadSize().get() else 4
+
+    /** How many pages beyond the current one stay queued for enhancement; may exceed the on-screen preload. */
+    private val enhanceAheadSize: Int
+        get() = maxOf(preloadSize, preferences.realCuganBackgroundAhead().get())
+
     private val realCuganModel: Int
         get() = preferences.realCuganModel().get()
 
@@ -948,7 +953,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
             // 2. Prune others
             ImageEnhancer.cancelRequestsLessThan(context.applicationContext, mId, cId, pIdx)
-            ImageEnhancer.cancelRequestsGreaterThan(context.applicationContext, mId, cId, pIdx + preloadSize)
+            ImageEnhancer.cancelRequestsGreaterThan(context.applicationContext, mId, cId, pIdx + enhanceAheadSize)
         }
 
         with(pageView as? SubsamplingScaleImageView) {
@@ -1394,7 +1399,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     } else {
                         // Not in queue, not cached - might need to re-enqueue
                         val current = currentGlobalPageIndex
-                        val shouldHeal = pIdx >= current && pIdx <= current + preloadSize
+                        val shouldHeal = pIdx >= current && pIdx <= current + enhanceAheadSize
                         if (shouldHeal && !ImageEnhancementCache.isSkipped(mId, cId, pIdx, configHash, pageVariant)) {
                             logcat(LogPriority.WARN) {
                                 "ReaderPageImageView: Polling re-enqueue page $pIdx/$pageVariant (cur=$current)"

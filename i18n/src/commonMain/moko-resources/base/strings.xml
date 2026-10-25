@@ -1174,6 +1174,11 @@
     <string name="reader_spatial_scene_download_failed">Model download failed: %1$s</string>
     <string name="reader_spatial_scene_compile_title">Preparing spatial image</string>
     <string name="reader_spatial_scene_compiling">Compiling the depth model for %1$s. This only happens on the first run and may take a few minutes.</string>
+    <string name="reader_background_enhancement">Enhance ahead in the background (pages)</string>
+    <string name="reader_background_enhancement_off">Off</string>
+    <string name="reader_background_enhancement_chapter">Whole chapter</string>
+    <string name="reader_enhancement_stats">This session: %1$d pages enhanced, %2$s s on average, %3$d without a result, %4$d retries</string>
+    <string name="reader_enhancement_stats_reset">Reset counters</string>
     <string name="reader_auto_scroll">Auto scroll</string>
     <string name="reader_auto_scroll_interval">Seconds per page or screen</string>
     <string name="reader_auto_scroll_speed">Speed</string>

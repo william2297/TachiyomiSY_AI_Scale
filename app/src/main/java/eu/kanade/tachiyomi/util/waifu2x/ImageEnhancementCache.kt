@@ -48,9 +48,11 @@ object ImageEnhancementCache {
     private var lastTrimTime = 0L
     private val cacheGeneration = AtomicInteger(0)
     private val pendingSaveKeys = ConcurrentHashMap<CacheKey, SaveRequest>()
+
     // Large enhanced bitmaps must not pile up behind the encoder. Hand each one
     // directly to the writer before allowing the next enhancement to advance.
-    private val saveQueue = Channel<SaveRequest>(capacity = Channel.RENDEZVOUS, onUndeliveredElement = ::releaseSaveRequest)
+    private val saveQueue =
+        Channel<SaveRequest>(capacity = Channel.RENDEZVOUS, onUndeliveredElement = ::releaseSaveRequest)
     private val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     data class CacheKey(

@@ -14,6 +14,7 @@ import android.graphics.Paint
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.Choreographer
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -97,14 +98,16 @@ import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.PagerViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.R2LPagerViewer
-import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import eu.kanade.tachiyomi.ui.reader.viewer.webgpu.WebGpuViewer
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonViewer
 import eu.kanade.tachiyomi.ui.webview.WebViewActivity
+import eu.kanade.tachiyomi.util.qnn.QnnModelContexts
 import eu.kanade.tachiyomi.util.system.openInBrowser
 import eu.kanade.tachiyomi.util.system.readerBackgroundColor
 import eu.kanade.tachiyomi.util.system.toShareIntent
 import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.view.setComposeContent
+import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancementCache
 import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import eu.kanade.tachiyomi.util.waifu2x.Waifu2x
 import kotlinx.coroutines.Dispatchers
@@ -119,6 +122,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import mihon.app.di.AppGraph
@@ -134,6 +138,7 @@ import uy.kohesive.injekt.Injekt
 import uy.kohesive.injekt.api.get
 import java.io.ByteArrayOutputStream
 import java.util.Locale
+import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.seconds
 
 class ReaderActivity : BaseActivity() {
@@ -249,6 +254,7 @@ class ReaderActivity : BaseActivity() {
 
         config = ReaderConfig()
         setMenuVisibility(viewModel.state.value.menuVisible)
+        warmUpNpu()
 
         // Finish when incognito mode is disabled
         preferences.incognitoMode.changes()
@@ -752,21 +758,59 @@ class ReaderActivity : BaseActivity() {
                         delay(200)
                         continue
                     }
-                    awaitEnhancementAhead()
                     val interval = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f).toDouble().seconds
                     when (val viewer = viewModel.state.value.viewer) {
-                        is PagerViewer -> viewer.moveToNext()
                         is WebtoonViewer -> if (readerPreferences.smoothAutoScroll.get()) {
-                            viewer.linearScroll(interval)
+                            scrollContinuously(viewer)
                         } else {
+                            awaitEnhancementAhead()
                             viewer.scrollDown()
+                            delay(interval)
                         }
-                        else -> Unit
+                        is PagerViewer -> {
+                            awaitEnhancementAhead()
+                            viewer.moveToNext()
+                            delay(interval)
+                        }
+                        else -> delay(200)
                     }
-                    delay(interval)
                 }
             }
         }
+    }
+
+    /**
+     * Prepares the selected Qualcomm NPU model as soon as the reader opens. The first preparation of a model can take
+     * minutes; doing it here, off the main thread, means the first page does not wait for it. Later calls reuse the
+     * stored context and return quickly.
+     */
+    private fun warmUpNpu() {
+        if (!readerPreferences.realCuganEnabled().get()) return
+        val model = readerPreferences.realCuganModel().get()
+        val style = readerPreferences.realEsrganStyle().get()
+        val scale = ImageEnhancementCache.getEffectiveScale(model, readerPreferences.realCuganScale().get(), style)
+        val backend = Waifu2x.resolveProcessingBackend(
+            readerPreferences.realCuganProcessingBackend().get(),
+            model,
+            scale,
+        )
+        if (backend != Waifu2x.PROCESSING_BACKEND_QUALCOMM_NPU) return
+        val modelName =
+            Waifu2x.qnnModelName(model, scale, readerPreferences.realCuganNoiseLevel().get(), style) ?: return
+        lifecycleScope.launch(Dispatchers.IO) {
+            runCatching { QnnModelContexts.prepare(applicationContext, modelName) }
+        }
+    }
+
+    /**
+     * True while the current and next pages are still being enhanced.
+     */
+    private fun isEnhancementPendingAhead(): Boolean {
+        if (!readerPreferences.realCuganEnabled().get()) return false
+        val mangaId = viewModel.manga?.id ?: return false
+        val chapterId = viewModel.state.value.currentChapter?.chapter?.id ?: return false
+        val page = viewModel.state.value.currentPage
+        return ImageEnhancer.hasPendingWork(mangaId, chapterId, page - 1, page + 2)
     }
 
     /**
@@ -774,18 +818,59 @@ class ReaderActivity : BaseActivity() {
      * does not change sharpness while it is moving.
      */
     private suspend fun awaitEnhancementAhead() {
-        if (!readerPreferences.realCuganEnabled().get()) return
-        val mangaId = viewModel.manga?.id ?: return
-        val chapterId = viewModel.state.value.currentChapter?.chapter?.id ?: return
-        val page = viewModel.state.value.currentPage
         var waitedMs = 0L
-        while (waitedMs < MAX_ENHANCEMENT_WAIT_MS &&
-            !viewModel.state.value.menuVisible &&
-            ImageEnhancer.hasPendingWork(mangaId, chapterId, page - 1, page + 2)
+        while (waitedMs < MAX_ENHANCEMENT_WAIT_MS && !viewModel.state.value.menuVisible &&
+            isEnhancementPendingAhead()
         ) {
             delay(ENHANCEMENT_POLL_MS)
             waitedMs += ENHANCEMENT_POLL_MS
         }
+    }
+
+    /**
+     * Scrolls the webtoon reader at a constant speed, advancing a little every display frame. Restarting a timed
+     * scroll every interval leaves tiny stops and jumps that are easy to feel as judder; stepping per frame with the
+     * time elapsed since the previous frame keeps the motion even. It stands still while the menu is open or while
+     * the pages ahead are still being enhanced (for at most 10 s), and returns when the viewer is replaced.
+     */
+    private suspend fun scrollContinuously(viewer: WebtoonViewer) {
+        val screenHeight = resources.displayMetrics.heightPixels
+        var lastFrameNanos = awaitFrameNanos()
+        var carryPx = 0f
+        var waitedMs = 0f
+        while (viewModel.state.value.viewer === viewer) {
+            if (viewModel.state.value.menuVisible) {
+                delay(100)
+                lastFrameNanos = awaitFrameNanos()
+                continue
+            }
+            val now = awaitFrameNanos()
+            val elapsedSeconds = ((now - lastFrameNanos) / 1_000_000_000f).coerceIn(0f, MAX_FRAME_SECONDS)
+            lastFrameNanos = now
+
+            if (isEnhancementPendingAhead()) {
+                if (waitedMs < MAX_ENHANCEMENT_WAIT_MS) {
+                    waitedMs += elapsedSeconds * 1000f
+                    continue
+                }
+            } else {
+                waitedMs = 0f
+            }
+
+            val intervalSeconds = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f)
+            carryPx += screenHeight / intervalSeconds * elapsedSeconds
+            val wholePx = carryPx.toInt()
+            if (wholePx > 0) {
+                viewer.recycler.scrollBy(0, wholePx)
+                carryPx -= wholePx
+            }
+        }
+    }
+
+    private suspend fun awaitFrameNanos(): Long = suspendCancellableCoroutine { continuation ->
+        val callback = Choreographer.FrameCallback { frameTimeNanos -> continuation.resume(frameTimeNanos) }
+        Choreographer.getInstance().postFrameCallback(callback)
+        continuation.invokeOnCancellation { Choreographer.getInstance().removeFrameCallback(callback) }
     }
 
     /**
@@ -1456,3 +1541,4 @@ class ReaderActivity : BaseActivity() {
 
 private const val MAX_ENHANCEMENT_WAIT_MS = 10_000L
 private const val ENHANCEMENT_POLL_MS = 250L
+private const val MAX_FRAME_SECONDS = 0.1f

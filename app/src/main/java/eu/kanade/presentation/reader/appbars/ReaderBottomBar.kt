@@ -62,7 +62,9 @@ fun ReaderBottomBar(
 
         IconButton(onClick = onClickAutoScroll) {
             Icon(
-                painter = painterResource(if (autoScrollActive) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp),
+                painter = painterResource(
+                    if (autoScrollActive) R.drawable.ic_pause_24dp else R.drawable.ic_play_arrow_24dp,
+                ),
                 contentDescription = stringResource(MR.strings.reader_auto_scroll),
                 tint = if (autoScrollActive) iconTint else inactiveTint,
             )
