@@ -18,6 +18,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,10 +33,13 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.util.mediatek.MediaTekNpu
 import eu.kanade.tachiyomi.util.npu.NpuModelStatus
 import eu.kanade.tachiyomi.util.qnn.QnnModelContexts
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.waifu2x.EnhancementPreset
+import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancementCache
 import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import eu.kanade.tachiyomi.util.waifu2x.Waifu2x
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
 import tachiyomi.core.common.preference.getAndSet
@@ -182,6 +186,19 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
         modifier = Modifier.padding(horizontal = 12.dp),
     ) {
         Text(stringResource(MR.strings.reader_optimize_for_oppo_pad_mini))
+    }
+    val clearScope = rememberCoroutineScope()
+    val clearContext = LocalContext.current
+    TextButton(
+        onClick = {
+            clearScope.launch {
+                withContext(Dispatchers.IO) { ImageEnhancementCache.clear(clearContext.applicationContext) }
+                clearContext.toast(MR.strings.reader_enhancement_cache_cleared)
+            }
+        },
+        modifier = Modifier.padding(horizontal = 12.dp),
+    ) {
+        Text(stringResource(MR.strings.reader_clear_enhancement_cache))
     }
     if (realCuganEnabled) {
         val realCuganModel by viewModel.preferences.realCuganModel().collectAsState()
