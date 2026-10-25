@@ -71,7 +71,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v1.3.16.${{ github.run_number }}" app-arm64-v8a-npu.apk \
+          # The version is in the file name so downloads of different builds never collide ("file name duplicate"); the
+          # updater still finds it because the name contains "-arm64-v8a".
+          ASSET="app-v1.3.16.${{ github.run_number }}-arm64-v8a-npu.apk"
+          cp app-arm64-v8a-npu.apk "$ASSET"
+          gh release create "v1.3.16.${{ github.run_number }}" "$ASSET" \
             --latest --target "${{ github.sha }}" \
             --title "Build ${{ github.run_number }} (${GITHUB_SHA::7})" \
             --notes "Branch ${{ github.ref_name }}, commit ${{ github.sha }}. Qualcomm NPU backend and models grafted from upstream v1.3.16 (see tools/ci/graft_npu.py)."
