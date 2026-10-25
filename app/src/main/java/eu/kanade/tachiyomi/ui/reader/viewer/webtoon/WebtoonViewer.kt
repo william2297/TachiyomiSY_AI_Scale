@@ -98,7 +98,16 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
         recycler.adapter = adapter
         recycler.addOnScrollListener(
             object : RecyclerView.OnScrollListener() {
+                override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                    // Idle or a finger took over: the tap-requested scroll is over
+                    if (newState != RecyclerView.SCROLL_STATE_SETTLING) {
+                        tapRequestedPx = 0
+                        tapScrolledPx = 0
+                    }
+                }
+
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    tapScrolledPx += dy
                     onScrolled()
 
                     if ((dy > threshold || dy < -threshold) && activity.viewModel.state.value.menuVisible) {
@@ -300,11 +309,29 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
      * Scrolls up by [scrollDistance].
      */
     private fun scrollUp() {
-        if (config.usePageTransitions) {
-            recycler.smoothScrollBy(0, -scrollDistance)
-        } else {
-            recycler.scrollBy(0, -scrollDistance)
+        scrollByTap(-scrollDistance)
+    }
+
+    /**
+     * Distance requested by taps during the current scroll, and how much of it already happened. A new tap adds to
+     * what is left, so tapping several times quickly scrolls several screens instead of restarting the same one.
+     */
+    private var tapRequestedPx = 0
+    private var tapScrolledPx = 0
+
+    private fun scrollByTap(distance: Int) {
+        if (!config.usePageTransitions) {
+            recycler.scrollBy(0, distance)
+            return
         }
+        // Only a scroll that is still running can be extended; anything else (idle, auto scroll, a drag) starts over
+        val remaining = tapRequestedPx - tapScrolledPx
+        if (recycler.scrollState != RecyclerView.SCROLL_STATE_SETTLING || (remaining > 0) != (distance > 0)) {
+            tapRequestedPx = 0
+            tapScrolledPx = 0
+        }
+        tapRequestedPx += distance
+        recycler.smoothScrollBy(0, tapRequestedPx - tapScrolledPx)
     }
 
     /**
@@ -323,11 +350,7 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
      * Scrolls down by [scrollDistance].
      */
     fun scrollDown() {
-        if (config.usePageTransitions) {
-            recycler.smoothScrollBy(0, scrollDistance)
-        } else {
-            recycler.scrollBy(0, scrollDistance)
-        }
+        scrollByTap(scrollDistance)
     }
 
     /**

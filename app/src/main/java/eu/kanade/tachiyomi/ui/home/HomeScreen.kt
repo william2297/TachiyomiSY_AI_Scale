@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.util.fastForEach
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -100,10 +101,11 @@ object HomeScreen : Screen() {
                     navigationSuiteType = navigationSuiteType,
                     state = navigationSuiteState,
                     navigationSuiteColors = NavigationSuiteDefaults.colors(
-                        // Container role instead of tinted tonal elevation (tracks each theme's ladder)
-                        navigationRailContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        // Rail on the page background: no separate slab, and the selected pill stands out against it
+                        navigationRailContainerColor = MaterialTheme.colorScheme.surface,
                     ),
-                    navigationItemVerticalArrangement = Arrangement.Center,
+                    // Anchor rail items at the top like current Android apps instead of floating mid-screen
+                    navigationItemVerticalArrangement = Arrangement.Top,
                     navigationItems = {
                         TABS.fastForEach { NavigationSuiteItem(it, navigationSuiteType) }
                     },
@@ -192,6 +194,7 @@ object HomeScreen : Screen() {
                 Text(
                     text = tab.options.title,
                     style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

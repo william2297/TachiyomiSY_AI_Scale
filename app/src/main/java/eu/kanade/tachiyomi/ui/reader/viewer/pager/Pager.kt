@@ -90,7 +90,8 @@ open class Pager(
      * Gesture listener that implements tap and long tap events.
      */
     private val gestureListener = object : GestureDetectorWithLongTap.Listener() {
-        override fun onSingleTapConfirmed(ev: MotionEvent): Boolean {
+        // Fires on release, not after the double-tap timeout; double taps are not looked for (see below)
+        override fun onSingleTapUp(ev: MotionEvent): Boolean {
             tapListener?.invoke(ev)
             return true
         }
@@ -106,7 +107,9 @@ open class Pager(
     /**
      * Gesture detector which handles motion events.
      */
-    private val gestureDetector = GestureDetectorWithLongTap(context, gestureListener)
+    private val gestureDetector = GestureDetectorWithLongTap(context, gestureListener).apply {
+        setOnDoubleTapListener(null)
+    }
 
     /**
      * Whether the gesture detector is currently enabled.

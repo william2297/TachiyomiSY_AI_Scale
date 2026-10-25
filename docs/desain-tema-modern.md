@@ -310,3 +310,43 @@ Perubahan lain yang ikut terpasang:
 2. Judul di atas sampul memakai `onSurface` tema di mode gelap (`inverseOnSurface` di mode terang, karena scrim selalu hampir hitam). Scrim-nya jadi transparan → 60% hitam di 35% → 94% hitam di dasar.
 
 Yang belum terverifikasi: tampilan di tablet AMOLED sungguhan di ruang remang, dan mode terang (belum dirender) [Tidak Diketahui].
+
+## Putaran 4: rail, tab kategori, dan daftar perpustakaan
+
+Bahan: screenshot nyata dari tablet Peter (build 1.3.16.8, perpustakaan tampilan daftar, potret). Warnanya masih tema lama karena pilihan tema tersimpan; itu sudah ditangani dengan migrasi di commit `00796ee`. Putaran ini mengurus struktur dan ikon.
+
+### Yang membuat layar itu terlihat lama
+
+1. Ikon rail berasal dari animated vector drawable lama Mihon: garis tipis, semua outline, tanpa beda terisi saat terpilih.
+2. Item rail dirapatkan di tengah layar (`Arrangement.Center`), jadi rail terlihat melayang. Aplikasi Android sekarang menaruhnya di atas.
+3. Tab kategori memakai `PrimaryScrollableTabRow` dengan garis bawah dan garis pemisah, gaya tab era M2.
+4. Baris daftar 56 dp memotong sampul tegak menjadi persegi 40 dp. Sampul manhwa jadi tidak bisa dikenali.
+5. Lencana jumlah ada di tepi kanan. Di tablet, jaraknya ratusan dp dari judul, jadi mata harus menyeberangi baris kosong.
+
+### Yang diubah
+
+| Area | Berkas | Perubahan |
+| --- | --- | --- |
+| Ikon tab | `ui/library/LibraryTab.kt`, `ui/updates/UpdatesTab.kt`, `ui/history/HistoryTab.kt`, `ui/browse/BrowseTab.kt`, `ui/more/MoreTab.kt` | Material Symbols Rounded: terisi saat terpilih, outline saat tidak (Library = collections_bookmark, Updates = new_releases, Browse = explore). History dan More tidak punya versi terisi yang berbeda di Material Symbols, jadi keduanya hanya outline. |
+| Ikon baru | `icons/material-symbols/src/main/valkyrieResources/rounded/{history,more_horiz,new_releases}.svg`, `roundedFilled/{collections_bookmark,explore,new_releases}.svg` | SVG resmi dari google/material-design-icons (Apache-2.0), satu path, format sama dengan yang ada. ImageVector dibangkitkan Valkyrie saat build. |
+| Rail | `ui/home/HomeScreen.kt` | Item di atas (`Arrangement.Top`). Latar rail sama dengan latar halaman, bukan lempeng terpisah, supaya pil terpilih kontras. Label terpilih SemiBold. |
+| Tab kategori | `presentation/library/components/LibraryTabs.kt` | Baris pil yang bisa digulir: terpilih = pil `secondaryContainer`, lainnya = pil outline. Jumlah item di dalam pil. Pil terpilih ikut tergulir ke layar saat pager digeser. Semantik `Role.Tab` dan `selected` tetap ada. |
+| Baris daftar | `presentation/library/components/CommonMangaItem.kt` (`MangaListItem`) | Tinggi 84 dp, sampul 2:3 (sekitar 45x68 dp), judul `titleMedium`, lencana di bawah judul sebagai baris metadata. Juga berlaku di daftar Browse. |
+| Kolom daftar | `presentation/library/components/LibraryList.kt` | `GridCells.Adaptive(480.dp)`: satu kolom di potret dan ponsel, dua kolom di tablet mendatar. |
+
+### Pratinjau dan penilaian
+
+Path di `/home/user/preview-out8/`: `library-list-before-portrait.png`, `library-list-after-portrait.png`, `library-list-before-landscape.png`, `library-list-after-landscape.png`. Keduanya memakai Warm Charcoal supaya yang berbeda hanya struktur. "Sesudah" memakai komponen asli (`LibraryTabs`, `MangaListItem`, lencana). Rail dibangun ulang dengan ikon dan gaya label yang sama karena `HomeScreen` butuh Voyager. Sampul diisi gradien lewat `LocalAsyncImagePreviewHandler` milik Coil.
+
+Ada tiga putaran render. Putaran pertama memperlihatkan pil rail yang hampir tak terlihat dan lencana yang terpisah jauh dari judul di mode mendatar. Putaran kedua memindahkan lencana ke bawah judul dan menaruh rail di latar halaman. Putaran ketiga menambah dua kolom untuk mode mendatar.
+
+Penilaian jujur: daftar dan tab jelas berubah ke arah aplikasi sekarang (sampul terbaca, judul lebih tegas, kategori sebagai pil, tidak ada ruang kosong di mode mendatar). Perubahan rail lebih halus. Ikon baru masih satu keluarga dengan ikon lama (Material, garis 400), jadi bedanya terutama di posisi atas, ikon terisi, dan pil.
+
+### Yang masih lemah
+
+1. Pil indikator rail dan pil kategori terpilih memakai `secondaryContainer` palet tenang yang sengaja redup. Terlihat, tapi tidak tegas. Menaikkan terang token itu adalah keputusan warna yang belum saya ambil.
+2. Baris lebih tinggi berarti lebih sedikit judul per layar di potret (sekitar 12–13, sebelumnya sekitar 19).
+3. Di dua kolom, urutan baca berjalan kiri-kanan lalu turun, bukan satu kolom lurus. Untuk daftar yang diurutkan abjad ini perlu dinilai Peter.
+4. Lencana masih dibedakan hanya lewat warna (belum dibaca vs diunduh), tanpa ikon atau label.
+5. Pratinjau "sebelum" sudah memakai lencana pil dari putaran 2, jadi tidak 100% sama dengan build lama.
+6. Drawable `animated_*` dan `presentation/util/AnimatedVectorPainter.kt` kini tidak dipakai tab. Saya biarkan; bisa dihapus terpisah.

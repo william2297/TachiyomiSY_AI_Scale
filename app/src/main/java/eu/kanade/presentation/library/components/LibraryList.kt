@@ -3,15 +3,19 @@ package eu.kanade.presentation.library.components
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.library.LibraryItem
 import tachiyomi.domain.library.model.LibraryManga
 import tachiyomi.domain.manga.model.MangaCover
-import tachiyomi.presentation.core.components.FastScrollLazyColumn
+import tachiyomi.presentation.core.components.FastScrollLazyVerticalGrid
 import tachiyomi.presentation.core.util.plus
+
+private val ListColumnMinWidth = 480.dp
 
 @Composable
 internal fun LibraryList(
@@ -24,11 +28,13 @@ internal fun LibraryList(
     searchQuery: String?,
     onGlobalSearchClicked: () -> Unit,
 ) {
-    FastScrollLazyColumn(
+    // One column on a portrait tablet or phone, two side by side in landscape instead of one very wide row
+    FastScrollLazyVerticalGrid(
+        columns = GridCells.Adaptive(minSize = ListColumnMinWidth),
         modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding + PaddingValues(vertical = 8.dp),
     ) {
-        item {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             if (!searchQuery.isNullOrEmpty()) {
                 GlobalSearchItem(
                     modifier = Modifier.fillMaxWidth(),

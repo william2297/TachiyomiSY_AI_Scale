@@ -299,10 +299,6 @@ private fun ColumnScope.WebtoonViewerSettings(viewModel: ReaderSettingsViewModel
     }
 
     CheckboxItem(
-        label = stringResource(MR.strings.pref_double_tap_zoom),
-        pref = viewModel.preferences.webtoonDoubleTapZoomEnabled,
-    )
-    CheckboxItem(
         label = stringResource(MR.strings.pref_webtoon_disable_zoom_out),
         pref = viewModel.preferences.webtoonDisableZoomOut,
     )

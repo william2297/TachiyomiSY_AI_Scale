@@ -1139,7 +1139,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
     private fun SubsamplingScaleImageView.setupZoom(config: Config?) {
         // 5x zoom
         maxScale = scale * MAX_ZOOM_SCALE
-        setDoubleTapZoomScale(scale * 2)
+        // Double-tap zoom is not offered: zooming to the current scale changes nothing
+        setDoubleTapZoomScale(scale)
 
         when (config?.zoomStartPosition) {
             ZoomStartPosition.LEFT -> setScaleAndCenter(scale, PointF(0F, 0F))

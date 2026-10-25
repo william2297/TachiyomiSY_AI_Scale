@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -65,6 +66,8 @@ private val ContinueReadingButtonGridPadding = 6.dp
 private val ContinueReadingButtonListSpacing = 8.dp
 
 private const val GRID_SELECTED_COVER_ALPHA = 0.76f
+
+private val ListItemHeight = 84.dp
 
 /**
  * Title colour on the cover scrim. The scrim is always near-black, so in light themes (dark onSurface) fall back
@@ -367,7 +370,7 @@ fun MangaListItem(
     Row(
         modifier = Modifier
             .selectedBackground(isSelected)
-            .height(56.dp)
+            .height(ListItemHeight)
             .combinedClickable(
                 onClick = onClick,
                 onLongClick = onLongClick,
@@ -375,22 +378,29 @@ fun MangaListItem(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MangaCover.Square(
+        // Portrait cover at the real 2:3 ratio: a square crop of a tall manhwa cover was unrecognisable
+        MangaCover.Book(
             modifier = Modifier
                 .fillMaxHeight()
                 .alpha(coverAlpha),
             data = coverData,
         )
-        Text(
-            text = title,
+        // Badges sit under the title as a metadata line, so on a wide tablet they stay next to the title
+        // they belong to instead of drifting to the far edge of the row
+        Column(
             modifier = Modifier
                 .padding(horizontal = 16.dp)
                 .weight(1f),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        BadgeGroup(content = badge)
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            BadgeGroup(content = badge)
+        }
         if (onClickContinueReading != null) {
             ContinueReadingButton(
                 size = ContinueReadingButtonSizeSmall,
