@@ -171,44 +171,124 @@
         <item name="colorSurfaceContainerLowest">@color/tokyonight_surfaceContainerLowest</item>
     </style>
 
-    <!--== Jade Ink Theme ==-->
-    <style name="Theme.Tachiyomi.JadeInk">
+    <!--== Warm Charcoal Theme ==-->
+    <style name="Theme.Tachiyomi.WarmCharcoal">
         <!-- Theme Colors -->
-        <item name="colorPrimary">@color/jadeink_primary</item>
-        <item name="colorOnPrimary">@color/jadeink_onPrimary</item>
-        <item name="colorPrimaryContainer">@color/jadeink_primaryContainer</item>
-        <item name="colorOnPrimaryContainer">@color/jadeink_onPrimaryContainer</item>
-        <item name="colorPrimaryInverse">@color/jadeink_inversePrimary</item>
-        <item name="colorSecondary">@color/jadeink_secondary</item>
-        <item name="colorOnSecondary">@color/jadeink_onSecondary</item>
-        <item name="colorSecondaryContainer">@color/jadeink_secondaryContainer</item>
-        <item name="colorOnSecondaryContainer">@color/jadeink_onSecondaryContainer</item>
-        <item name="colorTertiary">@color/jadeink_tertiary</item>
-        <item name="colorOnTertiary">@color/jadeink_onTertiary</item>
-        <item name="colorTertiaryContainer">@color/jadeink_tertiaryContainer</item>
-        <item name="colorOnTertiaryContainer">@color/jadeink_onTertiaryContainer</item>
-        <item name="android:colorBackground">@color/jadeink_background</item>
-        <item name="colorOnBackground">@color/jadeink_onBackground</item>
-        <item name="colorSurface">@color/jadeink_surface</item>
-        <item name="colorOnSurface">@color/jadeink_onSurface</item>
-        <item name="colorSurfaceVariant">@color/jadeink_surfaceVariant</item>
-        <item name="colorOnSurfaceVariant">@color/jadeink_onSurfaceVariant</item>
-        <item name="colorSurfaceInverse">@color/jadeink_inverseSurface</item>
-        <item name="colorOnSurfaceInverse">@color/jadeink_inverseOnSurface</item>
-        <item name="colorError">@color/jadeink_error</item>
-        <item name="colorOnError">@color/jadeink_onError</item>
-        <item name="colorErrorContainer">@color/jadeink_errorContainer</item>
-        <item name="colorOnErrorContainer">@color/jadeink_onErrorContainer</item>
-        <item name="colorOutline">@color/jadeink_outline</item>
-        <item name="colorOutlineVariant">@color/jadeink_outlineVariant</item>
-        <item name="scrimBackground">@color/jadeink_scrim</item>
-        <item name="colorSurfaceBright">@color/jadeink_surfaceBright</item>
-        <item name="colorSurfaceDim">@color/jadeink_surfaceDim</item>
-        <item name="colorSurfaceContainer">@color/jadeink_surfaceContainer</item>
-        <item name="colorSurfaceContainerHigh">@color/jadeink_surfaceContainerHigh</item>
-        <item name="colorSurfaceContainerHighest">@color/jadeink_surfaceContainerHighest</item>
-        <item name="colorSurfaceContainerLow">@color/jadeink_surfaceContainerLow</item>
-        <item name="colorSurfaceContainerLowest">@color/jadeink_surfaceContainerLowest</item>
+        <item name="colorPrimary">@color/warmcharcoal_primary</item>
+        <item name="colorOnPrimary">@color/warmcharcoal_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/warmcharcoal_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/warmcharcoal_onPrimaryContainer</item>
+        <item name="colorPrimaryInverse">@color/warmcharcoal_inversePrimary</item>
+        <item name="colorSecondary">@color/warmcharcoal_secondary</item>
+        <item name="colorOnSecondary">@color/warmcharcoal_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/warmcharcoal_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/warmcharcoal_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/warmcharcoal_tertiary</item>
+        <item name="colorOnTertiary">@color/warmcharcoal_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/warmcharcoal_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/warmcharcoal_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/warmcharcoal_background</item>
+        <item name="colorOnBackground">@color/warmcharcoal_onBackground</item>
+        <item name="colorSurface">@color/warmcharcoal_surface</item>
+        <item name="colorOnSurface">@color/warmcharcoal_onSurface</item>
+        <item name="colorSurfaceVariant">@color/warmcharcoal_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/warmcharcoal_onSurfaceVariant</item>
+        <item name="colorSurfaceInverse">@color/warmcharcoal_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/warmcharcoal_inverseOnSurface</item>
+        <item name="colorError">@color/warmcharcoal_error</item>
+        <item name="colorOnError">@color/warmcharcoal_onError</item>
+        <item name="colorErrorContainer">@color/warmcharcoal_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/warmcharcoal_onErrorContainer</item>
+        <item name="colorOutline">@color/warmcharcoal_outline</item>
+        <item name="colorOutlineVariant">@color/warmcharcoal_outlineVariant</item>
+        <item name="scrimBackground">@color/warmcharcoal_scrim</item>
+        <item name="colorSurfaceBright">@color/warmcharcoal_surfaceBright</item>
+        <item name="colorSurfaceDim">@color/warmcharcoal_surfaceDim</item>
+        <item name="colorSurfaceContainer">@color/warmcharcoal_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/warmcharcoal_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/warmcharcoal_surfaceContainerHighest</item>
+        <item name="colorSurfaceContainerLow">@color/warmcharcoal_surfaceContainerLow</item>
+        <item name="colorSurfaceContainerLowest">@color/warmcharcoal_surfaceContainerLowest</item>
+    </style>
+
+    <!--== Muted Jade Theme ==-->
+    <style name="Theme.Tachiyomi.MutedJade">
+        <!-- Theme Colors -->
+        <item name="colorPrimary">@color/mutedjade_primary</item>
+        <item name="colorOnPrimary">@color/mutedjade_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/mutedjade_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/mutedjade_onPrimaryContainer</item>
+        <item name="colorPrimaryInverse">@color/mutedjade_inversePrimary</item>
+        <item name="colorSecondary">@color/mutedjade_secondary</item>
+        <item name="colorOnSecondary">@color/mutedjade_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/mutedjade_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/mutedjade_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/mutedjade_tertiary</item>
+        <item name="colorOnTertiary">@color/mutedjade_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/mutedjade_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/mutedjade_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/mutedjade_background</item>
+        <item name="colorOnBackground">@color/mutedjade_onBackground</item>
+        <item name="colorSurface">@color/mutedjade_surface</item>
+        <item name="colorOnSurface">@color/mutedjade_onSurface</item>
+        <item name="colorSurfaceVariant">@color/mutedjade_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/mutedjade_onSurfaceVariant</item>
+        <item name="colorSurfaceInverse">@color/mutedjade_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/mutedjade_inverseOnSurface</item>
+        <item name="colorError">@color/mutedjade_error</item>
+        <item name="colorOnError">@color/mutedjade_onError</item>
+        <item name="colorErrorContainer">@color/mutedjade_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/mutedjade_onErrorContainer</item>
+        <item name="colorOutline">@color/mutedjade_outline</item>
+        <item name="colorOutlineVariant">@color/mutedjade_outlineVariant</item>
+        <item name="scrimBackground">@color/mutedjade_scrim</item>
+        <item name="colorSurfaceBright">@color/mutedjade_surfaceBright</item>
+        <item name="colorSurfaceDim">@color/mutedjade_surfaceDim</item>
+        <item name="colorSurfaceContainer">@color/mutedjade_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/mutedjade_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/mutedjade_surfaceContainerHighest</item>
+        <item name="colorSurfaceContainerLow">@color/mutedjade_surfaceContainerLow</item>
+        <item name="colorSurfaceContainerLowest">@color/mutedjade_surfaceContainerLowest</item>
+    </style>
+
+    <!--== Graphite Theme ==-->
+    <style name="Theme.Tachiyomi.Graphite">
+        <!-- Theme Colors -->
+        <item name="colorPrimary">@color/graphite_primary</item>
+        <item name="colorOnPrimary">@color/graphite_onPrimary</item>
+        <item name="colorPrimaryContainer">@color/graphite_primaryContainer</item>
+        <item name="colorOnPrimaryContainer">@color/graphite_onPrimaryContainer</item>
+        <item name="colorPrimaryInverse">@color/graphite_inversePrimary</item>
+        <item name="colorSecondary">@color/graphite_secondary</item>
+        <item name="colorOnSecondary">@color/graphite_onSecondary</item>
+        <item name="colorSecondaryContainer">@color/graphite_secondaryContainer</item>
+        <item name="colorOnSecondaryContainer">@color/graphite_onSecondaryContainer</item>
+        <item name="colorTertiary">@color/graphite_tertiary</item>
+        <item name="colorOnTertiary">@color/graphite_onTertiary</item>
+        <item name="colorTertiaryContainer">@color/graphite_tertiaryContainer</item>
+        <item name="colorOnTertiaryContainer">@color/graphite_onTertiaryContainer</item>
+        <item name="android:colorBackground">@color/graphite_background</item>
+        <item name="colorOnBackground">@color/graphite_onBackground</item>
+        <item name="colorSurface">@color/graphite_surface</item>
+        <item name="colorOnSurface">@color/graphite_onSurface</item>
+        <item name="colorSurfaceVariant">@color/graphite_surfaceVariant</item>
+        <item name="colorOnSurfaceVariant">@color/graphite_onSurfaceVariant</item>
+        <item name="colorSurfaceInverse">@color/graphite_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/graphite_inverseOnSurface</item>
+        <item name="colorError">@color/graphite_error</item>
+        <item name="colorOnError">@color/graphite_onError</item>
+        <item name="colorErrorContainer">@color/graphite_errorContainer</item>
+        <item name="colorOnErrorContainer">@color/graphite_onErrorContainer</item>
+        <item name="colorOutline">@color/graphite_outline</item>
+        <item name="colorOutlineVariant">@color/graphite_outlineVariant</item>
+        <item name="scrimBackground">@color/graphite_scrim</item>
+        <item name="colorSurfaceBright">@color/graphite_surfaceBright</item>
+        <item name="colorSurfaceDim">@color/graphite_surfaceDim</item>
+        <item name="colorSurfaceContainer">@color/graphite_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/graphite_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/graphite_surfaceContainerHighest</item>
+        <item name="colorSurfaceContainerLow">@color/graphite_surfaceContainerLow</item>
+        <item name="colorSurfaceContainerLowest">@color/graphite_surfaceContainerLowest</item>
     </style>
 
     <!--== Green Apple Theme ==-->

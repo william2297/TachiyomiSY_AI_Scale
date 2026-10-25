@@ -12,6 +12,6 @@ Run, from the repository root (needs the Android SDK; ANDROID_HOME):
 * `-PuiPreview` switches on the extra test libraries and the `app/src/uiPreview` sources. Without it, nothing changes.
 * `ROBOLECTRIC_DEPS` is a folder holding `android-all-instrumented-15-robolectric-13954326-i7.jar` (Robolectric cannot
   download it behind some proxies; fetch it once from Maven Central).
-* Output: `jade-ink-dark.png`, `settings.png`, `reader-overlay.png` in `PREVIEW_OUT` (default `app/build/ui-preview`).
+* Output: `default-theme-dark.png` (default theme, Warm Charcoal), `settings.png`, `reader-overlay.png` in `PREVIEW_OUT` (default `app/build/ui-preview`).
 * To add a screen, add a test in `app/src/uiPreview/java/eu/kanade/presentation/preview/DesignPreviewTest.kt` that
   calls `capture("name.png") { ... }`.

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Colors for Graphite theme (mirrors GraphiteColorScheme.kt, dark)
+-->
+<resources>
+    <color name="graphite_primary">#8994A7</color>
+    <color name="graphite_onPrimary">#161B24</color>
+    <color name="graphite_primaryContainer">#2D333F</color>
+    <color name="graphite_onPrimaryContainer">#BAC1CE</color>
+    <color name="graphite_inversePrimary">#4C5667</color>
+    <color name="graphite_secondary">#808998</color>
+    <color name="graphite_onSecondary">#0C0F16</color>
+    <color name="graphite_secondaryContainer">#272C34</color>
+    <color name="graphite_onSecondaryContainer">#B8BEC8</color>
+    <color name="graphite_tertiary">#7C8087</color>
+    <color name="graphite_onTertiary">#0E0F12</color>
+    <color name="graphite_tertiaryContainer">#2B2E33</color>
+    <color name="graphite_onTertiaryContainer">#B8BABD</color>
+    <color name="graphite_background">#08090B</color>
+    <color name="graphite_onBackground">#BBBDC0</color>
+    <color name="graphite_surface">#08090B</color>
+    <color name="graphite_onSurface">#BBBDC0</color>
+    <color name="graphite_surfaceVariant">#1A1B1C</color>
+    <color name="graphite_onSurfaceVariant">#8F9194</color>
+    <color name="graphite_surfaceTint">#8994A7</color>
+    <color name="graphite_inverseSurface">#BBBDC0</color>
+    <color name="graphite_inverseOnSurface">#1A1B1C</color>
+    <color name="graphite_error">#BE8580</color>
+    <color name="graphite_onError">#3A1412</color>
+    <color name="graphite_errorContainer">#512320</color>
+    <color name="graphite_onErrorContainer">#D2B9B6</color>
+    <color name="graphite_outline">#636568</color>
+    <color name="graphite_outlineVariant">#323335</color>
+    <color name="graphite_scrim">#000000</color>
+    <color name="graphite_surfaceBright">#37383A</color>
+    <color name="graphite_surfaceDim">#08090B</color>
+    <color name="graphite_surfaceContainerLowest">#060608</color>
+    <color name="graphite_surfaceContainerLow">#111213</color>
+    <color name="graphite_surfaceContainer">#1A1B1C</color>
+    <color name="graphite_surfaceContainerHigh">#222325</color>
+    <color name="graphite_surfaceContainerHighest">#2A2B2D</color>
+</resources>

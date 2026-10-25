@@ -21,8 +21,8 @@ class UiPreferences(
 
     val themeMode: Preference<ThemeMode> = preferenceStore.getEnum("pref_theme_mode_key", ThemeMode.SYSTEM)
 
-    // Fresh installs start on Jade Ink (AMOLED-first). Stored choices are untouched.
-    val appTheme: Preference<AppTheme> = preferenceStore.getEnum("pref_app_theme", AppTheme.JADE_INK)
+    // Fresh installs start on Warm Charcoal (calm dark palette for long reading). Stored choices are untouched.
+    val appTheme: Preference<AppTheme> = preferenceStore.getEnum("pref_app_theme", AppTheme.WARM_CHARCOAL)
 
     val themeDarkAmoled: Preference<Boolean> = preferenceStore.getBoolean("pref_theme_dark_amoled_key", false)
 

@@ -4,7 +4,9 @@ import dev.icerock.moko.resources.StringResource
 import tachiyomi.i18n.MR
 
 enum class AppTheme(val titleRes: StringResource?) {
-    JADE_INK(MR.strings.theme_jadeink),
+    WARM_CHARCOAL(MR.strings.theme_warmcharcoal),
+    MUTED_JADE(MR.strings.theme_mutedjade),
+    GRAPHITE(MR.strings.theme_graphite),
     DEFAULT(MR.strings.label_default),
     MONET(MR.strings.theme_monet),
     CATPPUCCIN(MR.strings.theme_catppuccin),
@@ -22,6 +24,7 @@ enum class AppTheme(val titleRes: StringResource?) {
     MONOCHROME(MR.strings.theme_monochrome),
 
     // Deprecated
+    JADE_INK(null), // Replaced by WARM_CHARCOAL; kept so stored values still resolve
     DARK_BLUE(null),
     HOT_PINK(null),
     BLUE(null),

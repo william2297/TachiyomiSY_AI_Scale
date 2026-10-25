@@ -38,7 +38,7 @@ import eu.kanade.presentation.reader.appbars.AutoScrollPanel
 import eu.kanade.presentation.reader.appbars.ReaderBottomBar
 import eu.kanade.presentation.theme.TachiyomiShapes
 import eu.kanade.presentation.theme.TachiyomiTypography
-import eu.kanade.presentation.theme.colorscheme.JadeInkColorScheme
+import eu.kanade.presentation.theme.colorscheme.WarmCharcoalColorScheme
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderOrientation
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import org.junit.Rule
@@ -63,7 +63,7 @@ open class DesignPreviewTest {
     protected open val suffix: String = ""
 
     @Test
-    fun jadeInkDark() = capture("jade-ink-dark.png") { Sheet() }
+    fun defaultThemeDark() = capture("default-theme-dark.png") { Sheet() }
 
     @Test
     fun settings() = capture("settings.png") {
@@ -73,7 +73,7 @@ open class DesignPreviewTest {
                     Preference.PreferenceGroup(
                         title = "Appearance",
                         preferenceItems = listOf(
-                            Preference.PreferenceItem.TextPreference(title = "App theme", subtitle = "Jade Ink"),
+                            Preference.PreferenceItem.TextPreference(title = "App theme", subtitle = "Warm Charcoal"),
                             Preference.PreferenceItem.TextPreference(title = "Dark mode", subtitle = "Follow system"),
                             Preference.PreferenceItem.TextPreference(title = "Tablet UI", subtitle = "Automatic"),
                         ),
@@ -131,7 +131,7 @@ open class DesignPreviewTest {
     private fun capture(fileName: String, content: @Composable () -> Unit) {
         composeRule.setContent {
             MaterialExpressiveTheme(
-                colorScheme = JadeInkColorScheme.getColorScheme(
+                colorScheme = WarmCharcoalColorScheme.getColorScheme(
                     isDark = true,
                     isAmoled = false,
                     overrideDarkSurfaceContainers = false,
@@ -148,7 +148,9 @@ open class DesignPreviewTest {
                 }
             }
         }
-        composeRule.onRoot().captureRoboImage(System.getProperty("preview.output.dir") + "/" + fileName.removeSuffix(".png") + suffix + ".png")
+        composeRule.onRoot().captureRoboImage(
+            System.getProperty("preview.output.dir") + "/" + fileName.removeSuffix(".png") + suffix + ".png",
+        )
     }
 }
 

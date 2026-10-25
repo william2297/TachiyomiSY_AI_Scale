@@ -235,7 +235,9 @@
     <string name="theme_catppuccin">Catppuccin</string>
     <string name="theme_tokyonight">Tokyo Night</string>
     <string name="theme_greenapple">Green Apple</string>
-    <string name="theme_jadeink">Jade Ink</string>
+    <string name="theme_warmcharcoal">Warm Charcoal</string>
+    <string name="theme_mutedjade">Muted Jade</string>
+    <string name="theme_graphite">Graphite</string>
     <string name="theme_lavender">Lavender</string>
     <string name="theme_midnightdusk">Midnight Dusk</string>
     <string name="theme_monochrome">Monochrome</string>

@@ -3,6 +3,7 @@ package eu.kanade.presentation.library.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -64,6 +65,18 @@ private val ContinueReadingButtonGridPadding = 6.dp
 private val ContinueReadingButtonListSpacing = 8.dp
 
 private const val GRID_SELECTED_COVER_ALPHA = 0.76f
+
+/**
+ * Title colour on the cover scrim. The scrim is always near-black, so in light themes (dark onSurface) fall back
+ * to inverseOnSurface, which is light there.
+ */
+private val CoverTitleColor: Color
+    @Composable
+    get() = if (isSystemInDarkTheme()) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.inverseOnSurface
+    }
 
 /**
  * Layout of grid list item with title overlaying the cover.
@@ -131,10 +144,11 @@ private fun BoxScope.CoverTextOverlay(
         modifier = Modifier
             .clip(coverCorner.copy(topStart = ZeroCornerSize, topEnd = ZeroCornerSize))
             .background(
+                // Dense where the title sits, so the title can use the theme's softer text colour
                 Brush.verticalGradient(
                     0f to Color.Transparent,
-                    0.45f to Color(0x66000000),
-                    1f to Color(0xD9000000),
+                    0.35f to Color(0x99000000),
+                    1f to Color(0xF0000000),
                 ),
             )
             .fillMaxHeight(0.45f)
@@ -151,7 +165,8 @@ private fun BoxScope.CoverTextOverlay(
                 .padding(8.dp),
             title = title,
             style = MaterialTheme.typography.titleSmall.copy(
-                color = Color.White,
+                // Dark themes' onSurface instead of pure white: no glare on top of bright covers at night
+                color = CoverTitleColor,
                 shadow = Shadow(
                     color = Color.Black,
                     blurRadius = 4f,

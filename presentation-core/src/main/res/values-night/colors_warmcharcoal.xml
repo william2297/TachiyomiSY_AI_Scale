@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Colors for Warm Charcoal theme (mirrors WarmCharcoalColorScheme.kt, dark)
+-->
+<resources>
+    <color name="warmcharcoal_primary">#899C80</color>
+    <color name="warmcharcoal_onPrimary">#151D11</color>
+    <color name="warmcharcoal_primaryContainer">#2C3726</color>
+    <color name="warmcharcoal_onPrimaryContainer">#BAC6B4</color>
+    <color name="warmcharcoal_inversePrimary">#4B5B42</color>
+    <color name="warmcharcoal_secondary">#808F79</color>
+    <color name="warmcharcoal_onSecondary">#0B1208</color>
+    <color name="warmcharcoal_secondaryContainer">#262E22</color>
+    <color name="warmcharcoal_onSecondaryContainer">#B7C1B2</color>
+    <color name="warmcharcoal_tertiary">#9D8677</color>
+    <color name="warmcharcoal_onTertiary">#150D08</color>
+    <color name="warmcharcoal_tertiaryContainer">#392A20</color>
+    <color name="warmcharcoal_onTertiaryContainer">#C3B7AF</color>
+    <color name="warmcharcoal_background">#100E0B</color>
+    <color name="warmcharcoal_onBackground">#C6BFB3</color>
+    <color name="warmcharcoal_surface">#100E0B</color>
+    <color name="warmcharcoal_onSurface">#C6BFB3</color>
+    <color name="warmcharcoal_surfaceVariant">#221F1A</color>
+    <color name="warmcharcoal_onSurfaceVariant">#999387</color>
+    <color name="warmcharcoal_surfaceTint">#899C80</color>
+    <color name="warmcharcoal_inverseSurface">#C6BFB3</color>
+    <color name="warmcharcoal_inverseOnSurface">#221F1A</color>
+    <color name="warmcharcoal_error">#C08882</color>
+    <color name="warmcharcoal_onError">#3A1412</color>
+    <color name="warmcharcoal_errorContainer">#512320</color>
+    <color name="warmcharcoal_onErrorContainer">#D2B9B6</color>
+    <color name="warmcharcoal_outline">#6D665C</color>
+    <color name="warmcharcoal_outlineVariant">#3B3732</color>
+    <color name="warmcharcoal_scrim">#000000</color>
+    <color name="warmcharcoal_surfaceBright">#403D37</color>
+    <color name="warmcharcoal_surfaceDim">#100E0B</color>
+    <color name="warmcharcoal_surfaceContainerLowest">#0E0B06</color>
+    <color name="warmcharcoal_surfaceContainerLow">#191611</color>
+    <color name="warmcharcoal_surfaceContainer">#221F1A</color>
+    <color name="warmcharcoal_surfaceContainerHigh">#2A2722</color>
+    <color name="warmcharcoal_surfaceContainerHighest">#33302A</color>
+</resources>

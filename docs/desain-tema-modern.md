@@ -207,3 +207,106 @@ Mode gelap, tablet mendatar, kecerahan yang biasa Peter pakai saat membaca:
 5. Pengaturan > Tampilan dan Pengaturan > Pembaca (kartu grup dan judul grup).
 6. Reader dengan menu terbuka dan panel auto scroll terlihat.
 7. Satu foto rail navigasi kiri dengan tab Pembaruan yang punya lencana angka.
+
+## Putaran 3: palet gelap yang tenang untuk ruang remang
+
+Peter mengeluh Jade Ink bikin sakit mata saat membaca malam di ruang remang. Diagnosis Master Hei sebagian besar benar. Saya terlalu bangga pada angka kontras dan tidak bertanya kapan dan di mana aplikasi ini dipakai. Ada satu tambahan dari saya: masalah terbesar bukan teks 17,6 : 1. Masalahnya ada pada area isi yang terang dan jenuh, yaitu jade `#5FE3B8` (kroma OKLCH 0,132) pada lencana, sakelar, slider, dan pil navigasi. Area seperti itu menyala jauh lebih besar daripada garis huruf.
+
+### Cara menghitung
+
+Warna dibangun di OKLCH. Rona dan kroma dipatok, lalu terang dicari dengan pencarian biner sampai rasio WCAG 2 tercapai: `(L1 + 0,05) / (L2 + 0,05)`, dengan L = 0,2126 R + 0,7152 G + 0,0722 B pada kanal sRGB yang sudah dilinearkan. Skripnya ada di luar repo (scratchpad sesi). Hasilnya ada di `app/src/uiPreview/java/eu/kanade/presentation/preview/CalmPalettes.kt`.
+
+Sasaran: teks utama sekitar 10 : 1, teks sekunder minimal 6,3 : 1 terhadap latar (4,8 : 1 di atas kartu), aksen 6,5 sampai 7 : 1, dan lencana sekitar 5,6 : 1 terhadap latar dengan teks gelap di dalamnya. Tidak ada putih murni.
+
+### Tiga kandidat
+
+| Token | A. Jade Redup | B. Arang Hangat | C. Grafit |
+| --- | --- | --- | --- |
+| background | `#000000` | `#100E0B` | `#08090B` |
+| surfaceContainerLow / biasa / High / Highest | `#0E100F` / `#161918` / `#202221` / `#292C2B` | `#191611` / `#221F1A` / `#2A2722` / `#33302A` | `#111213` / `#1A1B1C` / `#222325` / `#2A2B2D` |
+| onSurface | `#AEB5B1` | `#C6BFB3` | `#BBBDC0` |
+| onSurfaceVariant | `#898E8B` | `#999387` | `#8F9194` |
+| primary / onPrimary | `#729F8D` / `#091F18` | `#899C80` / `#151D11` | `#8994A7` / `#161B24` |
+| secondary (belum dibaca, label tab aktif) / onSecondary | `#698C7E` / `#03130D` | `#808F79` / `#0B1208` | `#808998` / `#0C0F16` |
+| secondaryContainer (pil navigasi) / on | `#1C3028` / `#ADC3B9` | `#262E22` / `#B7C1B2` | `#272C34` / `#B8BEC8` |
+| tertiary (diunduh) / onTertiary | `#84819C` / `#0F0E18` | `#9D8677` / `#150D08` | `#7C8087` / `#0E0F12` |
+| Kroma aksen (OKLCH) | 0,056 | 0,046 | 0,031 |
+
+Nilai lengkap 36 peran ada di `CalmPalettes.kt`.
+
+| Rasio WCAG | A | B | C | Jade Ink sekarang |
+| --- | --- | --- | --- | --- |
+| Teks utama / latar | 10,0 | 10,6 | 10,6 | 17,6 |
+| Teks sekunder / latar | 6,3 | 6,3 | 6,3 | 9,6 |
+| Teks sekunder / surfaceContainerHigh | 4,8 | 4,9 | 5,0 | 6,8 |
+| Aksen / latar | 7,1 | 6,5 | 6,5 | 13,2 |
+| Isi lencana belum dibaca / latar | 5,7 | 5,6 | 5,6 | 13,2 |
+| Teks lencana / isi lencana | 5,1 | 5,5 | 5,4 | 8,2 |
+| Label tab aktif / bar navigasi | 4,8 | 4,8 | 4,9 | sekitar 11 |
+| Ikon pil navigasi / pil | 7,5 | 7,5 | 7,5 | 10,5 |
+
+### Yang lemah dari tiap kandidat
+
+1. A, Jade Redup: latar hitam pekat tetap memberi lompatan terang paling besar antara UI dan halaman putih, jadi efek halasi di tepi huruf berkurang tapi tidak hilang. Lencana ungu-abu dan hijau-abu di atas sampul terasa pudar.
+2. B, Arang Hangat: kehilangan hitam pekat AMOLED (piksel latar menyala sedikit). Kalau kecerahan tinggi, nuansa coklatnya bisa terbaca "kusam". Lencana diunduh berwarna coklat-oranye `#9D8677` bisa tenggelam di sampul yang bernada kulit.
+3. C, Grafit: identitasnya paling lemah. Lencana belum dibaca (abu kebiruan) dan diunduh (abu netral) hanya beda sedikit, jadi status di perpustakaan paling susah dibedakan sekilas. Di antara ketiganya, ini yang paling mendekati tampilan generik.
+
+### Rekomendasi
+
+Saya merekomendasikan B, Arang Hangat [Kemungkinan Besar, berdasarkan alasan berikut; belum diuji dengan mata Peter]. Alasannya:
+
+1. Latar yang sedikit terangkat mengurangi lompatan terang antara UI dan halaman komik, dan menghindari smear hitam AMOLED saat menggulir.
+2. Teks hangat mengandung sedikit biru, yang lebih nyaman di malam hari.
+3. Aksen sage paling tidak mencolok tapi masih punya rona yang jelas.
+
+Kalau Peter tetap ingin hitam pekat, A adalah pilihan kedua.
+
+### Temuan lain dari render (berlaku untuk semua palet, termasuk Jade Ink sekarang)
+
+1. Bar menu reader memakai alfa 0,9 (`ReaderAppBars.kt`, `ChapterNavigator.kt`). Di atas halaman putih, 10% putih tembus dan bar jadi pita abu-abu terang. Koreksi atas catatan Putaran 2: `ReaderActivity` ternyata tidak lagi mengatur warna toolbar; komentar "Match with toolbar background color set in ReaderActivity" sudah usang. Kedua sisi yang harus sama ada di dua berkas Compose itu.
+2. Judul di atas sampul memakai `Color.White` tetap (`CommonMangaItem.kt`). Di pratinjau saya pakai `onSurface` dengan scrim lebih pekat (0,35 → 60%, ujung 94%). Hasilnya tetap terbaca dan tidak memakai putih murni.
+3. Di M3, `secondary` juga menjadi warna label tab aktif di bar navigasi. Itu sebabnya lencana belum dibaca tidak bisa dibuat isi gelap tanpa merusak label tab. Percobaan pertama saya gagal karena hal ini dan baru ketahuan di render.
+4. Sumber cahaya terbesar saat membaca tetaplah halaman komik putih. Palet UI tidak bisa memperbaikinya. Kecerahan layar dan filter warna di pengaturan reader akan berdampak lebih besar daripada palet [Kemungkinan Besar].
+
+### Pratinjau
+
+Dirender dengan Robolectric dan Roborazzi di ukuran mendekati tablet (1172x781 dp mendatar, 781x1172 dp potret; kelas `DesignPreviewTest` lama memakai `w1680dp`, angka piksel, bukan dp). Path di `/home/user/preview-out5/`:
+
+`calm-library-landscape.png`, `calm-library-portrait.png`, `calm-settings-landscape.png`, `calm-settings-portrait.png`, `calm-reader-landscape.png`, `calm-reader-portrait.png`, dan pembanding `calm-baseline-jade-ink-landscape.png`, `calm-baseline-jade-ink-portrait.png`.
+
+Sampul berupa gradien contoh dan halaman komik berupa blok putih. PNG sRGB di monitor tidak bisa meniru AMOLED di ruang gelap: halasi, black smear, dan adaptasi pupil hanya bisa dinilai di tablet [Pasti, keterbatasan alat].
+
+### Status: terpasang di aplikasi
+
+Peter memilih B. Ketiga palet sekarang jadi tema nyata dengan nama bahasa Inggris, karena aplikasinya akan berbahasa Inggris:
+
+| Kandidat | Nama di aplikasi | Enum | Berkas skema |
+| --- | --- | --- | --- |
+| B | Warm Charcoal (bawaan instalasi baru) | `WARM_CHARCOAL` | `WarmCharcoalColorScheme.kt` |
+| A | Muted Jade | `MUTED_JADE` | `MutedJadeColorScheme.kt` |
+| C | Graphite | `GRAPHITE` | `GraphiteColorScheme.kt` |
+
+Token gelap persis sama dengan tabel di atas. Skrip mengecek bahwa ke-36 peran di Kotlin, XML `values-night`, dan hasil hitungan identik untuk ketiga tema [Pasti]. Pratinjau sekarang membaca skema asli dari aplikasi, bukan salinan.
+
+Jade Ink tetap ada di enum supaya pilihan yang sudah tersimpan tidak rusak. Entri itu disembunyikan dari pemilih (`titleRes` null, seperti entri deprecated lain) dan diarahkan ke Warm Charcoal, baik untuk skema Compose maupun gaya XML. `colors_jadeink.xml` dan gaya `Theme.Tachiyomi.JadeInk` dihapus karena tidak dirujuk lagi. `JadeInkColorScheme.kt` dibiarkan karena pratinjau "Before" masih memakainya.
+
+Mode terang saya turunkan dari rona dan kroma yang sama: latar kertas lembut (OKLCH L 0,965, bukan putih murni), teks utama 12 : 1, teks sekunder 5,5 : 1 di atas container tertinggi, aksen dan lencana 5,5 : 1 dengan teks putih kebiruan di atasnya, dan label tab aktif sekitar 4,9 : 1.
+
+| Token terang | A. Muted Jade | B. Warm Charcoal | C. Graphite |
+| --- | --- | --- | --- |
+| background | `#F0F5F2` | `#F9F3E9` | `#F2F3F7` |
+| surfaceContainer | `#E2E8E5` | `#EBE5DC` | `#E5E6E9` |
+| surfaceContainerHighest | `#D5DAD8` | `#DED8CF` | `#D7D9DC` |
+| onSurface | `#2A312E` | `#372E20` | `#2D2F34` |
+| onSurfaceVariant | `#4C5451` | `#5A5142` | `#505258` |
+| primary | `#1D6F56` | `#4E6A3F` | `#526280` |
+| secondary | `#2B6D57` | `#516945` | `#54627C` |
+| secondaryContainer | `#BADACC` | `#C8D6C1` | `#C9D1E0` |
+| tertiary | `#635D86` | `#7D5B45` | `#5F626A` |
+
+Perubahan lain yang ikut terpasang:
+
+1. Bar menu reader dan navigator bab memakai satu konstanta `READER_BARS_ALPHA = 0.97f` di `ReaderAppBars.kt`. Sebelumnya 0,9 di mode gelap dan 0,95 di mode terang; sekarang 0,97 untuk keduanya.
+2. Judul di atas sampul memakai `onSurface` tema di mode gelap (`inverseOnSurface` di mode terang, karena scrim selalu hampir hitam). Scrim-nya jadi transparan → 60% hitam di 35% → 94% hitam di dasar.
+
+Yang belum terverifikasi: tampilan di tablet AMOLED sungguhan di ruang remang, dan mode terang (belum dirender) [Tidak Diketahui].

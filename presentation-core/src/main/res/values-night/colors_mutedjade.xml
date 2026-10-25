@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ~ Colors for Muted Jade theme (mirrors MutedJadeColorScheme.kt, dark)
+-->
+<resources>
+    <color name="mutedjade_primary">#729F8D</color>
+    <color name="mutedjade_onPrimary">#091F18</color>
+    <color name="mutedjade_primaryContainer">#1E392F</color>
+    <color name="mutedjade_onPrimaryContainer">#ADC8BD</color>
+    <color name="mutedjade_inversePrimary">#345F4F</color>
+    <color name="mutedjade_secondary">#698C7E</color>
+    <color name="mutedjade_onSecondary">#03130D</color>
+    <color name="mutedjade_secondaryContainer">#1C3028</color>
+    <color name="mutedjade_onSecondaryContainer">#ADC3B9</color>
+    <color name="mutedjade_tertiary">#84819C</color>
+    <color name="mutedjade_onTertiary">#0F0E18</color>
+    <color name="mutedjade_tertiaryContainer">#2D2B3D</color>
+    <color name="mutedjade_onTertiaryContainer">#B9B8C6</color>
+    <color name="mutedjade_background">#000000</color>
+    <color name="mutedjade_onBackground">#AEB5B1</color>
+    <color name="mutedjade_surface">#000000</color>
+    <color name="mutedjade_onSurface">#AEB5B1</color>
+    <color name="mutedjade_surfaceVariant">#161918</color>
+    <color name="mutedjade_onSurfaceVariant">#898E8B</color>
+    <color name="mutedjade_surfaceTint">#729F8D</color>
+    <color name="mutedjade_inverseSurface">#AEB5B1</color>
+    <color name="mutedjade_inverseOnSurface">#161918</color>
+    <color name="mutedjade_error">#B9827C</color>
+    <color name="mutedjade_onError">#3A1412</color>
+    <color name="mutedjade_errorContainer">#512320</color>
+    <color name="mutedjade_onErrorContainer">#D2B9B6</color>
+    <color name="mutedjade_outline">#5D6360</color>
+    <color name="mutedjade_outlineVariant">#313432</color>
+    <color name="mutedjade_scrim">#000000</color>
+    <color name="mutedjade_surfaceBright">#363937</color>
+    <color name="mutedjade_surfaceDim">#000000</color>
+    <color name="mutedjade_surfaceContainerLowest">#000000</color>
+    <color name="mutedjade_surfaceContainerLow">#0E100F</color>
+    <color name="mutedjade_surfaceContainer">#161918</color>
+    <color name="mutedjade_surfaceContainerHigh">#202221</color>
+    <color name="mutedjade_surfaceContainerHighest">#292C2B</color>
+</resources>

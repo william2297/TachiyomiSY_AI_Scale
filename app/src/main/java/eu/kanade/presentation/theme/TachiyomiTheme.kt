@@ -10,12 +10,13 @@ import androidx.compose.ui.platform.LocalContext
 import eu.kanade.domain.ui.model.AppTheme
 import eu.kanade.presentation.theme.colorscheme.BaseColorScheme
 import eu.kanade.presentation.theme.colorscheme.CatppuccinColorScheme
+import eu.kanade.presentation.theme.colorscheme.GraphiteColorScheme
 import eu.kanade.presentation.theme.colorscheme.GreenAppleColorScheme
-import eu.kanade.presentation.theme.colorscheme.JadeInkColorScheme
 import eu.kanade.presentation.theme.colorscheme.LavenderColorScheme
 import eu.kanade.presentation.theme.colorscheme.MidnightDuskColorScheme
 import eu.kanade.presentation.theme.colorscheme.MonetColorScheme
 import eu.kanade.presentation.theme.colorscheme.MonochromeColorScheme
+import eu.kanade.presentation.theme.colorscheme.MutedJadeColorScheme
 import eu.kanade.presentation.theme.colorscheme.NordColorScheme
 import eu.kanade.presentation.theme.colorscheme.StrawberryColorScheme
 import eu.kanade.presentation.theme.colorscheme.TachiyomiColorScheme
@@ -23,6 +24,7 @@ import eu.kanade.presentation.theme.colorscheme.TakoColorScheme
 import eu.kanade.presentation.theme.colorscheme.TealTurqoiseColorScheme
 import eu.kanade.presentation.theme.colorscheme.TidalWaveColorScheme
 import eu.kanade.presentation.theme.colorscheme.TokyoNightColorScheme
+import eu.kanade.presentation.theme.colorscheme.WarmCharcoalColorScheme
 import eu.kanade.presentation.theme.colorscheme.YinYangColorScheme
 import eu.kanade.presentation.theme.colorscheme.YotsubaColorScheme
 import mihon.app.di.appGraph
@@ -86,17 +88,22 @@ private fun getThemeColorScheme(
     return colorScheme.getColorScheme(
         isDark = isDark,
         isAmoled = isAmoled,
-        // Jade Ink is already true black with its own tuned container ladder
-        overrideDarkSurfaceContainers = appTheme != AppTheme.MONET && appTheme != AppTheme.JADE_INK,
+        // The calm palettes ship their own container ladder tuned for dim-room reading
+        overrideDarkSurfaceContainers = appTheme != AppTheme.MONET && appTheme !in CalmThemes,
     )
 }
+
+private val CalmThemes = setOf(AppTheme.WARM_CHARCOAL, AppTheme.MUTED_JADE, AppTheme.GRAPHITE, AppTheme.JADE_INK)
 
 private val colorSchemes: Map<AppTheme, BaseColorScheme> = mapOf(
     AppTheme.DEFAULT to TachiyomiColorScheme,
     AppTheme.CATPPUCCIN to CatppuccinColorScheme,
     AppTheme.TOKYONIGHT to TokyoNightColorScheme,
     AppTheme.GREEN_APPLE to GreenAppleColorScheme,
-    AppTheme.JADE_INK to JadeInkColorScheme,
+    AppTheme.WARM_CHARCOAL to WarmCharcoalColorScheme,
+    AppTheme.MUTED_JADE to MutedJadeColorScheme,
+    AppTheme.GRAPHITE to GraphiteColorScheme,
+    AppTheme.JADE_INK to WarmCharcoalColorScheme, // Deprecated, see AppTheme
     AppTheme.LAVENDER to LavenderColorScheme,
     AppTheme.MIDNIGHT_DUSK to MidnightDuskColorScheme,
     AppTheme.MONOCHROME to MonochromeColorScheme,
