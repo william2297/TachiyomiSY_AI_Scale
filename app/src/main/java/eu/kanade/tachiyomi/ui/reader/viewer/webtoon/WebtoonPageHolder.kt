@@ -117,6 +117,24 @@ class WebtoonPageHolder(
         loadJob?.cancel()
         loadJob = scope.launch { loadPageAndProcessStatus() }
         refreshLayoutParams()
+        sizePlaceholder(page)
+    }
+
+    /**
+     * While a page is loading, its holder is kept as tall as the page was the last time it was shown, so scrolling
+     * back over it does not make the list jump when the picture arrives. A page not seen before gets a screen.
+     */
+    private fun sizePlaceholder(page: ReaderPage) {
+        val ratio = knownHeightRatios[heightKey(page)]
+        val width = frame.width.takeIf { it > 0 } ?: viewer.recycler.width
+        val height = if (ratio != null && width > 0) (ratio * width).toInt().coerceAtLeast(1) else parentHeight
+        progressContainer.updateLayoutParams { this.height = height }
+    }
+
+    private fun rememberHeight(page: ReaderPage) {
+        val width = pageContainer.width
+        val height = pageContainer.height
+        if (width > 0 && height > 0) knownHeightRatios[heightKey(page)] = height.toFloat() / width
     }
 
     fun boundPage(): ReaderPage? = page
@@ -400,6 +418,8 @@ class WebtoonPageHolder(
     private fun onImageDecoded() {
         progressContainer.isVisible = false
         removeErrorLayout()
+        // Measure after the layout pass that follows the image becoming visible
+        page?.let { shown -> frame.post { if (page === shown) rememberHeight(shown) } }
     }
 
     /**
@@ -457,5 +477,16 @@ class WebtoonPageHolder(
             frame.removeView(it.root)
             errorLayout = null
         }
+    }
+
+    private companion object {
+        /** Height divided by width of recently shown pages, so a recycled holder can reserve the right space. */
+        val knownHeightRatios = object : LinkedHashMap<Long, Float>(256, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Float>?) = size > MAX_KNOWN_PAGES
+        }
+
+        const val MAX_KNOWN_PAGES = 600
+
+        fun heightKey(page: ReaderPage): Long = (page.chapter.chapter.id ?: 0L) * 100_000L + page.index
     }
 }
