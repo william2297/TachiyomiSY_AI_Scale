@@ -189,14 +189,20 @@ internal class HttpPageLoader(
         val window = if (canLoadAhead()) items.indices else (index - 1)..(index + LIMITED_PAGES_AHEAD)
         val chunks = buildList {
             items.getOrNull(index)?.let(::add)
-            items.getOrNull(index - 1)?.let(::add)
-            items.getOrNull(index + 1)?.let(::add)
-            // `items.lastIndex`, not the list being built, whose lastIndex is at most 2 here
-            if (index < items.lastIndex - 1) {
-                items.subList(index + 2, items.size).let(::addAll)
+            // The nearest pages on both sides come first. Loading every page ahead before any page behind left a
+            // reader who jumped to a page, or scrolled back up, looking at empty pages until the whole rest of the
+            // chapter had loaded.
+            for (offset in 1..NEARBY_PAGES) {
+                items.getOrNull(index - offset)?.let(::add)
+                items.getOrNull(index + offset)?.let(::add)
             }
-            if (index > 1) {
-                items.subList(0, index - 1).reversed().let(::addAll)
+            val firstFarAhead = index + NEARBY_PAGES + 1
+            if (firstFarAhead < items.size) {
+                items.subList(firstFarAhead, items.size).let(::addAll)
+            }
+            val lastFarBehind = index - NEARBY_PAGES - 1
+            if (lastFarBehind >= 0) {
+                items.subList(0, lastFarBehind + 1).reversed().let(::addAll)
             }
         }
             .filter { it.index in window }
@@ -318,6 +324,7 @@ internal class HttpPageLoader(
 }
 
 private const val LIMITED_PAGES_AHEAD = 4
+private const val NEARBY_PAGES = 3
 private const val MAX_AUTO_RETRIES = 2
 private const val AUTO_RETRY_DELAY_MS = 1500L
 private val TRANSIENT_HTTP_CODES = setOf(408, 429, 500, 502, 503, 504)
