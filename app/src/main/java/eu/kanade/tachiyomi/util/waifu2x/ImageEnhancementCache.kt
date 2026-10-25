@@ -38,6 +38,8 @@ object ImageEnhancementCache {
     private const val MAX_CACHE_SIZE = 3L * 1024 * 1024 * 1024 // 3GB
     private const val BLACK_RESULT_MAX_CHANNEL = 8
     private const val SOURCE_VISIBLE_MIN_CHANNEL = 48
+    private const val ASPECT_TOLERANCE = 0.02f
+    private const val BAND_COUNT = 8
     private var cacheDir: File? = null
 
     // A model change clears this directory while completed pages can still be
@@ -454,20 +456,32 @@ object ImageEnhancementCache {
     fun isPlausibleEnhancement(source: Bitmap, result: Bitmap): Boolean {
         return try {
             if (source.isRecycled || result.isRecycled) return true
-            val resultBrightest = sampledBrightestChannel(result)
-            resultBrightest > BLACK_RESULT_MAX_CHANNEL || sampledBrightestChannel(source) < SOURCE_VISIBLE_MIN_CHANNEL
+            if (source.width <= 0 || source.height <= 0) return true
+            // Output must keep the source's shape; a padded or cropped result shows up as a black bar under the page.
+            val sourceAspect = source.height.toFloat() / source.width
+            val resultAspect = result.height.toFloat() / result.width
+            if (kotlin.math.abs(resultAspect - sourceAspect) > sourceAspect * ASPECT_TOLERANCE) return false
+            // A partly black result passes a whole-image check, so compare horizontal bands with the source.
+            for (band in 0 until BAND_COUNT) {
+                val resultBrightest = sampledBrightestChannel(result, band, BAND_COUNT)
+                if (resultBrightest > BLACK_RESULT_MAX_CHANNEL) continue
+                if (sampledBrightestChannel(source, band, BAND_COUNT) >= SOURCE_VISIBLE_MIN_CHANNEL) return false
+            }
+            true
         } catch (e: Exception) {
             // Hardware bitmaps cannot be sampled; do not block them.
             true
         }
     }
 
-    private fun sampledBrightestChannel(bitmap: Bitmap): Int {
+    private fun sampledBrightestChannel(bitmap: Bitmap, band: Int, bandCount: Int): Int {
         val stepX = (bitmap.width / 32).coerceAtLeast(1)
-        val stepY = (bitmap.height / 32).coerceAtLeast(1)
+        val bandStart = bitmap.height * band / bandCount
+        val bandEnd = bitmap.height * (band + 1) / bandCount
+        val stepY = ((bandEnd - bandStart) / 8).coerceAtLeast(1)
         var brightest = 0
-        var y = 0
-        while (y < bitmap.height) {
+        var y = bandStart
+        while (y < bandEnd) {
             var x = 0
             while (x < bitmap.width) {
                 val pixel = bitmap.getPixel(x, y)
