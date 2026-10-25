@@ -58,6 +58,7 @@ import eu.kanade.tachiyomi.ui.reader.viewer.pager.BookPageBounds
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.BookPageImageSource
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.BookPageTurn
 import eu.kanade.tachiyomi.ui.reader.viewer.pager.BookPageTurnDrawing
+import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.webtoon.WebtoonStripImageView
 import eu.kanade.tachiyomi.util.system.animatorDurationScale
 import eu.kanade.tachiyomi.util.view.isVisibleOnScreen
@@ -465,9 +466,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
             // Webtoon pages never take touches (like WebtoonStripImageView): taps, scrolling and pinch all belong to
             // the recycler. A touchable page view would swallow every tap, so the tap zones would stop working
             // whenever enhancement puts this view on a page.
-            object : SubsamplingScaleImageView(context) {
-                override fun onTouchEvent(event: MotionEvent): Boolean = false
-            }.apply {
+            WebtoonPageImageView(context).apply {
                 isClickable = false
                 isFocusable = false
             }
