@@ -57,6 +57,7 @@ open class Pager(
 
     private var originalScroller: Scroller? = null
     private var bookScroller: Scroller? = null
+    private var quickScroller: Scroller? = null
 
     internal fun setBookTurnTiming(enabled: Boolean) {
         val field = generateSequence(javaClass as Class<*>?) { it.superclass }
@@ -72,7 +73,15 @@ open class Pager(
                     }
                 }
             }
-            field.set(this, if (enabled) bookScroller else originalScroller)
+            if (!enabled && quickScroller == null) {
+                // Taps and swipes settle fast; the stock duration (up to about 0.6 s) reads as a delay
+                quickScroller = object : Scroller(context, DecelerateInterpolator()) {
+                    override fun startScroll(startX: Int, startY: Int, dx: Int, dy: Int, duration: Int) {
+                        super.startScroll(startX, startY, dx, dy, minOf(duration, QUICK_PAGE_TURN_MILLIS))
+                    }
+                }
+            }
+            field.set(this, if (enabled) bookScroller else quickScroller)
         }
     }
 
@@ -179,3 +188,5 @@ open class Pager(
         super.onRestoreInstanceState(null)
     }
 }
+
+private const val QUICK_PAGE_TURN_MILLIS = 140

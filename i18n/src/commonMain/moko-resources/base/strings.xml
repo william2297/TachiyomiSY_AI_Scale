@@ -1187,7 +1187,7 @@
     <string name="reader_auto_scroll_speed">Auto scroll speed (right is faster)</string>
     <string name="reader_auto_scroll_seconds">%1$d s</string>
     <string name="reader_auto_scroll_smooth">Smooth scroll (webtoon)</string>
-    <string name="reader_debug_page_layers">Tint page layers (troubleshooting)</string>
+    <string name="reader_debug_page_layers">Troubleshooting overlay (tinted page layers, tap toasts)</string>
     <string name="reader_optimize_for_oppo_pad_mini">Optimize for Oppo Pad Mini</string>
     <string name="reader_clear_enhancement_cache">Clear enhanced pages</string>
     <string name="reader_enhancement_cache_cleared">Enhanced pages cleared; they will be enhanced again as you read</string>

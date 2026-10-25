@@ -6,6 +6,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
 import androidx.core.app.ActivityCompat
 import androidx.core.view.children
@@ -23,6 +24,7 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
+import eu.kanade.tachiyomi.util.system.toast
 import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -145,7 +147,11 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
                     (event.rawY - viewPosition[1] + viewPositionRelativeToWindow[1]) / recycler.originalHeight,
                 )
             }
-            when (config.navigator.getAction(pos)) {
+            val action = config.navigator.getAction(pos)
+            if (readerPreferences.debugPageLayers.get()) {
+                activity.toast("tap %.2f, %.2f -> %s".format(pos.x, pos.y, action::class.simpleName))
+            }
+            when (action) {
                 NavigationRegion.MENU -> activity.toggleMenu()
                 NavigationRegion.NEXT, NavigationRegion.RIGHT -> scrollDown()
                 NavigationRegion.PREV, NavigationRegion.LEFT -> scrollUp()
@@ -337,7 +343,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             tapScrolledPx = 0
         }
         tapRequestedPx += distance
-        recycler.smoothScrollBy(0, tapRequestedPx - tapScrolledPx)
+        // A fixed short duration: the default grows with the distance and makes one tap feel slow
+        recycler.smoothScrollBy(0, tapRequestedPx - tapScrolledPx, DecelerateInterpolator(), TAP_SCROLL_MILLIS)
     }
 
     /**
@@ -479,3 +486,5 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 
 // Double the cache size to reduce rebinds/recycles incurred by the extra layout space on scroll direction changes
 private const val RECYCLER_VIEW_CACHE_SIZE = 6
+
+private const val TAP_SCROLL_MILLIS = 160
