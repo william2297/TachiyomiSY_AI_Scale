@@ -13,7 +13,9 @@ import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 object EnhancementPreset {
     private const val MAX_PROCESSING_SIZE = 1600
     private const val SKIP_ABOVE_SIZE = 2560
-    private const val BACKGROUND_AHEAD_CHAPTER = 100
+
+    // No enhancing ahead in the background: it kept the NPU busy for the whole chapter and heated the tablet
+    private const val BACKGROUND_AHEAD = 0
 
     fun apply(preferences: ReaderPreferences, screenWidthPx: Int, screenHeightPx: Int) {
         // Never falls back to Vulkan, which force-closes the app on this tablet; without an NPU it leaves the
@@ -28,7 +30,7 @@ object EnhancementPreset {
         preferences.realCuganNoiseLevel().set(4)
         preferences.realCuganPrecision().set(0)
         preferences.realCuganPreloadSize().set(3)
-        preferences.realCuganBackgroundAhead().set(BACKGROUND_AHEAD_CHAPTER)
+        preferences.realCuganBackgroundAhead().set(BACKGROUND_AHEAD)
         preferences.realCuganMaxSizeWidth().set(MAX_PROCESSING_SIZE)
         preferences.realCuganMaxSizeHeight().set(MAX_PROCESSING_SIZE)
         preferences.realCuganSkipMaxSizeWidth().set(SKIP_ABOVE_SIZE)

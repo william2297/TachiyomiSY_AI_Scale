@@ -113,7 +113,10 @@ class WebtoonTapTest {
 
     @Test
     fun tapThatStopsAFlickDoesNotAct() {
-        val count = taps({ it.onManualScroll(); it.smoothScrollBy(0, 600) }) { View(it) }
+        val count = taps({
+            it.onManualScroll()
+            it.smoothScrollBy(0, 600)
+        }) { View(it) }
         println("TAP_stopsFlick=$count")
         assertEquals(0, count)
     }
