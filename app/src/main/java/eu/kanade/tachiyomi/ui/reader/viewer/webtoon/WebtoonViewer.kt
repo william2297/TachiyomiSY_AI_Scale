@@ -1,13 +1,14 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import android.graphics.PointF
+import android.view.Choreographer
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
-import android.view.animation.DecelerateInterpolator
 import android.view.animation.LinearInterpolator
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.view.children
 import androidx.core.view.isGone
@@ -30,9 +31,15 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Implementation of a [Viewer] to display pages with a [RecyclerView].
@@ -101,15 +108,11 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
         recycler.addOnScrollListener(
             object : RecyclerView.OnScrollListener() {
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                    // Idle or a finger took over: the tap-requested scroll is over
-                    if (newState != RecyclerView.SCROLL_STATE_SETTLING) {
-                        tapRequestedPx = 0
-                        tapScrolledPx = 0
-                    }
+                    // A finger took over: whatever the taps still had to scroll is dropped
+                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING) cancelTapScroll()
                 }
 
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                    tapScrolledPx += dy
                     onScrolled()
 
                     if ((dy > threshold || dy < -threshold) && activity.viewModel.state.value.menuVisible) {
@@ -172,6 +175,16 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             false
         }
 
+        // SY -->
+        recycler.autoScrollTogglePauseListener = ::toggleAutoScrollPause
+        recycler.autoScrollActivateListener = ::startAutoScrollFromGesture
+        recycler.autoScrollStopListener = ::stopAutoScroll
+        recycler.autoScrollSpeedChangeListener = ::adjustAutoScrollSpeed
+        recycler.autoScrollInteractionListener = {
+            interruptAutoScrollDelay = true
+        }
+        // SY <--
+
         config.imagePropertyChangedListener = {
             recycler.sidePaddingPercent = config.sidePadding
             refreshAdapter()
@@ -230,6 +243,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
      */
     override fun destroy() {
         super.destroy()
+        cancelTapScroll()
+        autoScrollToast?.cancel()
         eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer.cancelAll("webtoon viewer destroyed")
         scope.cancel()
     }
@@ -325,26 +340,66 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     }
 
     /**
-     * Distance requested by taps during the current scroll, and how much of it already happened. A new tap adds to
-     * what is left, so tapping several times quickly scrolls several screens instead of restarting the same one.
+     * Taps move the list toward a target that every further tap extends. The list closes in on the target a fixed
+     * fraction per frame, so the speed stays continuous when taps arrive in a row. Restarting a fresh scroll for each
+     * tap made quick taps stutter and skip.
      */
-    private var tapRequestedPx = 0
-    private var tapScrolledPx = 0
+    private var tapRemaining = 0f
+    private var tapCarry = 0f
+    private var tapLastFrameNanos = 0L
+    private var tapAnimating = false
+
+    private val tapFrameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!tapAnimating) return
+            val seconds = if (tapLastFrameNanos == 0L) {
+                1f / 60f
+            } else {
+                ((frameTimeNanos - tapLastFrameNanos) / 1_000_000_000f).coerceIn(0f, 0.05f)
+            }
+            tapLastFrameNanos = frameTimeNanos
+            val finishing = abs(tapRemaining) < TAP_SCROLL_FINISH_PX
+            val step = if (finishing) tapRemaining else tapRemaining * (1f - exp(-seconds / TAP_SCROLL_TAU_SECONDS))
+            tapRemaining -= step
+            tapCarry += step
+            val whole = if (finishing) tapCarry.roundToInt() else tapCarry.toInt()
+            if (whole != 0) {
+                recycler.scrollBy(0, whole)
+                tapCarry -= whole
+            }
+            if (finishing) {
+                cancelTapScroll()
+            } else {
+                Choreographer.getInstance().postFrameCallback(this)
+            }
+        }
+    }
+
+    private fun cancelTapScroll() {
+        tapAnimating = false
+        tapRemaining = 0f
+        tapCarry = 0f
+        tapLastFrameNanos = 0L
+        Choreographer.getInstance().removeFrameCallback(tapFrameCallback)
+    }
 
     private fun scrollByTap(distance: Int) {
         if (!config.usePageTransitions) {
             recycler.scrollBy(0, distance)
             return
         }
-        // Only a scroll that is still running can be extended; anything else (idle, auto scroll, a drag) starts over
-        val remaining = tapRequestedPx - tapScrolledPx
-        if (recycler.scrollState != RecyclerView.SCROLL_STATE_SETTLING || (remaining > 0) != (distance > 0)) {
-            tapRequestedPx = 0
-            tapScrolledPx = 0
+        if (!tapAnimating) {
+            // A flick or an auto scroll step still running would fight the tap
+            if (recycler.scrollState == RecyclerView.SCROLL_STATE_SETTLING) recycler.stopScroll()
+            tapAnimating = true
+            tapLastFrameNanos = 0L
+            tapCarry = 0f
+            tapRemaining = 0f
+            Choreographer.getInstance().postFrameCallback(tapFrameCallback)
         }
-        tapRequestedPx += distance
-        // A fixed short duration: the default grows with the distance and makes one tap feel slow
-        recycler.smoothScrollBy(0, tapRequestedPx - tapScrolledPx, DecelerateInterpolator(), TAP_SCROLL_MILLIS)
+        // A tap the other way cancels what is left instead of adding to it
+        if ((tapRemaining > 0) != (distance > 0)) tapRemaining = 0f
+        tapRemaining += distance
     }
 
     /**
@@ -365,6 +420,159 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     fun scrollDown() {
         scrollByTap(scrollDistance)
     }
+
+    // SY -->
+    private var autoScrollEnabled = false
+    private var autoScrollPaused = false
+    private var autoScrollHasRuntimeSpeedOverride = false
+    private var autoScrollIntervalMillis = DEFAULT_AUTO_SCROLL_INTERVAL_MILLIS
+    private var interruptAutoScrollDelay = false
+    private var autoScrollToast: Toast? = null
+    private var autoScrollUiBlocked = false
+    private var autoScrollGesturesEnabled = false
+    private var autoScrollGestureToastsEnabled = true
+
+    fun syncAutoScrollSettings(enabled: Boolean, interval: Duration, forceInterval: Boolean = false) {
+        val intervalMillis =
+            interval.inWholeMilliseconds
+                .coerceIn(MIN_AUTO_SCROLL_INTERVAL_MILLIS, MAX_AUTO_SCROLL_INTERVAL_MILLIS)
+
+        if (!enabled) {
+            autoScrollEnabled = false
+            autoScrollPaused = false
+            autoScrollHasRuntimeSpeedOverride = false
+            interruptAutoScrollDelay = false
+            recycler.stopScroll()
+            updateAutoScrollGestureMode()
+            return
+        }
+
+        if (!autoScrollEnabled || forceInterval) {
+            autoScrollIntervalMillis = intervalMillis
+            autoScrollHasRuntimeSpeedOverride = false
+            autoScrollPaused = false
+        } else if (!autoScrollHasRuntimeSpeedOverride) {
+            autoScrollIntervalMillis = intervalMillis
+        }
+
+        autoScrollEnabled = true
+        updateAutoScrollGestureMode()
+    }
+
+    /** The menu is open: auto scroll holds still and carries on when the menu closes. */
+    fun setAutoScrollUiBlocked(blocked: Boolean) {
+        autoScrollUiBlocked = blocked
+        if (blocked) {
+            recycler.stopScroll()
+            interruptAutoScrollDelay = true
+        }
+        updateAutoScrollGestureMode()
+    }
+
+    fun setAutoScrollGesturesEnabled(enabled: Boolean) {
+        autoScrollGesturesEnabled = enabled
+        updateAutoScrollGestureMode()
+    }
+
+    fun setAutoScrollGestureToastsEnabled(enabled: Boolean) {
+        autoScrollGestureToastsEnabled = enabled
+        if (!enabled) {
+            autoScrollToast?.cancel()
+            autoScrollToast = null
+        }
+    }
+
+    private fun isAutoScrollHeld(): Boolean {
+        return autoScrollPaused || autoScrollUiBlocked || recycler.isTouched || recycler.isAutoScrollGestureInProgress()
+    }
+
+    fun performAutoScrollStep(smooth: Boolean) {
+        if (!autoScrollEnabled || isAutoScrollHeld()) return
+
+        if (smooth) {
+            linearScroll(autoScrollIntervalMillis.milliseconds)
+        } else {
+            scrollDown()
+        }
+    }
+
+    fun autoScrollDelayMillis(): Long {
+        return if (isAutoScrollHeld()) AUTO_SCROLL_POLL_DELAY_MILLIS else autoScrollIntervalMillis
+    }
+
+    fun consumeAutoScrollDelayInterrupt(): Boolean {
+        val shouldInterrupt = interruptAutoScrollDelay
+        interruptAutoScrollDelay = false
+        return shouldInterrupt
+    }
+
+    private fun toggleAutoScrollPause() {
+        if (!autoScrollEnabled) return
+
+        autoScrollPaused = !autoScrollPaused
+        interruptAutoScrollDelay = true
+        recycler.stopScroll()
+
+        showAutoScrollToast("Auto scroll: " + if (autoScrollPaused) "paused" else "resumed")
+    }
+
+    private fun stopAutoScroll() {
+        if (!autoScrollEnabled) return
+
+        autoScrollEnabled = false
+        autoScrollPaused = false
+        autoScrollHasRuntimeSpeedOverride = false
+        interruptAutoScrollDelay = true
+        updateAutoScrollGestureMode()
+        recycler.stopScroll()
+        activity.onAutoScrollStoppedByViewer()
+        showAutoScrollToast("Auto scroll: stopped")
+    }
+
+    private fun adjustAutoScrollSpeed(steps: Int) {
+        if (!autoScrollEnabled || steps == 0) return
+
+        recycler.stopScroll()
+        interruptAutoScrollDelay = true
+        autoScrollHasRuntimeSpeedOverride = true
+
+        var newInterval = autoScrollIntervalMillis.toDouble()
+        repeat(abs(steps)) {
+            newInterval *= if (steps > 0) AUTO_SCROLL_SPEED_UP_FACTOR else AUTO_SCROLL_SPEED_DOWN_FACTOR
+        }
+
+        autoScrollIntervalMillis =
+            newInterval.roundToLong().coerceIn(MIN_AUTO_SCROLL_INTERVAL_MILLIS, MAX_AUTO_SCROLL_INTERVAL_MILLIS)
+
+        showAutoScrollToast("Auto scroll: ${formatAutoScrollInterval()}")
+    }
+
+    private fun formatAutoScrollInterval(): String {
+        val seconds = autoScrollIntervalMillis / 1000f
+        val pattern = if (seconds < 10f) "%.2fs" else "%.1fs"
+        return String.format(Locale.getDefault(), pattern, seconds)
+    }
+
+    private fun showAutoScrollToast(message: String) {
+        if (!autoScrollGestureToastsEnabled) return
+
+        autoScrollToast?.cancel()
+        autoScrollToast = activity.toast(message)
+    }
+
+    private fun startAutoScrollFromGesture() {
+        if (autoScrollEnabled) return
+
+        activity.startAutoScrollFromViewer()
+        showAutoScrollToast("Auto scroll: started")
+    }
+
+    private fun updateAutoScrollGestureMode() {
+        val gesturesAvailable = autoScrollGesturesEnabled && !autoScrollUiBlocked
+        recycler.autoScrollGestureModeEnabled = gesturesAvailable && autoScrollEnabled
+        recycler.autoScrollActivationGestureEnabled = gesturesAvailable && !autoScrollEnabled
+    }
+    // SY <--
 
     /**
      * Called from the containing activity when a key [event] is received. It should return true
@@ -487,4 +695,14 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 // Double the cache size to reduce rebinds/recycles incurred by the extra layout space on scroll direction changes
 private const val RECYCLER_VIEW_CACHE_SIZE = 6
 
-private const val TAP_SCROLL_MILLIS = 160
+private const val TAP_SCROLL_TAU_SECONDS = 0.07f
+private const val TAP_SCROLL_FINISH_PX = 2f
+
+// SY -->
+private const val AUTO_SCROLL_POLL_DELAY_MILLIS = 100L
+private const val DEFAULT_AUTO_SCROLL_INTERVAL_MILLIS = 3_000L
+private const val MIN_AUTO_SCROLL_INTERVAL_MILLIS = 250L
+private const val MAX_AUTO_SCROLL_INTERVAL_MILLIS = 9_999_000L
+private const val AUTO_SCROLL_SPEED_UP_FACTOR = 0.9
+private const val AUTO_SCROLL_SPEED_DOWN_FACTOR = 1.1
+// SY <--

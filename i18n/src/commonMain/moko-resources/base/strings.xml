@@ -1187,6 +1187,8 @@
     <string name="reader_auto_scroll_speed">Auto scroll speed (right is faster)</string>
     <string name="reader_auto_scroll_seconds">%1$d s</string>
     <string name="reader_auto_scroll_smooth">Smooth scroll (webtoon)</string>
+    <string name="reader_auto_scroll_gestures">Auto scroll gestures (tap pauses, drag up/down changes speed, swipe sideways stops)</string>
+    <string name="reader_auto_scroll_gesture_toasts">Show a message for auto scroll gestures</string>
     <string name="reader_debug_page_layers">Troubleshooting overlay (tinted page layers, tap toasts)</string>
     <string name="reader_optimize_for_oppo_pad_mini">Optimize for Oppo Pad Mini</string>
     <string name="reader_clear_enhancement_cache">Clear enhanced pages</string>

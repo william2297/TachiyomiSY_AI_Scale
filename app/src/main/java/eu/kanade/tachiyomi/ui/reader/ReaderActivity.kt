@@ -732,27 +732,45 @@ class ReaderActivity : BaseActivity() {
     }
 
     private fun stopAutoScroll() {
+        (viewModel.state.value.viewer as? WebtoonViewer)?.syncAutoScrollSettings(false, 0.seconds)
+        onAutoScrollStoppedByViewer()
+    }
+
+    /** Called by the webtoon viewer after a gesture ended auto scroll. */
+    fun onAutoScrollStoppedByViewer() {
         ReaderPageImageView.instantProcessedSwap = false
         autoScrollJob?.cancel()
         autoScrollJob = null
         autoScrollActive = false
     }
 
+    /** Called by the webtoon viewer when a gesture starts auto scroll. */
+    fun startAutoScrollFromViewer() {
+        if (!autoScrollActive) startAutoScroll()
+    }
+
     /**
-     * Advances pages (paged reader) or scrolls (webtoon reader) every auto scroll interval. Opening the menu (a tap
-     * on the screen) stops it for good; only the start button begins it again.
+     * Advances pages (paged reader) or scrolls (webtoon reader) like TachiyomiSY: one screen per interval at a
+     * constant speed. Opening the menu holds it still and it carries on when the menu closes; only the start button
+     * (or a gesture) ends it. A finger resting on the screen holds it as well, so a page can be read in peace.
      */
     private fun startAutoScroll() {
         autoScrollJob?.cancel()
         autoScrollActive = true
         ReaderPageImageView.instantProcessedSwap = true
         setMenuVisibility(false)
+        readerPreferences.autoscrollGesturesEnabled.get().let {
+            (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(it)
+        }
+        readerPreferences.autoscrollGestureToastsEnabled.get().let {
+            (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollGestureToastsEnabled(it)
+        }
         autoScrollJob = lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 while (true) {
                     if (viewModel.state.value.menuVisible) {
-                        stopAutoScroll()
-                        return@repeatOnLifecycle
+                        delay(100)
+                        continue
                     }
                     val interval = readerPreferences.autoScrollInterval.get().coerceAtLeast(0.5f).toDouble().seconds
                     when (val viewer = viewModel.state.value.viewer) {
@@ -770,12 +788,10 @@ class ReaderActivity : BaseActivity() {
                             viewer.moveToNext()
                             delay(interval)
                         }
-                        is WebtoonViewer -> if (readerPreferences.smoothAutoScroll.get()) {
-                            scrollContinuously(viewer) { viewer.recycler.scrollBy(0, it) }
-                        } else {
-                            awaitEnhancementAhead()
-                            viewer.scrollDown()
-                            delay(interval)
+                        is WebtoonViewer -> {
+                            viewer.syncAutoScrollSettings(enabled = true, interval = interval)
+                            viewer.performAutoScrollStep(readerPreferences.smoothAutoScroll.get())
+                            delayAutoScroll(viewer.autoScrollDelayMillis(), viewer)
                         }
                         is PagerViewer -> {
                             awaitEnhancementAhead()
@@ -786,6 +802,17 @@ class ReaderActivity : BaseActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /** Waits out [durationMillis] in short slices so a gesture or the menu can cut the wait short. */
+    private suspend fun delayAutoScroll(durationMillis: Long, viewer: WebtoonViewer) {
+        var remaining = durationMillis
+        while (remaining > 0) {
+            val slice = remaining.coerceAtMost(100L)
+            delay(slice)
+            remaining -= slice
+            if (viewer.consumeAutoScrollDelayInterrupt()) break
         }
     }
 
@@ -849,9 +876,9 @@ class ReaderActivity : BaseActivity() {
         var carryPx = 0f
         while (viewModel.state.value.viewer === viewer) {
             if (viewModel.state.value.menuVisible) {
-                // Opening the menu ends auto scroll; only the start button begins it again
-                stopAutoScroll()
-                return
+                delay(100)
+                lastFrameNanos = awaitFrameNanos()
+                continue
             }
             val now = awaitFrameNanos()
             val elapsedSeconds = ((now - lastFrameNanos) / 1_000_000_000f).coerceIn(0f, MAX_FRAME_SECONDS)
@@ -878,6 +905,7 @@ class ReaderActivity : BaseActivity() {
      */
     private fun setMenuVisibility(visible: Boolean) {
         viewModel.showMenus(visible)
+        (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollUiBlocked(visible)
         if (visible) {
             windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
         } else if (readerPreferences.fullscreen.get()) {

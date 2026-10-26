@@ -189,6 +189,14 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         pref = viewModel.preferences.smoothAutoScroll,
     )
     CheckboxItem(
+        label = stringResource(MR.strings.reader_auto_scroll_gestures),
+        pref = viewModel.preferences.autoscrollGesturesEnabled,
+    )
+    CheckboxItem(
+        label = stringResource(MR.strings.reader_auto_scroll_gesture_toasts),
+        pref = viewModel.preferences.autoscrollGestureToastsEnabled,
+    )
+    CheckboxItem(
         label = stringResource(MR.strings.reader_debug_page_layers),
         pref = viewModel.preferences.debugPageLayers,
     )

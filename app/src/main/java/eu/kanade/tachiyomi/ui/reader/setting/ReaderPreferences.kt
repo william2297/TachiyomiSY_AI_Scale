@@ -45,6 +45,13 @@ class ReaderPreferences(
 
     val smoothAutoScroll: Preference<Boolean> = preferenceStore.getBoolean("pref_smooth_auto_scroll", true)
 
+    // TachiyomiSY gestures while auto scroll runs: tap pauses, vertical drag changes the speed, sideways swipe stops,
+    // two fingers scroll by hand. Off by default; holding a finger on the screen always holds auto scroll still.
+    val autoscrollGesturesEnabled: Preference<Boolean> =
+        preferenceStore.getBoolean("eh_util_autoscroll_gestures", false)
+    val autoscrollGestureToastsEnabled: Preference<Boolean> =
+        preferenceStore.getBoolean("eh_util_autoscroll_gesture_toasts", true)
+
     /** Tints the layers of each webtoon page, so a screenshot shows which layer a black bar belongs to. */
     val debugPageLayers: Preference<Boolean> = preferenceStore.getBoolean("pref_debug_page_layers", false)
 

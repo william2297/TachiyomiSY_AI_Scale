@@ -29,7 +29,7 @@ import org.robolectric.annotation.GraphicsMode
 @ConscryptMode(ConscryptMode.Mode.OFF)
 @Config(sdk = [35], application = Application::class)
 class WebtoonTapTest {
-    private fun taps(makeChild: (android.content.Context) -> View): Int {
+    private fun taps(beforeTap: (WebtoonRecyclerView) -> Unit = {}, makeChild: (android.content.Context) -> View): Int {
         val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
         activity.setTheme(androidx.appcompat.R.style.Theme_AppCompat)
         val context: android.content.Context = activity
@@ -65,6 +65,7 @@ class WebtoonTapTest {
             "ATTACHED=${frame.isAttachedToWindow} H=${frame.height} W=${recycler.width} kids=${recycler.childCount}",
         )
 
+        beforeTap(recycler)
         val down = SystemClock.uptimeMillis()
         frame.dispatchTouchEvent(MotionEvent.obtain(down, down, MotionEvent.ACTION_DOWN, 900f, 800f, 0))
         frame.dispatchTouchEvent(MotionEvent.obtain(down, down + 60, MotionEvent.ACTION_UP, 900f, 800f, 0))
@@ -72,7 +73,7 @@ class WebtoonTapTest {
     }
 
     @Test
-    fun plainView() = println("TAP_plainView=${taps { View(it) }}")
+    fun plainView() = println("TAP_plainView=${taps(makeChild = { View(it) })}")
 
     @Test
     fun defaultSubsamplingView() = println("TAP_defaultSsiv=${taps { SubsamplingScaleImageView(it) }}")
@@ -108,6 +109,27 @@ class WebtoonTapTest {
             }
         }
         println("TAP_realPageSsiv=$result")
+    }
+
+    @Test
+    fun tapThatStopsAFlickDoesNotAct() {
+        val count = taps({ it.onManualScroll(); it.smoothScrollBy(0, 600) }) { View(it) }
+        println("TAP_stopsFlick=$count")
+        assertEquals(0, count)
+    }
+
+    @Test
+    fun tapDuringAScrollThatIsNotAFlickStillActs() {
+        val count = taps({ it.smoothScrollBy(0, 600) }) { View(it) }
+        println("TAP_duringTapScroll=$count")
+        assertEquals(1, count)
+    }
+
+    @Test
+    fun tapAfterAFlickEndedActs() {
+        val count = taps({ it.onManualScroll() }) { View(it) }
+        println("TAP_afterFlick=$count")
+        assertEquals(1, count)
     }
 
     @Test
