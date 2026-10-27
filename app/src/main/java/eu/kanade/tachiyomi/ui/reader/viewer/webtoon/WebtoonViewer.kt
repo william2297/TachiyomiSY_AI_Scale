@@ -400,7 +400,9 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     }
 
     private fun scrollByTap(distance: Int) {
-        if (!config.usePageTransitions) {
+        // The tap scroll time setting decides: 0 is an instant jump. The general "animate page transitions" switch
+        // used to override it silently, so a changed time did nothing.
+        if (readerPreferences.tapScrollMillis.get() <= 0) {
             recycler.scrollBy(0, distance)
             return
         }

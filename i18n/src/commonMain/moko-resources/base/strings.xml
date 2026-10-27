@@ -1188,7 +1188,7 @@
     <string name="reader_auto_scroll_seconds">%1$d s</string>
     <string name="reader_auto_scroll_smooth">Smooth scroll (webtoon)</string>
     <string name="reader_tap_scroll_distance">Tap scroll distance (share of the screen, long strip)</string>
-    <string name="reader_tap_scroll_time">Tap scroll time (longer is slower)</string>
+    <string name="reader_tap_scroll_time">Tap scroll time (long strip; longer is slower, 0 is instant)</string>
     <string name="reader_auto_scroll_gestures">Auto scroll gestures (tap pauses, drag up/down changes speed, swipe sideways stops)</string>
     <string name="reader_auto_scroll_gesture_toasts">Show a message for auto scroll gestures</string>
     <string name="reader_debug_page_layers">Troubleshooting overlay (tinted page layers, tap toasts)</string>

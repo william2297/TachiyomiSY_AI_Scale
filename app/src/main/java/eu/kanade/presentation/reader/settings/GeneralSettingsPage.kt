@@ -202,9 +202,9 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
     val tapScrollMillis by tapScrollMillisPref.collectAsState()
     SliderItem(
         value = tapScrollMillis / 100,
-        valueRange = 2..20,
+        valueRange = 0..20,
         label = stringResource(MR.strings.reader_tap_scroll_time),
-        valueString = "$tapScrollMillis ms",
+        valueString = if (tapScrollMillis == 0) "Instant" else "$tapScrollMillis ms",
         onChange = { tapScrollMillisPref.set(it * 100) },
         pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
     )
