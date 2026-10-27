@@ -188,6 +188,26 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         label = stringResource(MR.strings.reader_auto_scroll_smooth),
         pref = viewModel.preferences.smoothAutoScroll,
     )
+    val tapScrollPercentPref = viewModel.preferences.tapScrollPercent
+    val tapScrollPercent by tapScrollPercentPref.collectAsState()
+    SliderItem(
+        value = tapScrollPercent / 5,
+        valueRange = 5..30,
+        label = stringResource(MR.strings.reader_tap_scroll_distance),
+        valueString = "$tapScrollPercent%",
+        onChange = { tapScrollPercentPref.set(it * 5) },
+        pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
+    val tapScrollMillisPref = viewModel.preferences.tapScrollMillis
+    val tapScrollMillis by tapScrollMillisPref.collectAsState()
+    SliderItem(
+        value = tapScrollMillis / 100,
+        valueRange = 2..20,
+        label = stringResource(MR.strings.reader_tap_scroll_time),
+        valueString = "$tapScrollMillis ms",
+        onChange = { tapScrollMillisPref.set(it * 100) },
+        pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+    )
     CheckboxItem(
         label = stringResource(MR.strings.reader_auto_scroll_gestures),
         pref = viewModel.preferences.autoscrollGesturesEnabled,

@@ -52,6 +52,12 @@ class ReaderPreferences(
     val autoscrollGestureToastsEnabled: Preference<Boolean> =
         preferenceStore.getBoolean("eh_util_autoscroll_gesture_toasts", true)
 
+    /** How far one tap on the next/back zone scrolls the long strip, as a percentage of the screen height. */
+    val tapScrollPercent: Preference<Int> = preferenceStore.getInt("pref_tap_scroll_percent", 75)
+
+    /** How long that scroll takes, in milliseconds. */
+    val tapScrollMillis: Preference<Int> = preferenceStore.getInt("pref_tap_scroll_millis", 700)
+
     /** Tints the layers of each webtoon page, so a screenshot shows which layer a black bar belongs to. */
     val debugPageLayers: Preference<Boolean> = preferenceStore.getBoolean("pref_debug_page_layers", false)
 

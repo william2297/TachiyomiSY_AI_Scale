@@ -65,7 +65,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     /**
      * Distance to scroll when the user taps on one side of the recycler view.
      */
-    private val scrollDistance = activity.resources.displayMetrics.heightPixels * 3 / 4
+    private val scrollDistance: Int
+        get() = activity.resources.displayMetrics.heightPixels * readerPreferences.tapScrollPercent.get() / 100
 
     /**
      * Layout manager of the recycler view.
@@ -351,6 +352,7 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     private var tapCarry = 0f
     private var tapLastFrameNanos = 0L
     private var tapAnimating = false
+    private var tapOmega = 10f
 
     private val tapFrameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -366,8 +368,7 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             while (seconds > 0f) {
                 val dt = minOf(seconds, TAP_SCROLL_STEP_SECONDS)
                 seconds -= dt
-                val acceleration = TAP_SCROLL_OMEGA * TAP_SCROLL_OMEGA * tapRemaining -
-                    2f * TAP_SCROLL_OMEGA * tapVelocity
+                val acceleration = tapOmega * tapOmega * tapRemaining - 2f * tapOmega * tapVelocity
                 tapVelocity += acceleration * dt
                 val step = tapVelocity * dt
                 tapRemaining -= step
@@ -407,6 +408,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             // A flick or an auto scroll step still running would fight the tap
             if (recycler.scrollState == RecyclerView.SCROLL_STATE_SETTLING) recycler.stopScroll()
             tapAnimating = true
+            // Settling takes about 4.7 / omega seconds
+            tapOmega = 4.7f / (readerPreferences.tapScrollMillis.get().coerceAtLeast(100) / 1000f)
             tapLastFrameNanos = 0L
             tapCarry = 0f
             tapRemaining = 0f
@@ -717,15 +720,13 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 // Double the cache size to reduce rebinds/recycles incurred by the extra layout space on scroll direction changes
 private const val RECYCLER_VIEW_CACHE_SIZE = 6
 
-// About 0.45 s from a tap to nearly at rest; larger is quicker
-private const val TAP_SCROLL_OMEGA = 10f
 private const val TAP_SCROLL_STEP_SECONDS = 1f / 120f
 private const val TAP_SCROLL_FINISH_PX = 3f
 private const val TAP_SCROLL_FINISH_SPEED = 60f
 
 // SY -->
 private const val AUTO_SCROLL_POLL_DELAY_MILLIS = 100L
-private const val AUTO_SCROLL_RESUME_DELAY_MILLIS = 1_000L
+private const val AUTO_SCROLL_RESUME_DELAY_MILLIS = 700L
 private const val DEFAULT_AUTO_SCROLL_INTERVAL_MILLIS = 3_000L
 private const val MIN_AUTO_SCROLL_INTERVAL_MILLIS = 250L
 private const val MAX_AUTO_SCROLL_INTERVAL_MILLIS = 9_999_000L
