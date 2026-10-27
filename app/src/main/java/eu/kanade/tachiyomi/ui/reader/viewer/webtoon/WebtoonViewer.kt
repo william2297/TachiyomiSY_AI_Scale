@@ -1,6 +1,7 @@
 package eu.kanade.tachiyomi.ui.reader.viewer.webtoon
 
 import android.graphics.PointF
+import android.os.SystemClock
 import android.view.Choreographer
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -33,7 +34,6 @@ import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -183,6 +183,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
         recycler.autoScrollInteractionListener = {
             interruptAutoScrollDelay = true
         }
+        // A finger arriving cuts the wait for the next step short, so the step after release is not a whole interval away
+        recycler.touchStartListener = { interruptAutoScrollDelay = true }
         // SY <--
 
         config.imagePropertyChangedListener = {
@@ -340,11 +342,12 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     }
 
     /**
-     * Taps move the list toward a target that every further tap extends. The list closes in on the target a fixed
-     * fraction per frame, so the speed stays continuous when taps arrive in a row. Restarting a fresh scroll for each
-     * tap made quick taps stutter and skip.
+     * Taps move the list toward a target that every further tap extends. The motion is a critically damped spring:
+     * it starts gently, ends gently and never overshoots, and its speed stays continuous when another tap moves the
+     * target. Restarting a fresh scroll for each tap made quick taps stutter and skip.
      */
     private var tapRemaining = 0f
+    private var tapVelocity = 0f
     private var tapCarry = 0f
     private var tapLastFrameNanos = 0L
     private var tapAnimating = false
@@ -352,17 +355,28 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     private val tapFrameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
             if (!tapAnimating) return
-            val seconds = if (tapLastFrameNanos == 0L) {
+            var seconds = if (tapLastFrameNanos == 0L) {
                 1f / 60f
             } else {
                 ((frameTimeNanos - tapLastFrameNanos) / 1_000_000_000f).coerceIn(0f, 0.05f)
             }
             tapLastFrameNanos = frameTimeNanos
-            val finishing = abs(tapRemaining) < TAP_SCROLL_FINISH_PX
-            val step = if (finishing) tapRemaining else tapRemaining * (1f - exp(-seconds / TAP_SCROLL_TAU_SECONDS))
-            tapRemaining -= step
-            tapCarry += step
-            val whole = if (finishing) tapCarry.roundToInt() else tapCarry.toInt()
+
+            var moved = 0f
+            while (seconds > 0f) {
+                val dt = minOf(seconds, TAP_SCROLL_STEP_SECONDS)
+                seconds -= dt
+                val acceleration = TAP_SCROLL_OMEGA * TAP_SCROLL_OMEGA * tapRemaining -
+                    2f * TAP_SCROLL_OMEGA * tapVelocity
+                tapVelocity += acceleration * dt
+                val step = tapVelocity * dt
+                tapRemaining -= step
+                moved += step
+            }
+
+            val finishing = abs(tapRemaining) < TAP_SCROLL_FINISH_PX && abs(tapVelocity) < TAP_SCROLL_FINISH_SPEED
+            tapCarry += moved + if (finishing) tapRemaining else 0f
+            val whole = tapCarry.toInt()
             if (whole != 0) {
                 recycler.scrollBy(0, whole)
                 tapCarry -= whole
@@ -378,6 +392,7 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     private fun cancelTapScroll() {
         tapAnimating = false
         tapRemaining = 0f
+        tapVelocity = 0f
         tapCarry = 0f
         tapLastFrameNanos = 0L
         Choreographer.getInstance().removeFrameCallback(tapFrameCallback)
@@ -395,10 +410,14 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             tapLastFrameNanos = 0L
             tapCarry = 0f
             tapRemaining = 0f
+            tapVelocity = 0f
             Choreographer.getInstance().postFrameCallback(tapFrameCallback)
         }
         // A tap the other way cancels what is left instead of adding to it
-        if ((tapRemaining > 0) != (distance > 0)) tapRemaining = 0f
+        if ((tapRemaining > 0) != (distance > 0)) {
+            tapRemaining = 0f
+            tapVelocity = 0f
+        }
         tapRemaining += distance
     }
 
@@ -483,7 +502,10 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     }
 
     private fun isAutoScrollHeld(): Boolean {
-        return autoScrollPaused || autoScrollUiBlocked || recycler.isTouched || recycler.isAutoScrollGestureInProgress()
+        // After a finger lifts, wait a second before moving on so the page can still be read
+        val recentlyTouched = SystemClock.uptimeMillis() - recycler.lastTouchEndMillis < AUTO_SCROLL_RESUME_DELAY_MILLIS
+        return autoScrollPaused || autoScrollUiBlocked || recycler.isTouched || recentlyTouched ||
+            recycler.isAutoScrollGestureInProgress()
     }
 
     fun performAutoScrollStep(smooth: Boolean) {
@@ -695,11 +717,15 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 // Double the cache size to reduce rebinds/recycles incurred by the extra layout space on scroll direction changes
 private const val RECYCLER_VIEW_CACHE_SIZE = 6
 
-private const val TAP_SCROLL_TAU_SECONDS = 0.07f
-private const val TAP_SCROLL_FINISH_PX = 2f
+// About 0.45 s from a tap to nearly at rest; larger is quicker
+private const val TAP_SCROLL_OMEGA = 10f
+private const val TAP_SCROLL_STEP_SECONDS = 1f / 120f
+private const val TAP_SCROLL_FINISH_PX = 3f
+private const val TAP_SCROLL_FINISH_SPEED = 60f
 
 // SY -->
 private const val AUTO_SCROLL_POLL_DELAY_MILLIS = 100L
+private const val AUTO_SCROLL_RESUME_DELAY_MILLIS = 1_000L
 private const val DEFAULT_AUTO_SCROLL_INTERVAL_MILLIS = 3_000L
 private const val MIN_AUTO_SCROLL_INTERVAL_MILLIS = 250L
 private const val MAX_AUTO_SCROLL_INTERVAL_MILLIS = 9_999_000L

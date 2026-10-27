@@ -110,10 +110,22 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     var isTouched = false
         private set
 
+    /** When the last finger left the list (uptime milliseconds). */
+    var lastTouchEndMillis = 0L
+        private set
+
+    var touchStartListener: (() -> Unit)? = null
+
     override fun onTouchEvent(e: MotionEvent): Boolean {
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> isTouched = true
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isTouched = false
+            MotionEvent.ACTION_DOWN -> {
+                isTouched = true
+                touchStartListener?.invoke()
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isTouched = false
+                lastTouchEndMillis = SystemClock.uptimeMillis()
+            }
         }
         // SY -->
         if (autoScrollGestureModeEnabled && detector.handleAutoScrollTouchEvent(e)) {
