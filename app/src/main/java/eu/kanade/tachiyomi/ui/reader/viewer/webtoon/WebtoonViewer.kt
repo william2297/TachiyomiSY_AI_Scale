@@ -457,11 +457,11 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     private var autoScrollGestureToastsEnabled = true
 
     /** Asks the system for the highest refresh rate while auto scroll runs (see [WebtoonRecyclerView.highFrameRate]). */
-    fun setHighFrameRate(enabled: Boolean, hz: Float) {
+    fun setHighFrameRate(enabled: Boolean, hz: Float, useSurfaceVote: Boolean = true) {
         recycler.highFrameRateHz = hz
         recycler.highFrameRate = enabled
         // A tiny surface that votes for the refresh rate on its own, in case the window's own request is revised
-        if (enabled) {
+        if (enabled && useSurfaceVote) {
             val view = frameRateVote ?: FrameRateVoteView(activity).also {
                 frameRateVote = it
                 frame.addView(

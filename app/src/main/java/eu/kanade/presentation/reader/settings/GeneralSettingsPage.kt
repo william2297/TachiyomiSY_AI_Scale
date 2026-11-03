@@ -217,6 +217,10 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         pref = viewModel.preferences.autoscrollGestureToastsEnabled,
     )
     CheckboxItem(
+        label = stringResource(MR.strings.reader_auto_scroll_refresh_vote),
+        pref = viewModel.preferences.autoScrollRefreshVote,
+    )
+    CheckboxItem(
         label = stringResource(MR.strings.reader_debug_page_layers),
         pref = viewModel.preferences.debugPageLayers,
     )

@@ -45,6 +45,9 @@ class ReaderPreferences(
 
     val smoothAutoScroll: Preference<Boolean> = preferenceStore.getBoolean("pref_smooth_auto_scroll", true)
 
+    /** Auto scroll shows a 2x2 pixel, nearly transparent surface that asks the screen for its top refresh rate. */
+    val autoScrollRefreshVote: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_scroll_refresh_vote", true)
+
     // TachiyomiSY gestures while auto scroll runs: tap pauses, vertical drag changes the speed, sideways swipe stops,
     // two fingers scroll by hand. Off by default; holding a finger on the screen always holds auto scroll still.
     val autoscrollGesturesEnabled: Preference<Boolean> =

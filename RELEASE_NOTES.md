@@ -11,3 +11,4 @@ What is new in this build
 - "My genres" can also use Mecha, Music and Adult (18+) (AniList's adult genre). Adult only shows up when you pick it yourself.
 - Auto scroll: the page list now tells Android its content moves fast, so the screen should stay at its highest refresh rate instead of dropping to half (the "Last auto scroll" line shows the result).
 - Auto scroll: a tiny invisible surface now asks the screen for its refresh rate directly (experiment, ColorOS may revise window-level requests).
+- Reader settings > General: a checkbox turns the tiny auto scroll refresh-rate dot on or off.
