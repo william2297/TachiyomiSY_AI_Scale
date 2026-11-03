@@ -739,9 +739,29 @@ class ReaderActivity : BaseActivity() {
     /** Called by the webtoon viewer after a gesture ended auto scroll. */
     fun onAutoScrollStoppedByViewer() {
         ReaderPageImageView.instantProcessedSwap = false
+        requestHighRefreshRate(false)
         autoScrollJob?.cancel()
         autoScrollJob = null
         autoScrollActive = false
+    }
+
+    /**
+     * Auto scroll moves slowly, and the system may drop a 120 Hz screen to 60 Hz for slow content, which looks like
+     * stutter (a tap scroll is fast, so it never drops). While auto scroll runs, ask for the highest refresh rate.
+     */
+    private fun requestHighRefreshRate(enabled: Boolean) {
+        runCatching {
+            val highest = (display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f)
+            window.attributes = window.attributes.apply { preferredRefreshRate = if (enabled) highest else 0f }
+            if (Build.VERSION.SDK_INT >= 35) {
+                val target = viewModel.state.value.viewer?.getView() ?: return@runCatching
+                if (enabled) {
+                    target.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+                } else {
+                    target.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+                }
+            }
+        }
     }
 
     /** Called by the webtoon viewer when a gesture starts auto scroll. */
@@ -758,6 +778,7 @@ class ReaderActivity : BaseActivity() {
         autoScrollJob?.cancel()
         autoScrollActive = true
         ReaderPageImageView.instantProcessedSwap = true
+        requestHighRefreshRate(true)
         setMenuVisibility(false)
         readerPreferences.autoscrollGesturesEnabled.get().let {
             (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(it)
