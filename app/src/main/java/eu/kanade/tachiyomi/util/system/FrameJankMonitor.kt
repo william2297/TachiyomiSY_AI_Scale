@@ -38,6 +38,10 @@ object FrameJankMonitor {
         val swapMs: Float = 0f,
         val gpuMs: Float = 0f,
         val otherDelayMs: Float = 0f,
+        /** The shortest gap between two frames that was reached, in ms: the screen's real refresh period. */
+        val shortestGapMs: Float = 0f,
+        /** What the device reports: Android version, refresh rate and the modes the screen supports. */
+        val deviceInfo: String = "",
     ) {
         val fps: Float get() = if (activeSeconds > 0f) frames / activeSeconds else 0f
     }
@@ -59,10 +63,13 @@ object FrameJankMonitor {
     private val phaseNanos = LongArray(PHASES)
     private var lastVsync = 0L
     private var refreshNanos = 8_333_333L
+    private var shortestGapNanos = Long.MAX_VALUE
+    private var deviceInfo = ""
 
     @Synchronized
-    fun start(window: Window, refreshRate: Float) {
+    fun start(window: Window, refreshRate: Float, deviceInfo: String = "") {
         stop()
+        this.deviceInfo = deviceInfo
         refreshNanos = (1_000_000_000f / refreshRate.coerceAtLeast(30f)).toLong()
         val handlerThread = HandlerThread("FrameJankMonitor").also { it.start() }
         val frameListener = Window.OnFrameMetricsAvailableListener { _, metrics, _ -> record(metrics) }
@@ -100,6 +107,7 @@ object FrameJankMonitor {
         activeNanos = 0L
         phaseNanos.fill(0L)
         lastVsync = 0L
+        shortestGapNanos = Long.MAX_VALUE
         mutableStats.value = Stats()
     }
 
@@ -111,6 +119,7 @@ object FrameJankMonitor {
             // A long gap means nothing was moving (menu open, finger holding, waiting for a page), not a drop
             if (gap in 1..IDLE_REFRESHES) {
                 activeNanos += vsync - lastVsync
+                if (vsync - lastVsync in 1 until shortestGapNanos) shortestGapNanos = vsync - lastVsync
                 when (gap) {
                     1 -> smooth++
                     2 -> half++
@@ -155,6 +164,8 @@ object FrameJankMonitor {
             swapMs = phaseNanos[6] / divisor,
             gpuMs = phaseNanos[7] / divisor,
             otherDelayMs = phaseNanos[8] / divisor,
+            shortestGapMs = if (shortestGapNanos == Long.MAX_VALUE) 0f else shortestGapNanos / 1_000_000f,
+            deviceInfo = deviceInfo,
         )
     }
 

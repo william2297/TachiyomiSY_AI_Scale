@@ -750,22 +750,39 @@ class ReaderActivity : BaseActivity() {
      * stutter (a tap scroll is fast, so it never drops). While auto scroll runs, ask for the highest refresh rate.
      */
     private fun requestHighRefreshRate(enabled: Boolean) {
+        val currentMode = display?.mode
+        val modes = display?.supportedModes.orEmpty()
+        // The fastest mode at the screen's current size; switching size would change the picture
+        val fastest = modes
+            .filter {
+                it.physicalWidth == currentMode?.physicalWidth && it.physicalHeight == currentMode?.physicalHeight
+            }
+            .maxByOrNull { it.refreshRate }
+
         // Frame timings are recorded while auto scroll runs, for the counters in the enhancement settings
         if (enabled) {
-            eu.kanade.tachiyomi.util.system.FrameJankMonitor.start(window, display?.refreshRate ?: 60f)
+            val rates = modes.map { it.refreshRate.toInt() }.distinct().sorted().joinToString("/")
+            eu.kanade.tachiyomi.util.system.FrameJankMonitor.start(
+                window,
+                display?.refreshRate ?: 60f,
+                "Android API ${Build.VERSION.SDK_INT}, screen reports ${display?.refreshRate?.toInt()} Hz, " +
+                    "modes $rates Hz.",
+            )
         } else {
             eu.kanade.tachiyomi.util.system.FrameJankMonitor.stop()
         }
         (viewModel.state.value.viewer as? WebtoonViewer)?.setHighFrameRate(enabled)
         runCatching {
-            val highest = (display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f)
-            window.attributes = window.attributes.apply { preferredRefreshRate = if (enabled) highest else 0f }
+            window.attributes = window.attributes.apply {
+                preferredRefreshRate = if (enabled) fastest?.refreshRate ?: 0f else 0f
+                preferredDisplayModeId = if (enabled) fastest?.modeId ?: 0 else 0
+            }
             if (Build.VERSION.SDK_INT >= 35) {
                 val target = viewModel.state.value.viewer?.getView() ?: return@runCatching
-                if (enabled) {
-                    target.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+                target.requestedFrameRate = if (enabled) {
+                    View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
                 } else {
-                    target.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+                    View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
                 }
             }
         }

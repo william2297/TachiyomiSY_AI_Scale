@@ -565,6 +565,8 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
                 "%.1f".format(frameStats.swapMs),
                 "%.1f".format(frameStats.gpuMs),
                 "%.1f".format(frameStats.otherDelayMs),
+                "%.1f".format(frameStats.shortestGapMs),
+                frameStats.deviceInfo,
             ),
             modifier = Modifier.padding(horizontal = 24.dp),
             style = MaterialTheme.typography.bodySmall,
