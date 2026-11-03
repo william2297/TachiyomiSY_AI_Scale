@@ -38,4 +38,6 @@ data class DiscoverState(
     val loading: Boolean,
     val updatedAtMillis: Long?,
     val error: String?,
+    /** What the refresh is doing right now, shown above the placeholders while there is nothing else to see. */
+    val status: String? = null,
 )

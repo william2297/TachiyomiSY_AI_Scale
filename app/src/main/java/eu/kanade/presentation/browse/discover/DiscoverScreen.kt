@@ -97,7 +97,19 @@ fun DiscoverScreen(
                         visible.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
                     }
                 }
-                state.loading -> loadingSkeleton(wide)
+                state.loading -> {
+                    state.status?.let { status ->
+                        item(key = "progress") {
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
+                    loadingSkeleton(wide)
+                }
                 else -> item(key = "empty") {
                     EmptyOrOffline(
                         offline = state.error != null,

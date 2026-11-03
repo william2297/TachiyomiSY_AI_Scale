@@ -55,6 +55,7 @@ class DiscoverViewModel(
     private val cache = MutableStateFlow(DiscoverCache())
     private val loading = MutableStateFlow(false)
     private val waitingForWifi = MutableStateFlow(false)
+    private val status = MutableStateFlow<String?>(null)
 
     /** Normalized titles of everything in the library, and of everything read that is not in it. */
     private val libraryTitles = MutableStateFlow<Set<String>>(emptySet())
@@ -66,8 +67,20 @@ class DiscoverViewModel(
         waitingForWifi,
         libraryTitles,
         readTitles,
-    ) { cache, loading, waiting, inLibrary, read ->
+        status,
+    ) { values ->
+        val cache = values[0] as DiscoverCache
+        val loading = values[1] as Boolean
+        val waiting = values[2] as Boolean
+
+        @Suppress("UNCHECKED_CAST")
+        val inLibrary = values[3] as Set<String>
+
+        @Suppress("UNCHECKED_CAST")
+        val read = values[4] as Set<String>
+        val status = values[5] as String?
         DiscoverState(
+            status = status,
             sections = toSections(cache, inLibrary + read),
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
@@ -104,6 +117,9 @@ class DiscoverViewModel(
             combine(now, auto) { manual, daily -> manual to daily }.collect { (manual, daily) ->
                 val running = (manual + daily).any { it.state == WorkInfo.State.RUNNING }
                 val queuedByUser = manual.any { it.state == WorkInfo.State.ENQUEUED }
+                status.value = (manual + daily).firstOrNull { it.state == WorkInfo.State.RUNNING }
+                    ?.progress?.getString(DiscoverRefreshWorker.KEY_STATUS)
+                    ?: if (queuedByUser) WAITING_TO_START else null
                 loading.value = running || queuedByUser
                 waitingForWifi.value = queuedByUser && !running && !context.isConnectedToWifi()
                 // A finished run changed the file
@@ -122,7 +138,7 @@ class DiscoverViewModel(
 
     /** Starts a refresh now. It waits for Wi-Fi if the tablet is not on Wi-Fi. */
     fun refresh() {
-        DiscoverRefreshWorker.startNow(context)
+        viewModelScope.launch { DiscoverRefreshWorker.startNow(context) }
     }
 
     /** Makes the matched title a local entry, as opening it from a source's list does, and returns its id. */
@@ -161,6 +177,7 @@ class DiscoverViewModel(
 
     private companion object {
         const val WAITING_FOR_WIFI = "Waiting for Wi-Fi to refresh."
+        const val WAITING_TO_START = "Waiting to start. It needs Wi-Fi and a battery that is not low."
         const val STALE_AFTER_MILLIS = 26 * 60 * 60 * 1000L
         const val PROGRESS_POLL_MILLIS = 4_000L
     }

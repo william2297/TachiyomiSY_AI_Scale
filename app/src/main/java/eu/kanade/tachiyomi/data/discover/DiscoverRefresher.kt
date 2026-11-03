@@ -26,6 +26,8 @@ class DiscoverRefresher(
     private val onProgress: suspend (DiscoverCache) -> Unit = {},
     /** The matching stops after this long, so a run always ends before the system cuts it off. */
     private val maxDurationMillis: Long = DEFAULT_MAX_DURATION_MILLIS,
+    /** A short line on what is happening, for the tab to show while it waits. */
+    private val onStatus: suspend (String) -> Unit = {},
 ) {
 
     suspend fun refresh(previous: DiscoverCache, sources: List<SearchSource>): DiscoverCache {
@@ -71,6 +73,7 @@ class DiscoverRefresher(
 
     private suspend fun fetchLists(): Map<DiscoverSection, List<AniListTitle>> {
         val result = linkedMapOf<DiscoverSection, List<AniListTitle>>()
+        onStatus("Reading AniList's lists...")
         val sections = listOf(
             DiscoverSection.RISING,
             DiscoverSection.COMPLETED,
@@ -144,7 +147,10 @@ class DiscoverRefresher(
         val failures = mutableMapOf<Long, Int>()
         var searches = 0
         var sinceProgress = 0
+        var checked = 0
         for (title in candidates) {
+            onStatus(statusLine(checked, candidates.size, matches, candidates, failures, sources))
+            checked++
             if (isFresh(matches[title.id], sourcesKey)) continue
             var found: MatchRecord? = null
             var interrupted = false
@@ -184,6 +190,22 @@ class DiscoverRefresher(
             if (interrupted) break
         }
         return matches
+    }
+
+    private fun statusLine(
+        checked: Int,
+        total: Int,
+        matches: Map<Long, MatchRecord>,
+        candidates: List<AniListTitle>,
+        failures: Map<Long, Int>,
+        sources: List<SearchSource>,
+    ): String {
+        val found = candidates.count { matches[it.id]?.found == true }
+        val skipped = sources.filter { (failures[it.id] ?: 0) >= MAX_SOURCE_FAILURES }.joinToString { it.name }
+        return buildString {
+            append("Searching your sources: $checked of $total titles checked, $found found.")
+            if (skipped.isNotEmpty()) append(" Not responding, skipped: $skipped.")
+        }
     }
 
     private fun isFresh(record: MatchRecord?, sourcesKey: String): Boolean {

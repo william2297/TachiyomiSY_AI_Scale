@@ -11,9 +11,13 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import eu.kanade.tachiyomi.source.CatalogueSource
+import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.workManager
+import kotlinx.coroutines.flow.first
 import logcat.LogPriority
 import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
@@ -29,6 +33,8 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
     CoroutineWorker(context, workerParams) {
 
     override suspend fun doWork(): Result {
+        // Wi-Fi only. Checked here as well as in the constraints, which cannot tell every Wi-Fi from a metered one
+        if (!context.isConnectedToWifi()) return Result.retry()
         val graph = context.appGraph
         val store = DiscoverStore(storeFile(context), graph.json)
         val previous = store.load()
@@ -47,6 +53,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 searcher = SourceTitleSearcher(graph.sourceManager),
                 isExcluded = { title -> title.names.any { TitleMatcher.normalize(it) in owned } },
                 onProgress = { partial -> store.save(partial) },
+                onStatus = { text -> setProgress(workDataOf(KEY_STATUS to text)) },
             )
             store.save(refresher.refresh(previous, sources))
             Result.success()
@@ -64,6 +71,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         private const val WORK_NAME_AUTO = "DiscoverRefresh"
         private const val WORK_NAME_NOW = "DiscoverRefreshNow"
         private const val MAX_ATTEMPTS = 3
+        const val KEY_STATUS = "status"
         private const val MAX_SOURCES = 6
 
         fun storeFile(context: Context) = File(context.filesDir, "discover.json")
@@ -80,12 +88,12 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         }
 
         private fun wifiConstraints(): Constraints {
+            // Any Wi-Fi counts, including one the system calls metered (a phone hotspot, some routers)
             val request = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
                 .build()
             return Constraints.Builder()
-                .setRequiredNetworkRequest(request, NetworkType.UNMETERED)
+                .setRequiredNetworkRequest(request, NetworkType.CONNECTED)
                 .setRequiresBatteryNotLow(true)
                 .build()
         }
@@ -99,12 +107,18 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
             context.workManager.enqueueUniquePeriodicWork(WORK_NAME_AUTO, ExistingPeriodicWorkPolicy.KEEP, request)
         }
 
-        /** A refresh now. It starts at once on Wi-Fi and otherwise waits until Wi-Fi is connected. */
-        fun startNow(context: Context) {
+        /**
+         * A refresh now. It starts at once on Wi-Fi and otherwise waits until Wi-Fi is connected. A run that is
+         * already going is left alone; an older request that is only waiting is replaced, so one that got stuck
+         * (for example from an earlier version) cannot block every later refresh.
+         */
+        suspend fun startNow(context: Context) {
+            val existing = context.workManager.getWorkInfosForUniqueWorkFlow(WORK_NAME_NOW).first()
+            if (existing.any { it.state == WorkInfo.State.RUNNING }) return
             val request = OneTimeWorkRequestBuilder<DiscoverRefreshWorker>()
                 .setConstraints(wifiConstraints())
                 .build()
-            context.workManager.enqueueUniqueWork(WORK_NAME_NOW, ExistingWorkPolicy.KEEP, request)
+            context.workManager.enqueueUniqueWork(WORK_NAME_NOW, ExistingWorkPolicy.REPLACE, request)
         }
 
         fun nowWorkName() = WORK_NAME_NOW
