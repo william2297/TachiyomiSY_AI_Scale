@@ -48,10 +48,11 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         return try {
             // What is already in the library is not recommended; read titles outside the library are hidden in the tab
             val owned = graph.getFavorites.await().map { TitleMatcher.normalize(it.title) }.toSet()
+            val hidden = DiscoverHiddenStore(hiddenFile(context), graph.json).load()
             val refresher = DiscoverRefresher(
                 api = AniListDiscoverApi(graph.networkHelper.client, graph.json),
                 searcher = SourceTitleSearcher(graph.sourceManager),
-                isExcluded = { title -> title.names.any { TitleMatcher.normalize(it) in owned } },
+                isExcluded = { title -> title.id in hidden || title.names.any { TitleMatcher.normalize(it) in owned } },
                 onProgress = { partial -> store.save(partial) },
                 onStatus = { text -> setProgress(workDataOf(KEY_STATUS to text)) },
             )
@@ -75,6 +76,8 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         private const val MAX_SOURCES = 6
 
         fun storeFile(context: Context) = File(context.filesDir, "discover.json")
+
+        fun hiddenFile(context: Context) = File(context.filesDir, "discover_hidden.json")
 
         /** The pinned sources that can be searched, at most [MAX_SOURCES], in name order. */
         suspend fun pinnedSearchSources(context: Context): List<SearchSource> {

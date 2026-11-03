@@ -1,8 +1,9 @@
 package eu.kanade.presentation.browse.discover.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,11 +16,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,10 +54,28 @@ internal val DiscoverRisingCardWidth = 320.dp
 
 private val RisingCoverWidth = 92.dp
 
+/** Set by the screens that can hide a title; cards show "Not interested" on a long press when it is set. */
+internal val LocalDiscoverHide = staticCompositionLocalOf<((DiscoverEntry) -> Unit)?> { null }
+
+@Composable
+private fun NotInterestedMenu(entry: DiscoverEntry, expanded: Boolean, onDismiss: () -> Unit) {
+    val hide = LocalDiscoverHide.current
+    DropdownMenu(expanded = expanded && hide != null, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(stringResource(MR.strings.discover_not_interested)) },
+            onClick = {
+                onDismiss()
+                hide?.invoke(entry)
+            },
+        )
+    }
+}
+
 /**
  * Regular card: 2:3 cover, title (two lines reserved so a row stays aligned), status chip and score,
  * source name and a short reason (up to two lines: the reason is the point of the card).
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun DiscoverCard(
     entry: DiscoverEntry,
@@ -58,11 +84,12 @@ internal fun DiscoverCard(
     // Fixed width in the carousels; null lets a grid cell decide the width
     width: Dp? = DiscoverCardWidth,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
             .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true })
             .padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -86,21 +113,26 @@ internal fun DiscoverCard(
             entry.score?.let { ScoreLabel(it) }
         }
         SourceAndReason(entry)
+        NotInterestedMenu(entry, menuOpen) { menuOpen = false }
     }
 }
 
 /**
  * Rising gets a wider card with the reason on top: in this row the "why now" is the point.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun DiscoverRisingCard(
     entry: DiscoverEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var menuOpen by remember { mutableStateOf(false) }
     Surface(
-        onClick = onClick,
-        modifier = modifier.width(DiscoverRisingCardWidth),
+        modifier = modifier
+            .width(DiscoverRisingCardWidth)
+            .clip(MaterialTheme.shapes.medium)
+            .combinedClickable(onClick = onClick, onLongClick = { menuOpen = true }),
         shape = MaterialTheme.shapes.medium,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
@@ -146,6 +178,7 @@ internal fun DiscoverRisingCard(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            NotInterestedMenu(entry, menuOpen) { menuOpen = false }
         }
     }
 }
