@@ -43,13 +43,19 @@ class DiscoverRefresherTest {
 
     private val sources = listOf(SearchSource(1, "Asura"), SearchSource(2, "Comick"))
 
-    private fun refresher(api: DiscoverListApi, searcher: TitleSearcher, max: Int = 150) = DiscoverRefresher(
+    private fun refresher(
+        api: DiscoverListApi,
+        searcher: TitleSearcher,
+        max: Int = 250,
+        excluded: (AniListTitle) -> Boolean = { false },
+    ) = DiscoverRefresher(
         api = api,
         searcher = searcher,
         now = { 1_700_000_000_000L },
         pause = {},
         countries = listOf("KR"),
         maxSearches = max,
+        isExcluded = excluded,
     )
 
     @Test

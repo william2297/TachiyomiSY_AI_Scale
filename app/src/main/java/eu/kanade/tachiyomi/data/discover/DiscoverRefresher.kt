@@ -112,7 +112,8 @@ class DiscoverRefresher(
             DiscoverSection.HIDDEN_GEMS,
             DiscoverSection.OLDER_ONGOING,
         )) {
-            picks[section] = rotate(lists[section].orEmpty().take(POOL_SIZE), MAX_PER_SECTION, day * 31 + section.ordinal)
+            picks[section] =
+                rotate(lists[section].orEmpty().take(POOL_SIZE), MAX_PER_SECTION, day * 31 + section.ordinal)
         }
         return picks
     }

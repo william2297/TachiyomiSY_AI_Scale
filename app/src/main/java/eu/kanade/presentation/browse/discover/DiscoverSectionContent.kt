@@ -27,7 +27,7 @@ import tachiyomi.presentation.core.util.plus
 
 /**
  * Full list of one Discover row: same cards as the row, in a grid whose column count follows the width
- * (about three across a portrait 8.8" tablet, five in landscape).
+ * (four across a portrait 8.8" tablet, six in landscape).
  */
 @Composable
 fun DiscoverSectionContent(
@@ -79,5 +79,8 @@ fun DiscoverSectionContent(
     }
 }
 
-/** 781 dp wide portrait gives three columns, 1172 dp landscape gives five. */
-private val GridCellMinWidth = 200.dp
+/**
+ * 781 dp wide portrait gives four columns, 1172 dp landscape gives six. Three portrait columns made each
+ * cover about 240x360 dp, two rows per screen, too slow to scan a 50-title list.
+ */
+private val GridCellMinWidth = 180.dp

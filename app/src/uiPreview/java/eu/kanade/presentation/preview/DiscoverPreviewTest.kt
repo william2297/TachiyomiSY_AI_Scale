@@ -47,6 +47,10 @@ import eu.kanade.presentation.browse.discover.DiscoverScreen
 import eu.kanade.presentation.browse.discover.DiscoverSection
 import eu.kanade.presentation.browse.discover.DiscoverSectionContent
 import eu.kanade.presentation.browse.discover.DiscoverState
+import eu.kanade.presentation.browse.discover.components.DiscoverCard
+import eu.kanade.presentation.browse.discover.components.DiscoverRisingCard
+import eu.kanade.presentation.browse.discover.components.DiscoverRisingSeeAllCard
+import eu.kanade.presentation.browse.discover.components.DiscoverSeeAllCard
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.theme.TachiyomiShapes
@@ -121,6 +125,25 @@ open class DiscoverPreviewTest {
             onBack = {},
             onOpen = {},
         )
+    }
+
+    /** End of a long row, which the full-screen captures cannot reach: last cards and the "See all" tile. */
+    @Test
+    fun seeAllTiles() = capture("discover-see-all-tiles") {
+        val completed = sample.sections[DiscoverSection.COMPLETED].orEmpty()
+        val rising = sample.sections[DiscoverSection.RISING].orEmpty()
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+                    rising.takeLast(2).forEach { DiscoverRisingCard(entry = it, onClick = {}) }
+                    DiscoverRisingSeeAllCard(count = rising.size, onClick = {})
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.Top) {
+                    completed.takeLast(4).forEach { DiscoverCard(entry = it, onClick = {}) }
+                    DiscoverSeeAllCard(count = completed.size, onClick = {})
+                }
+            }
+        }
     }
 
     @Test
