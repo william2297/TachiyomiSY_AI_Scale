@@ -10,3 +10,4 @@ What is new in this build
 - Enhancement settings show a "Last auto scroll" line with frame timings (frames, fps, skipped refreshes, slow frames), to trace stutter during auto scroll.
 - "My genres" can also use Mecha, Music and Adult (18+) (AniList's adult genre). Adult only shows up when you pick it yourself.
 - Auto scroll: the page list now tells Android its content moves fast, so the screen should stay at its highest refresh rate instead of dropping to half (the "Last auto scroll" line shows the result).
+- Auto scroll: a tiny invisible surface now asks the screen for its refresh rate directly (experiment, ColorOS may revise window-level requests).

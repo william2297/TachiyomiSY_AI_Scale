@@ -460,7 +460,30 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     fun setHighFrameRate(enabled: Boolean, hz: Float) {
         recycler.highFrameRateHz = hz
         recycler.highFrameRate = enabled
+        // A tiny surface that votes for the refresh rate on its own, in case the window's own request is revised
+        if (enabled) {
+            val view = frameRateVote ?: FrameRateVoteView(activity).also {
+                frameRateVote = it
+                frame.addView(
+                    it,
+                    android.widget.FrameLayout.LayoutParams(
+                        2,
+                        2,
+                        android.view.Gravity.BOTTOM or android.view.Gravity.END,
+                    ),
+                )
+            }
+            view.start(hz)
+        } else {
+            frameRateVote?.let {
+                it.stop()
+                frame.removeView(it)
+            }
+            frameRateVote = null
+        }
     }
+
+    private var frameRateVote: FrameRateVoteView? = null
 
     fun syncAutoScrollSettings(enabled: Boolean, interval: Duration, forceInterval: Boolean = false) {
         val intervalMillis =
