@@ -4,14 +4,17 @@ import android.animation.AnimatorSet
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.Resources
+import android.os.Build
 import android.os.SystemClock
 import android.util.AttributeSet
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup.LayoutParams.MATCH_PARENT
 import android.view.animation.DecelerateInterpolator
 import androidx.core.animation.doOnEnd
+import androidx.core.view.children
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import eu.kanade.tachiyomi.ui.reader.viewer.GestureDetectorWithLongTap
@@ -25,6 +28,36 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyle: Int = 0,
 ) : RecyclerView(context, attrs, defStyle) {
+
+    /**
+     * While true, the system is told this content moves fast, so it keeps the screen at its highest refresh rate.
+     * Android picks the rate from how fast a list scrolls, and auto scroll is slow enough to be given half the rate.
+     */
+    var highFrameRate = false
+        set(value) {
+            field = value
+            if (Build.VERSION.SDK_INT >= 35) {
+                val rate = if (value) {
+                    View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+                } else {
+                    View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+                }
+                requestedFrameRate = rate
+                children.forEach { it.requestedFrameRate = rate }
+            }
+        }
+
+    override fun onChildAttachedToWindow(child: View) {
+        super.onChildAttachedToWindow(child)
+        if (highFrameRate && Build.VERSION.SDK_INT >= 35) {
+            child.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+        }
+    }
+
+    @androidx.annotation.RequiresApi(35)
+    override fun setFrameContentVelocity(pixelsPerSecond: Float) {
+        super.setFrameContentVelocity(if (highFrameRate) HIGH_VELOCITY_PX_PER_SECOND else pixelsPerSecond)
+    }
 
     private var isZooming = false
     private var atLastPosition = false
@@ -656,3 +689,6 @@ private const val MANUAL_SCROLL_TAP_GUARD_MS = 1500L
 private const val MIN_RATE = 0.5f
 private const val DEFAULT_RATE = 1f
 private const val MAX_SCALE_RATE = 3f
+
+/** Fast enough that the system keeps its highest refresh rate. */
+private const val HIGH_VELOCITY_PX_PER_SECOND = 10_000f

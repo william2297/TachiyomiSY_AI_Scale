@@ -756,6 +756,7 @@ class ReaderActivity : BaseActivity() {
         } else {
             eu.kanade.tachiyomi.util.system.FrameJankMonitor.stop()
         }
+        (viewModel.state.value.viewer as? WebtoonViewer)?.setHighFrameRate(enabled)
         runCatching {
             val highest = (display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f)
             window.attributes = window.attributes.apply { preferredRefreshRate = if (enabled) highest else 0f }
