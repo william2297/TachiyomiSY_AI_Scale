@@ -15,7 +15,10 @@ import kotlin.math.roundToInt
  *
  * Ignores all touch events, because the webtoon viewer handles all the gestures.
  */
-class WebtoonStripImageView(context: Context) : View(context) {
+class WebtoonStripImageView(
+    context: Context,
+    private val largePageBytes: Long = LARGE_PAGE_BYTES,
+) : View(context) {
 
     private var strips: List<Bitmap> = emptyList()
     private var imageWidth = 0
@@ -34,6 +37,7 @@ class WebtoonStripImageView(context: Context) : View(context) {
         releaseStrips()
         isReleasedOffScreen = false
         strips = image.strips
+        reloadAttempts = 0
         imageWidth = image.width
         imageHeight = image.height
         requestLayout()
@@ -41,6 +45,8 @@ class WebtoonStripImageView(context: Context) : View(context) {
     }
 
     fun recycle() {
+        removeCallbacks(reloadAgain)
+        reloadAttempts = 0
         releaseStrips()
         isReleasedOffScreen = false
         onReload = null
@@ -53,7 +59,7 @@ class WebtoonStripImageView(context: Context) : View(context) {
     // The size stays, so the layout doesn't move while the page decodes again.
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
-        if (strips.sumOf { it.allocationByteCount.toLong() } > LARGE_PAGE_BYTES) {
+        if (strips.sumOf { it.allocationByteCount.toLong() } > largePageBytes) {
             releaseStrips()
             isReleasedOffScreen = true
         }
@@ -80,8 +86,28 @@ class WebtoonStripImageView(context: Context) : View(context) {
         setMeasuredDimension(width, height)
     }
 
+    private var reloadAttempts = 0
+
+    private val reloadAgain = Runnable {
+        if (isAttachedToWindow && imageWidth > 0 && strips.isEmpty()) onReload?.invoke()
+    }
+
+    /**
+     * A page that has its size but no pixels, while it is on screen, is a reload that did not arrive (the strips were
+     * freed off screen, or the request ended without a result). Ask again a few times instead of leaving a blank page
+     * that only comes back after scrolling away and back.
+     */
+    private fun reloadIfBlank() {
+        if (imageWidth <= 0 || strips.isNotEmpty() || onReload == null) return
+        if (reloadAttempts >= MAX_RELOAD_ATTEMPTS) return
+        reloadAttempts++
+        removeCallbacks(reloadAgain)
+        postDelayed(reloadAgain, RELOAD_DELAY_MILLIS)
+    }
+
     override fun onDraw(canvas: Canvas) {
         if (imageWidth <= 0) return
+        reloadIfBlank()
         canvas.getClipBounds(clipRect)
 
         val scale = width.toFloat() / imageWidth
@@ -101,3 +127,5 @@ class WebtoonStripImageView(context: Context) : View(context) {
 }
 
 private const val LARGE_PAGE_BYTES = 64L * 1024 * 1024
+private const val MAX_RELOAD_ATTEMPTS = 3
+private const val RELOAD_DELAY_MILLIS = 1_500L
