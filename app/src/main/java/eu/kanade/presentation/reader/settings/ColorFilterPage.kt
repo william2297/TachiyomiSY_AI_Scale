@@ -547,8 +547,28 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             modifier = Modifier.padding(horizontal = 24.dp),
             style = MaterialTheme.typography.bodySmall,
         )
+        val frameStats by eu.kanade.tachiyomi.util.system.FrameJankMonitor.stats.collectAsState()
+        Text(
+            text = stringResource(
+                MR.strings.reader_autoscroll_frame_stats,
+                frameStats.frames,
+                "%.0f".format(frameStats.fps),
+                frameStats.skippedRefreshes,
+                frameStats.slowFrames,
+                frameStats.slowFirstDraws,
+                "%.1f".format(frameStats.layoutMs),
+                "%.1f".format(frameStats.drawMs),
+                "%.1f".format(frameStats.syncMs),
+                "%.1f".format(frameStats.gpuMs),
+            ),
+            modifier = Modifier.padding(horizontal = 24.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
         TextButton(
-            onClick = ImageEnhancer::resetStats,
+            onClick = {
+                ImageEnhancer.resetStats()
+                eu.kanade.tachiyomi.util.system.FrameJankMonitor.reset()
+            },
             modifier = Modifier.padding(horizontal = 12.dp),
         ) {
             Text(stringResource(MR.strings.reader_enhancement_stats_reset))

@@ -1180,6 +1180,7 @@
     <string name="reader_background_enhancement_off">Off</string>
     <string name="reader_background_enhancement_chapter">Whole chapter</string>
     <string name="reader_enhancement_stats">This session: %1$d pages enhanced, %2$s s on average, %3$d without a result, %4$d retries</string>
+    <string name="reader_autoscroll_frame_stats">Last auto scroll: %1$d frames at %2$s fps, %3$d skipped refreshes, %4$d slow frames (%5$d drawing new content). In slow frames, average ms: layout %6$s, draw %7$s, sync %8$s, GPU %9$s</string>
     <string name="reader_enhancement_stats_reset">Reset counters</string>
     <string name="reader_enhancement_not_with_hq_renderer">The high quality renderer is on, and it does not show AI-enhanced pages. Turn it off in Settings, Advanced, to see enhancement.</string>
     <string name="reader_auto_scroll">Auto scroll</string>

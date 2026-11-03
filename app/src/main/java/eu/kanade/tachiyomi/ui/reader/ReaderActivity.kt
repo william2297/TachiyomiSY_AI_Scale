@@ -750,6 +750,12 @@ class ReaderActivity : BaseActivity() {
      * stutter (a tap scroll is fast, so it never drops). While auto scroll runs, ask for the highest refresh rate.
      */
     private fun requestHighRefreshRate(enabled: Boolean) {
+        // Frame timings are recorded while auto scroll runs, for the counters in the enhancement settings
+        if (enabled) {
+            eu.kanade.tachiyomi.util.system.FrameJankMonitor.start(window, display?.refreshRate ?: 60f)
+        } else {
+            eu.kanade.tachiyomi.util.system.FrameJankMonitor.stop()
+        }
         runCatching {
             val highest = (display?.supportedModes?.maxOfOrNull { it.refreshRate } ?: 0f)
             window.attributes = window.attributes.apply { preferredRefreshRate = if (enabled) highest else 0f }

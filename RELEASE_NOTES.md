@@ -7,3 +7,4 @@ What is new in this build
 - Reader: tap scroll distance and time are settings (Reader settings > General). Pages that lose their image while on screen ask for it again by themselves.
 - Release file names carry the version number, so downloads of different builds do not collide.
 - Auto scroll asks the screen for its highest refresh rate while it runs, to avoid dropping to 60 Hz and looking choppy.
+- Enhancement settings show a "Last auto scroll" line with frame timings (frames, fps, skipped refreshes, slow frames), to trace stutter during auto scroll.
