@@ -84,7 +84,7 @@ class DiscoverRefresherTest {
 
         val fresh = cache.sections.getValue("NEW_IN_TOP")
         assertEquals(listOf("Gamma Hero"), fresh.map { it.title })
-        assertEquals("Entered the top 20 at #3", fresh[0].reason)
+        assertEquals("Entered the top 50 at #3", fresh[0].reason)
         assertEquals(listOf(1L, 2L, 3L), cache.previousTrendingIds)
     }
 
@@ -202,5 +202,37 @@ class DiscoverRefresherTest {
         assertTrue(titles[1].finished)
         assertEquals(2021, titles[1].endYear)
         assertNotNull(AniListDiscoverApi.query(DiscoverSection.CLASSICS, "KR"))
+    }
+
+    @Test
+    fun `a row holds up to fifty titles and keeps their names`() = runTest {
+        val titles = (1L..60L).map { title(it, "Series $it", 200 - it.toInt()) }
+        val searcher = FakeSearcher(mapOf(1L to titles.map { it.title }.toSet()))
+        val cache = refresher(FakeApi(mapOf(DiscoverSection.RISING to titles)), searcher)
+            .refresh(DiscoverCache(), sources)
+        val rising = cache.sections.getValue("RISING")
+        assertEquals(50, rising.size)
+        assertEquals("Series 1", rising.first().title)
+        assertEquals(listOf("Series 1"), rising.first().names)
+    }
+
+    @Test
+    fun `the cards shown in a row are searched before the rest of the fifty`() = runTest {
+        val titles = (1L..30L).map { title(it, "Series $it", 200 - it.toInt()) }
+        val searcher = FakeSearcher(emptyMap())
+        // Budget for exactly the first twelve titles, one source each
+        refresher(FakeApi(mapOf(DiscoverSection.RISING to titles)), searcher, max = 12)
+            .refresh(DiscoverCache(), listOf(SearchSource(1, "Asura")))
+        assertEquals((1..12).map { "Series $it" }, searcher.calls.map { it.second })
+    }
+
+    @Test
+    fun `titles the user already has are left out and never searched`() = runTest {
+        val titles = listOf(title(1, "Owned Series", 90), title(2, "Fresh Series", 80))
+        val searcher = FakeSearcher(mapOf(1L to setOf("Owned Series", "Fresh Series")))
+        val cache = refresher(FakeApi(mapOf(DiscoverSection.RISING to titles)), searcher, excluded = { it.id == 1L })
+            .refresh(DiscoverCache(), sources)
+        assertEquals(listOf("Fresh Series"), cache.sections.getValue("RISING").map { it.title })
+        assertEquals(listOf("Fresh Series"), searcher.calls.map { it.second })
     }
 }

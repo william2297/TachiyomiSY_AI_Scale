@@ -32,6 +32,8 @@ data class StoredEntry(
     val score: Int?,
     val completed: Boolean,
     val reason: String,
+    /** Every name AniList knows, so a title the user already read under another name can be hidden. */
+    val names: List<String> = emptyList(),
 )
 
 /** What an earlier search for one series found, so it is not searched for again every day. */

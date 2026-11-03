@@ -18,15 +18,20 @@ class DiscoverRefresher(
     private val pause: suspend (Long) -> Unit = { delay(it) },
     private val countries: List<String> = listOf("KR", "JP"),
     private val maxSearches: Int = DEFAULT_MAX_SEARCHES,
+    /** Titles the user already has or has read; they are left out before anything is searched. */
+    private val isExcluded: (AniListTitle) -> Boolean = { false },
 ) {
 
     suspend fun refresh(previous: DiscoverCache, sources: List<SearchSource>): DiscoverCache {
         val day = now() / DAY_MILLIS
-        val lists = fetchLists()
+        val lists = fetchLists().mapValues { (_, titles) -> titles.filterNot(isExcluded) }
         val picks = pickCandidates(lists, previous, day)
 
         val sourcesKey = sources.joinToString(",") { it.id.toString() }
-        val matches = match(picks.values.flatten().distinctBy { it.id }, previous.matches, sources, sourcesKey)
+        // The 12 shown in each row are searched first; the rest of the 50 fill in over the next days
+        val ordered = (picks.values.flatMap { it.take(DISPLAY_SIZE) } + picks.values.flatMap { it.drop(DISPLAY_SIZE) })
+            .distinctBy { it.id }
+        val matches = match(ordered, previous.matches, sources, sourcesKey)
 
         val sections = linkedMapOf<String, List<StoredEntry>>()
         for ((section, titles) in picks) {
@@ -35,7 +40,7 @@ class DiscoverRefresher(
                 match?.let { toEntry(section, title, it, rankOf(section, lists, title, index)) }
             }
             if (entries.isNotEmpty()) {
-                sections[section.name] = entries.take(SECTION_SIZE)
+                sections[section.name] = entries.take(MAX_PER_SECTION)
             } else {
                 // Keep what was shown before when this row could not be rebuilt (for example the list failed)
                 previous.sections[section.name]?.let { sections[section.name] = it }
@@ -94,12 +99,12 @@ class DiscoverRefresher(
         val rising = lists[DiscoverSection.RISING].orEmpty()
         val previousTop = previous.previousTrendingIds.toSet()
         val picks = linkedMapOf<DiscoverSection, List<AniListTitle>>()
-        picks[DiscoverSection.RISING] = rising.take(SECTION_SIZE)
+        picks[DiscoverSection.RISING] = rising.take(MAX_PER_SECTION)
         // Needs yesterday's list; the first refresh has nothing to compare with
         picks[DiscoverSection.NEW_IN_TOP] = if (previousTop.isEmpty()) {
             emptyList()
         } else {
-            rising.take(NEW_IN_TOP_RANKS).filter { it.id !in previousTop }.take(NEW_IN_TOP_SIZE)
+            rising.take(NEW_IN_TOP_RANKS).filter { it.id !in previousTop }.take(MAX_PER_SECTION)
         }
         for (section in listOf(
             DiscoverSection.COMPLETED,
@@ -107,7 +112,7 @@ class DiscoverRefresher(
             DiscoverSection.HIDDEN_GEMS,
             DiscoverSection.OLDER_ONGOING,
         )) {
-            picks[section] = rotate(lists[section].orEmpty().take(POOL_SIZE), SECTION_SIZE, day * 31 + section.ordinal)
+            picks[section] = rotate(lists[section].orEmpty().take(POOL_SIZE), MAX_PER_SECTION, day * 31 + section.ordinal)
         }
         return picks
     }
@@ -186,17 +191,21 @@ class DiscoverRefresher(
             score = title.score,
             completed = title.finished,
             reason = reason(section, title, rank),
+            names = title.names,
         )
     }
 
     companion object {
-        const val SECTION_SIZE = 12
-        const val DEFAULT_MAX_SEARCHES = 150
-        private const val NEW_IN_TOP_SIZE = 8
-        private const val NEW_IN_TOP_RANKS = 20
-        private const val TRENDING_MEMORY = 40
-        private const val POOL_SIZE = 50
-        private const val MAX_MATCHES = 600
+        /** Cards shown in a row before "See all". */
+        const val DISPLAY_SIZE = 12
+
+        /** Most titles a row can hold; "See all" opens up to this many. */
+        const val MAX_PER_SECTION = 50
+        const val DEFAULT_MAX_SEARCHES = 250
+        private const val NEW_IN_TOP_RANKS = 50
+        private const val TRENDING_MEMORY = 100
+        private const val POOL_SIZE = 100
+        private const val MAX_MATCHES = 1500
         private const val DAY_MILLIS = 86_400_000L
         private const val FOUND_VALID_MILLIS = 30 * DAY_MILLIS
         private const val MISSING_VALID_MILLIS = 14 * DAY_MILLIS
@@ -211,7 +220,7 @@ class DiscoverRefresher(
         fun reason(section: DiscoverSection, title: AniListTitle, rank: Int): String {
             return when (section) {
                 DiscoverSection.RISING -> "Trending #$rank on AniList"
-                DiscoverSection.NEW_IN_TOP -> "Entered the top 20 at #$rank"
+                DiscoverSection.NEW_IN_TOP -> "Entered the top 50 at #$rank"
                 DiscoverSection.COMPLETED -> completedReason(title)
                 DiscoverSection.CLASSICS -> "Rated ${title.score ?: "-"} by ${readers(title.popularity)} readers"
                 DiscoverSection.HIDDEN_GEMS ->

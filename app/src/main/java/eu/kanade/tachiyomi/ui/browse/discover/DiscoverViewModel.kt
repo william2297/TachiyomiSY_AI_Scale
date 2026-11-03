@@ -16,6 +16,7 @@ import eu.kanade.tachiyomi.data.discover.DiscoverCache
 import eu.kanade.tachiyomi.data.discover.DiscoverRefreshWorker
 import eu.kanade.tachiyomi.data.discover.DiscoverStore
 import eu.kanade.tachiyomi.data.discover.StoredEntry
+import eu.kanade.tachiyomi.data.discover.TitleMatcher
 import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.workManager
@@ -29,7 +30,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
 import mihon.domain.manga.model.toDomainManga
+import tachiyomi.domain.manga.interactor.GetLibraryManga
 import tachiyomi.domain.manga.interactor.NetworkToLocalManga
+import tachiyomi.domain.manga.repository.MangaRepository
 
 /**
  * Serves the Discover picks that the daily worker stored, and starts a refresh when asked. It reads a small file
@@ -41,6 +44,8 @@ import tachiyomi.domain.manga.interactor.NetworkToLocalManga
 class DiscoverViewModel(
     private val context: Context,
     private val networkToLocalManga: NetworkToLocalManga,
+    private val getLibraryManga: GetLibraryManga,
+    private val mangaRepository: MangaRepository,
 ) : ViewModel() {
 
     private val store by lazy { DiscoverStore(DiscoverRefreshWorker.storeFile(context), context.appGraph.json) }
@@ -49,9 +54,19 @@ class DiscoverViewModel(
     private val loading = MutableStateFlow(false)
     private val waitingForWifi = MutableStateFlow(false)
 
-    val state: StateFlow<DiscoverState> = combine(cache, loading, waitingForWifi) { cache, loading, waiting ->
+    /** Normalized titles of everything in the library, and of everything read that is not in it. */
+    private val libraryTitles = MutableStateFlow<Set<String>>(emptySet())
+    private val readTitles = MutableStateFlow<Set<String>>(emptySet())
+
+    val state: StateFlow<DiscoverState> = combine(
+        cache,
+        loading,
+        waitingForWifi,
+        libraryTitles,
+        readTitles,
+    ) { cache, loading, waiting, inLibrary, read ->
         DiscoverState(
-            sections = toSections(cache),
+            sections = toSections(cache, inLibrary + read),
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
             error = if (waiting) WAITING_FOR_WIFI else cache.errorMessage,
@@ -60,6 +75,12 @@ class DiscoverViewModel(
 
     init {
         DiscoverRefreshWorker.setupTask(context)
+        viewModelScope.launch {
+            // Follows the library live, so marking chapters read shows up here without a refresh
+            getLibraryManga.subscribe().collect { library ->
+                libraryTitles.value = library.map { TitleMatcher.normalize(it.manga.title) }.toSet()
+            }
+        }
         viewModelScope.launch {
             reload()
             val ageMillis = System.currentTimeMillis() - cache.value.updatedAtMillis
@@ -82,6 +103,10 @@ class DiscoverViewModel(
 
     private suspend fun reload() {
         cache.value = withContext(Dispatchers.IO) { store.load() }
+        // Titles read outside the library; the library itself is followed through its own flow
+        readTitles.value = withContext(Dispatchers.IO) {
+            mangaRepository.getReadMangaNotInLibrary().map { TitleMatcher.normalize(it.title) }.toSet()
+        }
     }
 
     /** Starts a refresh now. It waits for Wi-Fi if the tablet is not on Wi-Fi. */
@@ -99,10 +124,13 @@ class DiscoverViewModel(
         return networkToLocalManga(sManga.toDomainManga(entry.sourceId)).id
     }
 
-    private fun toSections(cache: DiscoverCache): Map<DiscoverSection, List<DiscoverEntry>> {
+    /** The rows, without anything the user already has or has read, under any of its names. */
+    private fun toSections(cache: DiscoverCache, hidden: Set<String>): Map<DiscoverSection, List<DiscoverEntry>> {
         val sections = linkedMapOf<DiscoverSection, List<DiscoverEntry>>()
         for (section in DiscoverSection.entries) {
-            val entries = cache.sections[section.name].orEmpty().map { it.toEntry() }
+            val entries = cache.sections[section.name].orEmpty()
+                .filterNot { stored -> (stored.names + stored.title).any { TitleMatcher.normalize(it) in hidden } }
+                .map { it.toEntry() }
             if (entries.isNotEmpty()) sections[section] = entries
         }
         return sections

@@ -40,9 +40,12 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         }
 
         return try {
+            // What is already in the library is not recommended; read titles outside the library are hidden in the tab
+            val owned = graph.getFavorites.await().map { TitleMatcher.normalize(it.title) }.toSet()
             val refresher = DiscoverRefresher(
                 api = AniListDiscoverApi(graph.networkHelper.client, graph.json),
                 searcher = SourceTitleSearcher(graph.sourceManager),
+                isExcluded = { title -> title.names.any { TitleMatcher.normalize(it) in owned } },
             )
             store.save(refresher.refresh(previous, sources))
             Result.success()
