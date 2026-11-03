@@ -19,20 +19,27 @@ object FrameJankMonitor {
 
     data class Stats(
         val frames: Int = 0,
-        val seconds: Float = 0f,
-        /** Screen refreshes with no new frame (a drop from 120 to 60 per second skips every other one). */
-        val skippedRefreshes: Int = 0,
-        /** Frames that took longer than one refresh to produce. */
+        /** Seconds spent scrolling: gaps of more than [IDLE_REFRESHES] refreshes (nothing moving) are left out. */
+        val activeSeconds: Float = 0f,
+        /** Frames that came one refresh after the previous one (smooth). */
+        val smooth: Int = 0,
+        /** Frames that came two refreshes after the previous one (half rate, for example 60 on a 120 Hz screen). */
+        val halfRate: Int = 0,
+        /** Frames that came three to [IDLE_REFRESHES] refreshes after the previous one (a visible hitch). */
+        val hitches: Int = 0,
+        /** Frames that took longer than one refresh to produce, and where that time went (average ms). */
         val slowFrames: Int = 0,
-        /** Average milliseconds per phase over the slow frames only. */
+        val inputMs: Float = 0f,
+        val animationMs: Float = 0f,
         val layoutMs: Float = 0f,
         val drawMs: Float = 0f,
         val syncMs: Float = 0f,
+        val commandMs: Float = 0f,
+        val swapMs: Float = 0f,
         val gpuMs: Float = 0f,
-        /** Slow frames that drew new content for the first time (a page or tile that just arrived). */
-        val slowFirstDraws: Int = 0,
+        val otherDelayMs: Float = 0f,
     ) {
-        val fps: Float get() = if (seconds > 0f) frames / seconds else 0f
+        val fps: Float get() = if (activeSeconds > 0f) frames / activeSeconds else 0f
     }
 
     private val mutableStats = MutableStateFlow(Stats())
@@ -44,14 +51,12 @@ object FrameJankMonitor {
 
     // Accumulators, touched only from the listener's thread
     private var frames = 0
-    private var skipped = 0
+    private var smooth = 0
+    private var half = 0
+    private var hitch = 0
     private var slow = 0
-    private var slowFirst = 0
-    private var layoutNanos = 0L
-    private var drawNanos = 0L
-    private var syncNanos = 0L
-    private var gpuNanos = 0L
-    private var firstVsync = 0L
+    private var activeNanos = 0L
+    private val phaseNanos = LongArray(PHASES)
     private var lastVsync = 0L
     private var refreshNanos = 8_333_333L
 
@@ -88,14 +93,12 @@ object FrameJankMonitor {
     @Synchronized
     fun reset() {
         frames = 0
-        skipped = 0
+        smooth = 0
+        half = 0
+        hitch = 0
         slow = 0
-        slowFirst = 0
-        layoutNanos = 0L
-        drawNanos = 0L
-        syncNanos = 0L
-        gpuNanos = 0L
-        firstVsync = 0L
+        activeNanos = 0L
+        phaseNanos.fill(0L)
         lastVsync = 0L
         mutableStats.value = Stats()
     }
@@ -104,22 +107,31 @@ object FrameJankMonitor {
     private fun record(metrics: FrameMetrics) {
         val vsync = metrics.getMetric(FrameMetrics.VSYNC_TIMESTAMP)
         if (lastVsync != 0L) {
-            val missed = ((vsync - lastVsync) / refreshNanos.toFloat() + 0.25f).toInt() - 1
-            if (missed > 0) skipped += missed
-        } else {
-            firstVsync = vsync
+            val gap = ((vsync - lastVsync) / refreshNanos.toFloat() + 0.25f).toInt()
+            // A long gap means nothing was moving (menu open, finger holding, waiting for a page), not a drop
+            if (gap in 1..IDLE_REFRESHES) {
+                activeNanos += vsync - lastVsync
+                when (gap) {
+                    1 -> smooth++
+                    2 -> half++
+                    else -> hitch++
+                }
+            }
         }
         lastVsync = vsync
         frames++
 
-        val total = metrics.getMetric(FrameMetrics.TOTAL_DURATION)
-        if (total > refreshNanos) {
+        if (metrics.getMetric(FrameMetrics.TOTAL_DURATION) > refreshNanos) {
             slow++
-            layoutNanos += metrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION)
-            drawNanos += metrics.getMetric(FrameMetrics.DRAW_DURATION)
-            syncNanos += metrics.getMetric(FrameMetrics.SYNC_DURATION)
-            if (Build.VERSION.SDK_INT >= 31) gpuNanos += metrics.getMetric(FrameMetrics.GPU_DURATION)
-            if (metrics.getMetric(FrameMetrics.FIRST_DRAW_FRAME) == 1L) slowFirst++
+            phaseNanos[0] += metrics.getMetric(FrameMetrics.INPUT_HANDLING_DURATION)
+            phaseNanos[1] += metrics.getMetric(FrameMetrics.ANIMATION_DURATION)
+            phaseNanos[2] += metrics.getMetric(FrameMetrics.LAYOUT_MEASURE_DURATION)
+            phaseNanos[3] += metrics.getMetric(FrameMetrics.DRAW_DURATION)
+            phaseNanos[4] += metrics.getMetric(FrameMetrics.SYNC_DURATION)
+            phaseNanos[5] += metrics.getMetric(FrameMetrics.COMMAND_ISSUE_DURATION)
+            phaseNanos[6] += metrics.getMetric(FrameMetrics.SWAP_BUFFERS_DURATION)
+            if (Build.VERSION.SDK_INT >= 31) phaseNanos[7] += metrics.getMetric(FrameMetrics.GPU_DURATION)
+            phaseNanos[8] += metrics.getMetric(FrameMetrics.UNKNOWN_DELAY_DURATION)
         }
         if (frames % PUBLISH_EVERY == 0) publish()
     }
@@ -129,16 +141,26 @@ object FrameJankMonitor {
         val divisor = slow.coerceAtLeast(1) * 1_000_000f
         mutableStats.value = Stats(
             frames = frames,
-            seconds = if (lastVsync > firstVsync) (lastVsync - firstVsync) / 1_000_000_000f else 0f,
-            skippedRefreshes = skipped,
+            activeSeconds = activeNanos / 1_000_000_000f,
+            smooth = smooth,
+            halfRate = half,
+            hitches = hitch,
             slowFrames = slow,
-            layoutMs = layoutNanos / divisor,
-            drawMs = drawNanos / divisor,
-            syncMs = syncNanos / divisor,
-            gpuMs = gpuNanos / divisor,
-            slowFirstDraws = slowFirst,
+            inputMs = phaseNanos[0] / divisor,
+            animationMs = phaseNanos[1] / divisor,
+            layoutMs = phaseNanos[2] / divisor,
+            drawMs = phaseNanos[3] / divisor,
+            syncMs = phaseNanos[4] / divisor,
+            commandMs = phaseNanos[5] / divisor,
+            swapMs = phaseNanos[6] / divisor,
+            gpuMs = phaseNanos[7] / divisor,
+            otherDelayMs = phaseNanos[8] / divisor,
         )
     }
 
     private const val PUBLISH_EVERY = 120
+    private const val PHASES = 9
+
+    /** A gap longer than this many refreshes (about 50 ms at 120 Hz) is a pause, not a stutter. */
+    private const val IDLE_REFRESHES = 6
 }
