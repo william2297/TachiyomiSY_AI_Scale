@@ -33,6 +33,8 @@ import eu.kanade.presentation.browse.discover.components.DiscoverCard
 import eu.kanade.presentation.browse.discover.components.DiscoverCardSkeleton
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingCard
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingCardSkeleton
+import eu.kanade.presentation.browse.discover.components.DiscoverRisingSeeAllCard
+import eu.kanade.presentation.browse.discover.components.DiscoverSeeAllCard
 import eu.kanade.presentation.browse.discover.components.SkeletonLine
 import mihon.icons.phosphor.Phosphor
 import mihon.icons.phosphor.bold.ArrowsClockwise
@@ -56,6 +58,7 @@ fun DiscoverScreen(
     contentPadding: PaddingValues,
     onOpen: (DiscoverEntry) -> Unit,
     onRefresh: () -> Unit,
+    onSeeAll: (DiscoverSection) -> Unit = {},
 ) {
     val visible = DiscoverSection.entries.mapNotNull { section ->
         state.sections[section]?.takeIf { it.isNotEmpty() }?.let { section to it }
@@ -88,10 +91,10 @@ fun DiscoverScreen(
                     }
                     if (wide) {
                         val (rising, rest) = visible.partition { it.first == DiscoverSection.RISING }
-                        rising.forEach { (section, entries) -> section(section, entries, onOpen) }
-                        rest.chunked(2).forEach { pair -> sectionPair(pair, onOpen) }
+                        rising.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
+                        rest.chunked(2).forEach { pair -> sectionPair(pair, onOpen, onSeeAll) }
                     } else {
-                        visible.forEach { (section, entries) -> section(section, entries, onOpen) }
+                        visible.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
                     }
                 }
                 state.loading -> loadingSkeleton(wide)
@@ -113,20 +116,14 @@ private const val WIDE_LAYOUT_MIN_WIDTH_DP = 960
 private fun LazyListScope.sectionPair(
     pair: List<Pair<DiscoverSection, List<DiscoverEntry>>>,
     onOpen: (DiscoverEntry) -> Unit,
+    onSeeAll: (DiscoverSection) -> Unit,
 ) {
     item(key = "pair-" + pair.joinToString("-") { it.first.name }) {
         Row(Modifier.fillMaxWidth()) {
             pair.forEach { (section, entries) ->
                 Column(Modifier.weight(1f)) {
                     SectionHeader(title = section.titleRes, hint = section.hintRes)
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        items(items = entries, key = { it.id }) { entry ->
-                            DiscoverCard(entry = entry, onClick = { onOpen(entry) })
-                        }
-                    }
+                    SectionRow(section, entries, onOpen, onSeeAll)
                 }
             }
             if (pair.size == 1) Spacer(Modifier.weight(1f))
@@ -138,25 +135,50 @@ private fun LazyListScope.section(
     section: DiscoverSection,
     entries: List<DiscoverEntry>,
     onOpen: (DiscoverEntry) -> Unit,
+    onSeeAll: (DiscoverSection) -> Unit,
 ) {
     item(key = "header-${section.name}") {
         SectionHeader(title = section.titleRes, hint = section.hintRes)
     }
     item(key = "row-${section.name}") {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (section == DiscoverSection.RISING) 12.dp else 4.dp),
-        ) {
-            items(items = entries, key = { it.id }) { entry ->
-                if (section == DiscoverSection.RISING) {
-                    DiscoverRisingCard(entry = entry, onClick = { onOpen(entry) })
+        SectionRow(section, entries, onOpen, onSeeAll)
+    }
+}
+
+/** Shows the first [ROW_LIMIT] entries; with more, a "See all" tile ends the row and opens the full list. */
+@Composable
+private fun SectionRow(
+    section: DiscoverSection,
+    entries: List<DiscoverEntry>,
+    onOpen: (DiscoverEntry) -> Unit,
+    onSeeAll: (DiscoverSection) -> Unit,
+) {
+    val rising = section == DiscoverSection.RISING
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(if (rising) 12.dp else 4.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        items(items = entries.take(ROW_LIMIT), key = { it.id }) { entry ->
+            if (rising) {
+                DiscoverRisingCard(entry = entry, onClick = { onOpen(entry) })
+            } else {
+                DiscoverCard(entry = entry, onClick = { onOpen(entry) })
+            }
+        }
+        if (entries.size > ROW_LIMIT) {
+            item(key = "see-all") {
+                if (rising) {
+                    DiscoverRisingSeeAllCard(count = entries.size, onClick = { onSeeAll(section) })
                 } else {
-                    DiscoverCard(entry = entry, onClick = { onOpen(entry) })
+                    DiscoverSeeAllCard(count = entries.size, onClick = { onSeeAll(section) })
                 }
             }
         }
     }
 }
+
+private const val ROW_LIMIT = 12
 
 @Composable
 private fun SectionHeader(title: StringResource, hint: StringResource) {
@@ -340,7 +362,7 @@ private fun updatedLabel(updatedAtMillis: Long): String {
     }
 }
 
-private val DiscoverSection.titleRes: StringResource
+internal val DiscoverSection.titleRes: StringResource
     get() = when (this) {
         DiscoverSection.RISING -> MR.strings.discover_section_rising
         DiscoverSection.NEW_IN_TOP -> MR.strings.discover_section_new_in_top
@@ -350,7 +372,7 @@ private val DiscoverSection.titleRes: StringResource
         DiscoverSection.OLDER_ONGOING -> MR.strings.discover_section_older_ongoing
     }
 
-private val DiscoverSection.hintRes: StringResource
+internal val DiscoverSection.hintRes: StringResource
     get() = when (this) {
         DiscoverSection.RISING -> MR.strings.discover_section_rising_hint
         DiscoverSection.NEW_IN_TOP -> MR.strings.discover_section_new_in_top_hint

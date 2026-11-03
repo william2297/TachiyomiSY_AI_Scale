@@ -44,6 +44,8 @@ import coil3.compose.LocalAsyncImagePreviewHandler
 import com.github.takahirom.roborazzi.captureRoboImage
 import eu.kanade.presentation.browse.discover.DiscoverSampleData
 import eu.kanade.presentation.browse.discover.DiscoverScreen
+import eu.kanade.presentation.browse.discover.DiscoverSection
+import eu.kanade.presentation.browse.discover.DiscoverSectionContent
 import eu.kanade.presentation.browse.discover.DiscoverState
 import eu.kanade.presentation.components.TabContent
 import eu.kanade.presentation.components.TabbedScreen
@@ -108,6 +110,22 @@ open class DiscoverPreviewTest {
     @Test
     fun offlineEmpty() = capture("discover-offline-empty") {
         Browse(DiscoverState(sections = emptyMap(), loading = false, updatedAtMillis = null, error = "timeout"))
+    }
+
+    /** "See all" screen: pushed over Home, so no rail, just the list of one row. */
+    @Test
+    fun seeAll() = capture("discover-see-all") {
+        DiscoverSectionContent(
+            section = DiscoverSection.COMPLETED,
+            entries = sample.sections[DiscoverSection.COMPLETED].orEmpty(),
+            onBack = {},
+            onOpen = {},
+        )
+    }
+
+    @Test
+    fun seeAllEmpty() = capture("discover-see-all-empty") {
+        DiscoverSectionContent(section = DiscoverSection.HIDDEN_GEMS, entries = emptyList(), onBack = {}, onOpen = {})
     }
 
     @OptIn(ExperimentalCoilApi::class)

@@ -1,5 +1,6 @@
 package eu.kanade.presentation.browse.discover.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,14 +23,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import eu.kanade.presentation.browse.discover.DiscoverEntry
 import eu.kanade.presentation.manga.components.MangaCover
 import mihon.icons.phosphor.Phosphor
+import mihon.icons.phosphor.boldautomirrored.ArrowLeft
 import mihon.icons.phosphor.fill.Star
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
@@ -51,10 +55,12 @@ internal fun DiscoverCard(
     entry: DiscoverEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    // Fixed width in the carousels; null lets a grid cell decide the width
+    width: Dp? = DiscoverCardWidth,
 ) {
     Column(
         modifier = modifier
-            .width(DiscoverCardWidth)
+            .then(if (width != null) Modifier.width(width) else Modifier.fillMaxWidth())
             .clip(MaterialTheme.shapes.small)
             .clickable(onClick = onClick)
             .padding(4.dp),
@@ -257,4 +263,102 @@ internal fun SkeletonLine(width: Dp, modifier: Modifier = Modifier) {
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
     )
+}
+
+/**
+ * Last item of a row that has more entries than it shows. Same footprint as a regular card's cover so the
+ * row keeps its rhythm; a tonal tile with an arrow reads as something to tap, the count says how much is behind it.
+ */
+@Composable
+internal fun DiscoverSeeAllCard(
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .width(DiscoverCardWidth)
+            .padding(4.dp),
+    ) {
+        SeeAllTile(
+            count = count,
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(MangaCover.Book.ratio),
+            shape = MaterialTheme.shapes.extraSmall,
+        )
+    }
+}
+
+/** Rising variant: as tall as a Rising card, narrower. */
+@Composable
+internal fun DiscoverRisingSeeAllCard(
+    count: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SeeAllTile(
+        count = count,
+        onClick = onClick,
+        modifier = modifier
+            .width(DiscoverRisingSeeAllWidth)
+            .height(RisingCoverWidth / MangaCover.Book.ratio + 20.dp),
+        shape = MaterialTheme.shapes.medium,
+    )
+}
+
+internal val DiscoverRisingSeeAllWidth = 148.dp
+
+@Composable
+private fun SeeAllTile(
+    count: Int,
+    onClick: () -> Unit,
+    shape: androidx.compose.ui.graphics.Shape,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    val description = stringResource(MR.strings.discover_see_all_description, count)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = description },
+        shape = shape,
+        color = colors.surfaceContainer,
+        border = BorderStroke(1.dp, colors.outlineVariant),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(colors.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Phosphor.BoldAutoMirrored.ArrowLeft,
+                    contentDescription = null,
+                    tint = colors.onSecondaryContainer,
+                    // Flipped back-arrow = forward arrow; the auto-mirroring keeps it right for RTL too
+                    modifier = Modifier
+                        .size(22.dp)
+                        .graphicsLayer(scaleX = -1f),
+                )
+            }
+            Text(
+                text = stringResource(MR.strings.discover_see_all),
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.onSurface,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            Text(
+                text = stringResource(MR.strings.discover_see_all_count, count),
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant,
+            )
+        }
+    }
 }

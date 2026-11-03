@@ -1242,8 +1242,8 @@
     <string name="label_discover">Discover</string>
     <string name="discover_section_rising">Rising</string>
     <string name="discover_section_rising_hint">Climbing fast right now</string>
-    <string name="discover_section_new_in_top">New in the top 20</string>
-    <string name="discover_section_new_in_top_hint">Just broke into the top 20</string>
+    <string name="discover_section_new_in_top">New in the top 50</string>
+    <string name="discover_section_new_in_top_hint">Just broke into the top 50</string>
     <string name="discover_section_completed">Completed, worth reading</string>
     <string name="discover_section_completed_hint">Finished and highly rated, ready to binge</string>
     <string name="discover_section_classics">Classics</string>
@@ -1263,4 +1263,9 @@
     <string name="discover_offline_title">Can\'t reach AniList right now</string>
     <string name="discover_offline_hint">Pull down to try again</string>
     <string name="discover_score">Score %1$d</string>
+    <string name="discover_see_all">See all</string>
+    <string name="discover_see_all_count">%1$d titles</string>
+    <string name="discover_see_all_description">See all (%1$d)</string>
+    <string name="discover_section_empty">Nothing in this list right now</string>
+    <string name="discover_back">Back</string>
 </resources>

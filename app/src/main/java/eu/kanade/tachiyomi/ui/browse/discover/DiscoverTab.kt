@@ -32,6 +32,7 @@ fun Screen.discoverTab(): TabContent {
                     scope.launch { navigator.push(MangaScreen(viewModel.localMangaId(entry), true)) }
                 },
                 onRefresh = viewModel::refresh,
+                onSeeAll = { section -> navigator.push(DiscoverSectionScreen(section)) },
             )
         },
     )

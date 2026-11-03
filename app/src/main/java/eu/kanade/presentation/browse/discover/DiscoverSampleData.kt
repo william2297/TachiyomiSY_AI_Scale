@@ -32,18 +32,42 @@ object DiscoverSampleData {
                 entry(2, "Swordmaster's Youngest Son", "Asura Scans", 84, false, "Trending #5, up 2 days"),
                 entry(3, "Return of the Mount Hua Sect", "Comick", 87, false, "Trending #8, new chapter today"),
                 entry(4, "Surviving The Game as a Barbarian", "Comick", 80, false, "Trending #11, up 6 days"),
-            ),
+            ) + listOf(
+                "Eleceed", "Nano Machine", "Wind Breaker", "Teenage Mercenary", "The Greatest Estate Developer",
+                "Infinite Mage", "Absolute Sword Sense", "Academy's Undercover Professor", "Damn Reincarnation",
+                "Overgeared",
+            ).mapIndexed { i, title ->
+                entry(
+                    60L + i,
+                    title,
+                    if (i % 2 ==
+                        0
+                    ) {
+                        "Asura Scans"
+                    } else {
+                        "Comick"
+                    },
+                    78 + i % 6,
+                    false,
+                    "Trending #${14 + i}",
+                )
+            },
             DiscoverSection.NEW_IN_TOP to listOf(
-                entry(10, "Myst, Might, Mayhem", "Asura Scans", 79, false, "Entered the top 20 at #17"),
-                entry(11, "Pick Me Up!", "Comick", 81, false, "Entered the top 20 at #19"),
-                entry(12, "Reincarnation of the Fist King", "Asura Scans", 76, false, "Entered the top 20 at #20"),
+                entry(10, "Myst, Might, Mayhem", "Asura Scans", 79, false, "Entered the top 50 at #37"),
+                entry(11, "Pick Me Up!", "Comick", 81, false, "Entered the top 50 at #44"),
+                entry(12, "Reincarnation of the Fist King", "Asura Scans", 76, false, "Entered the top 50 at #49"),
             ),
             DiscoverSection.COMPLETED to listOf(
                 entry(20, "Solo Leveling", "Comick", 86, true, "179 chapters, finished 2021"),
                 entry(21, "Omniscient Reader", "Comick", 89, true, "Finished, rated in the top 1%"),
                 entry(22, "The Breaker", "Comick", 83, true, "72 chapters, a weekend read"),
                 entry(23, "Tower of God", "Comick", 85, true, "Season finale out"),
-            ),
+            ) + listOf(
+                "The Boxer", "Sweet Home", "Bastard", "Shotgun Boy", "Pigpen", "Annarasumanara", "Dice", "Hellbound",
+                "Love Revolution", "Light and Shadow", "The Horizon", "Distant Sky",
+            ).mapIndexed { i, title ->
+                entry(80L + i, title, "Comick", 80 + i % 7, true, "Finished, ${40 + i * 7} chapters")
+            },
             DiscoverSection.CLASSICS to listOf(
                 entry(30, "Noblesse", "Comick", 84, true, "Since 2007, top 50 all time"),
                 entry(31, "The Gamer", "Comick", 78, false, "Since 2013, top 100 all time"),
