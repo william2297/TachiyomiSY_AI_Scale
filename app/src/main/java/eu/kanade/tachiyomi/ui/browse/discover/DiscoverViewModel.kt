@@ -21,9 +21,11 @@ import eu.kanade.tachiyomi.source.model.SManga
 import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.workManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -86,6 +88,15 @@ class DiscoverViewModel(
             val ageMillis = System.currentTimeMillis() - cache.value.updatedAtMillis
             // First open, or a day was missed (the phone was off or off Wi-Fi)
             if (cache.value.updatedAtMillis == 0L || ageMillis > STALE_AFTER_MILLIS) refresh()
+        }
+        viewModelScope.launch {
+            // While a refresh runs, picks are saved as they are found; look for them every few seconds
+            loading.collectLatest { isLoading ->
+                while (isLoading) {
+                    delay(PROGRESS_POLL_MILLIS)
+                    reload()
+                }
+            }
         }
         viewModelScope.launch {
             val now = context.workManager.getWorkInfosForUniqueWorkFlow(DiscoverRefreshWorker.nowWorkName())
@@ -151,5 +162,6 @@ class DiscoverViewModel(
     private companion object {
         const val WAITING_FOR_WIFI = "Waiting for Wi-Fi to refresh."
         const val STALE_AFTER_MILLIS = 26 * 60 * 60 * 1000L
+        const val PROGRESS_POLL_MILLIS = 4_000L
     }
 }

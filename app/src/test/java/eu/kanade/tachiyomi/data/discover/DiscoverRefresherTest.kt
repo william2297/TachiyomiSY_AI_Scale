@@ -241,4 +241,72 @@ class DiscoverRefresherTest {
         assertEquals(listOf("Fresh Series"), cache.sections.getValue("RISING").map { it.title })
         assertEquals(listOf("Fresh Series"), searcher.calls.map { it.second })
     }
+
+    @Test
+    fun `a stray cancellation inside one search does not stop the refresh`() = runTest {
+        val titles = (1L..3L).map { title(it, "Series $it", 100 - it.toInt()) }
+        val searcher = object : TitleSearcher {
+            override suspend fun search(source: SearchSource, query: String): List<FoundManga> {
+                if (query == "Series 1") throw kotlinx.coroutines.CancellationException("stray")
+                return listOf(FoundManga(query, "/s/$query"))
+            }
+        }
+        val cache = refresher(FakeApi(mapOf(DiscoverSection.RISING to titles)), searcher)
+            .refresh(DiscoverCache(), listOf(SearchSource(1, "Asura")))
+        assertEquals(listOf("Series 2", "Series 3"), cache.sections.getValue("RISING").map { it.title })
+    }
+
+    @Test
+    fun `a source that keeps failing is skipped for the rest of the run`() = runTest {
+        val titles = (1L..8L).map { title(it, "Series $it", 100 - it.toInt()) }
+        val calls = mutableListOf<Long>()
+        val searcher = TitleSearcher { source, query ->
+            calls += source.id
+            if (source.id == 1L) throw IOException("slow") else listOf(FoundManga(query, "/s/$query"))
+        }
+        val cache = refresher(
+            FakeApi(mapOf(DiscoverSection.RISING to titles)),
+            searcher,
+        ).refresh(DiscoverCache(), sources)
+        assertEquals(3, calls.count { it == 1L })
+        assertEquals(8, cache.sections.getValue("RISING").size)
+    }
+
+    @Test
+    fun `picks are reported while matching goes on`() = runTest {
+        val titles = (1L..9L).map { title(it, "Series $it", 100 - it.toInt()) }
+        val searcher = FakeSearcher(mapOf(1L to titles.map { it.title }.toSet()))
+        val reported = mutableListOf<Int>()
+        val refresher = DiscoverRefresher(
+            api = FakeApi(mapOf(DiscoverSection.RISING to titles)),
+            searcher = searcher,
+            now = { 1_700_000_000_000L },
+            pause = {},
+            countries = listOf("KR"),
+            onProgress = { reported += it.sections["RISING"].orEmpty().size },
+        )
+        val cache = refresher.refresh(DiscoverCache(), listOf(SearchSource(1, "Asura")))
+        assertTrue(reported.size >= 2)
+        assertTrue(reported.first() < cache.sections.getValue("RISING").size)
+    }
+
+    @Test
+    fun `the time budget ends the matching`() = runTest {
+        val titles = (1L..20L).map { title(it, "Series $it", 100 - it.toInt()) }
+        var clock = 1_700_000_000_000L
+        val searcher = FakeSearcher(emptyMap())
+        val refresher = DiscoverRefresher(
+            api = FakeApi(mapOf(DiscoverSection.RISING to titles)),
+            searcher = searcher,
+            now = {
+                clock += 60_000L
+                clock
+            },
+            pause = {},
+            countries = listOf("KR"),
+            maxDurationMillis = 300_000L,
+        )
+        refresher.refresh(DiscoverCache(), listOf(SearchSource(1, "Asura")))
+        assertTrue(searcher.calls.size < 20)
+    }
 }

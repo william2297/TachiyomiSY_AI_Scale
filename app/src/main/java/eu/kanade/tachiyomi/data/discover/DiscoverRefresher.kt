@@ -2,7 +2,9 @@ package eu.kanade.tachiyomi.data.discover
 
 import eu.kanade.presentation.browse.discover.DiscoverSection
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import java.io.IOException
 import kotlin.random.Random
 
@@ -20,6 +22,10 @@ class DiscoverRefresher(
     private val maxSearches: Int = DEFAULT_MAX_SEARCHES,
     /** Titles the user already has or has read; they are left out before anything is searched. */
     private val isExcluded: (AniListTitle) -> Boolean = { false },
+    /** Called with the picks found so far, so the tab can fill in while the rest is still being searched. */
+    private val onProgress: suspend (DiscoverCache) -> Unit = {},
+    /** The matching stops after this long, so a run always ends before the system cuts it off. */
+    private val maxDurationMillis: Long = DEFAULT_MAX_DURATION_MILLIS,
 ) {
 
     suspend fun refresh(previous: DiscoverCache, sources: List<SearchSource>): DiscoverCache {
@@ -31,25 +37,32 @@ class DiscoverRefresher(
         // The 12 shown in each row are searched first; the rest of the 50 fill in over the next days
         val ordered = (picks.values.flatMap { it.take(DISPLAY_SIZE) } + picks.values.flatMap { it.drop(DISPLAY_SIZE) })
             .distinctBy { it.id }
-        val matches = match(ordered, previous.matches, sources, sourcesKey)
+        val sourceIds = sources.map(SearchSource::id)
 
-        val sections = linkedMapOf<String, List<StoredEntry>>()
-        for ((section, titles) in picks) {
-            val entries = titles.withIndex().mapNotNull { (index, title) ->
-                val match = matches[title.id]?.takeIf { it.found && it.sourceId in sources.map(SearchSource::id) }
-                match?.let { toEntry(section, title, it, rankOf(section, lists, title, index)) }
+        fun sectionsFor(matches: Map<Long, MatchRecord>): Map<String, List<StoredEntry>> {
+            val sections = linkedMapOf<String, List<StoredEntry>>()
+            for ((section, titles) in picks) {
+                val entries = titles.withIndex().mapNotNull { (index, title) ->
+                    val match = matches[title.id]?.takeIf { it.found && it.sourceId in sourceIds }
+                    match?.let { toEntry(section, title, it, rankOf(section, lists, title, index)) }
+                }
+                if (entries.isNotEmpty()) {
+                    sections[section.name] = entries.take(MAX_PER_SECTION)
+                } else {
+                    // Keep what was shown before when this row could not be rebuilt (for example the list failed)
+                    previous.sections[section.name]?.let { sections[section.name] = it }
+                }
             }
-            if (entries.isNotEmpty()) {
-                sections[section.name] = entries.take(MAX_PER_SECTION)
-            } else {
-                // Keep what was shown before when this row could not be rebuilt (for example the list failed)
-                previous.sections[section.name]?.let { sections[section.name] = it }
-            }
+            return sections
+        }
+
+        val matches = match(ordered, previous.matches, sources, sourcesKey) { found ->
+            onProgress(previous.copy(updatedAtMillis = now(), sections = sectionsFor(found), errorMessage = null))
         }
 
         return DiscoverCache(
             updatedAtMillis = now(),
-            sections = sections,
+            sections = sectionsFor(matches),
             previousTrendingIds = lists[DiscoverSection.RISING].orEmpty().take(TRENDING_MEMORY).map { it.id },
             matches = matches.entries.sortedByDescending { it.value.checkedAtMillis }.take(MAX_MATCHES)
                 .associate { it.key to it.value },
@@ -123,30 +136,37 @@ class DiscoverRefresher(
         known: Map<Long, MatchRecord>,
         sources: List<SearchSource>,
         sourcesKey: String,
+        progress: suspend (Map<Long, MatchRecord>) -> Unit,
     ): Map<Long, MatchRecord> {
         val matches = known.toMutableMap()
         if (sources.isEmpty()) return matches
+        val startedAt = now()
+        val failures = mutableMapOf<Long, Int>()
         var searches = 0
+        var sinceProgress = 0
         for (title in candidates) {
             if (isFresh(matches[title.id], sourcesKey)) continue
             var found: MatchRecord? = null
             var interrupted = false
             for (source in sources) {
-                if (searches >= maxSearches) {
+                if ((failures[source.id] ?: 0) >= MAX_SOURCE_FAILURES) continue
+                if (searches >= maxSearches || now() - startedAt > maxDurationMillis) {
                     interrupted = true
                     break
                 }
                 searches++
                 val results = try {
                     searcher.search(source, title.title)
-                } catch (e: CancellationException) {
-                    throw e
                 } catch (e: Exception) {
+                    // A cancellation of the whole run must still stop it; a stray one inside a single search must not
+                    if (e is CancellationException) currentCoroutineContext().ensureActive()
+                    failures[source.id] = (failures[source.id] ?: 0) + 1
                     emptyList()
                 }
                 pause(SEARCH_PAUSE_MILLIS)
                 val best = TitleMatcher.best(title.names, results) { it.title }
                 if (best != null) {
+                    failures[source.id] = 0
                     found = MatchRecord(true, source.id, source.name, best.first.url, now(), sourcesKey)
                     break
                 }
@@ -154,6 +174,10 @@ class DiscoverRefresher(
             // A title the budget cut short is searched again next time, not remembered as missing
             if (found != null) {
                 matches[title.id] = found
+                if (++sinceProgress >= PROGRESS_EVERY) {
+                    sinceProgress = 0
+                    progress(matches)
+                }
             } else if (!interrupted) {
                 matches[title.id] = MatchRecord(false, checkedAtMillis = now(), sourcesKey = sourcesKey)
             }
@@ -203,6 +227,9 @@ class DiscoverRefresher(
         /** Most titles a row can hold; "See all" opens up to this many. */
         const val MAX_PER_SECTION = 50
         const val DEFAULT_MAX_SEARCHES = 250
+        const val DEFAULT_MAX_DURATION_MILLIS = 7 * 60 * 1000L
+        private const val MAX_SOURCE_FAILURES = 3
+        private const val PROGRESS_EVERY = 4
         private const val NEW_IN_TOP_RANKS = 50
         private const val TRENDING_MEMORY = 100
         private const val POOL_SIZE = 100

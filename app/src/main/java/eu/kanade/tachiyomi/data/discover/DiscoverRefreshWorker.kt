@@ -46,6 +46,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 api = AniListDiscoverApi(graph.networkHelper.client, graph.json),
                 searcher = SourceTitleSearcher(graph.sourceManager),
                 isExcluded = { title -> title.names.any { TitleMatcher.normalize(it) in owned } },
+                onProgress = { partial -> store.save(partial) },
             )
             store.save(refresher.refresh(previous, sources))
             Result.success()
