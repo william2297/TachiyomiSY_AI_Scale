@@ -1237,4 +1237,30 @@
     <string name="reader_status_enhancing_progress">ENHANCING... %1$d%%</string>
     <string name="pref_book_page_turn">Book page turn</string>
     <string name="pref_book_page_turn_summary">Turn pages around the spine with perspective and shadows</string>
+
+    <!-- Browse: Discover -->
+    <string name="label_discover">Discover</string>
+    <string name="discover_section_rising">Rising</string>
+    <string name="discover_section_rising_hint">Climbing fast right now</string>
+    <string name="discover_section_new_in_top">New in the top 20</string>
+    <string name="discover_section_new_in_top_hint">Just broke into the top 20</string>
+    <string name="discover_section_completed">Completed, worth reading</string>
+    <string name="discover_section_completed_hint">Finished and highly rated, ready to binge</string>
+    <string name="discover_section_classics">Classics</string>
+    <string name="discover_section_classics_hint">Older series that rank among the best</string>
+    <string name="discover_section_hidden_gems">Hidden gems</string>
+    <string name="discover_section_hidden_gems_hint">Rated highly, still under the radar</string>
+    <string name="discover_section_older_ongoing">Older, still running</string>
+    <string name="discover_section_older_ongoing_hint">Long-running series that are still worth it</string>
+    <string name="discover_updated_just_now">Updated just now</string>
+    <string name="discover_updated_minutes">Updated %1$d min ago</string>
+    <string name="discover_updated_hours">Updated %1$d h ago</string>
+    <string name="discover_updated_date">Updated %1$s</string>
+    <string name="discover_refresh">Refresh</string>
+    <string name="discover_empty_title">No recommendations yet</string>
+    <string name="discover_empty_hint">Pull down to refresh</string>
+    <string name="discover_offline_cached">Can\'t reach AniList. Showing saved picks.</string>
+    <string name="discover_offline_title">Can\'t reach AniList right now</string>
+    <string name="discover_offline_hint">Pull down to try again</string>
+    <string name="discover_score">Score %1$d</string>
 </resources>

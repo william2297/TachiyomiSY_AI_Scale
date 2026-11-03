@@ -13,6 +13,7 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.components.TabbedScreen
 import eu.kanade.presentation.util.Tab
+import eu.kanade.tachiyomi.ui.browse.discover.discoverTab
 import eu.kanade.tachiyomi.ui.browse.extension.ExtensionsViewModel
 import eu.kanade.tachiyomi.ui.browse.extension.extensionsTab
 import eu.kanade.tachiyomi.ui.browse.migration.sources.migrateSourceTab
@@ -46,6 +47,9 @@ data object BrowseTab : Tab {
         navigator.push(GlobalSearchScreen())
     }
 
+    // Position of the Extensions tab in the list below (Discover, Sources, Extensions, Migrate)
+    private const val EXTENSIONS_TAB_INDEX = 2
+
     private val switchToExtensionTabChannel = Channel<Unit>(1, BufferOverflow.DROP_OLDEST)
 
     fun showExtension() {
@@ -60,7 +64,10 @@ data object BrowseTab : Tab {
         val extensionsViewModel = metroViewModel<ExtensionsViewModel>()
         val extensionsSearchQuery by extensionsViewModel.searchQuery.collectAsStateWithLifecycle()
 
+        // Discover first: it answers "what should I read now", the question this tab is opened for most.
+        // Sources stays one swipe away.
         val tabs = listOf(
+            discoverTab(),
             sourcesTab(),
             extensionsTab(extensionsViewModel),
             migrateSourceTab(),
@@ -77,7 +84,7 @@ data object BrowseTab : Tab {
         )
         LaunchedEffect(Unit) {
             switchToExtensionTabChannel.receiveAsFlow()
-                .collectLatest { state.scrollToPage(1) }
+                .collectLatest { state.scrollToPage(EXTENSIONS_TAB_INDEX) }
         }
 
         LaunchedEffect(Unit) {
