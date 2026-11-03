@@ -393,6 +393,118 @@ class DiscoverRefresherTest {
         assertTrue(cache.extras.none { it.key == "genres" })
     }
 
+    private fun genreTitle(id: Long, name: String, trending: Int, vararg genres: String) =
+        title(id, name, trending).copy(genres = genres.toList())
+
+    private fun refresherAt(api: DiscoverListApi, searcher: TitleSearcher, nowMillis: () -> Long) = DiscoverRefresher(
+        api = api,
+        searcher = searcher,
+        now = nowMillis,
+        pause = {},
+        countries = listOf("KR"),
+    )
+
+    private val dayMillis = 86_400_000L
+
+    @Test
+    fun `my genres ranks titles matching more of the picked genres first and keeps up to 50`() = runTest {
+        val many = (1L..60L).map { genreTitle(100 + it, "Action $it", trending = it.toInt(), "Action") }
+        val api = ExtraApi(
+            genres = mapOf(
+                "Action" to many + genreTitle(1, "Both", 1, "Action", "Fantasy"),
+                "Fantasy" to listOf(genreTitle(1, "Both", 1, "Action", "Fantasy")),
+            ),
+        )
+        val names = (many.map { it.title } + "Both").toTypedArray()
+        val cache = refresher(api, everythingFound(*names))
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Fantasy", "Action")))
+        val row = cache.extras.single { it.key == DiscoverRefresher.MY_GENRES_KEY }
+        assertEquals("My genres", row.title)
+        assertEquals("Both", row.entries.first().title)
+        assertEquals("Matches Action, Fantasy", row.entries.first().reason)
+        assertEquals(50, row.entries.size)
+        // After the two-genre title the rest follow by trending, highest first
+        assertEquals("Action 60", row.entries[1].title)
+    }
+
+    @Test
+    fun `my genres stays the same through the day even when AniList changes`() = runTest {
+        var clock = 1_700_000_000_000L
+        val first = ExtraApi(genres = mapOf("Action" to listOf(genreTitle(1, "Old One", 9, "Action"))))
+        val cache1 = refresherAt(first, everythingFound("Old One", "New One")) { clock }
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Action")))
+
+        clock += 60_000L
+        val second = ExtraApi(genres = mapOf("Action" to listOf(genreTitle(2, "New One", 99, "Action"))))
+        val cache2 = refresherAt(second, everythingFound("Old One", "New One")) { clock }
+            .refresh(cache1, sources, TasteProfile(pickedGenres = listOf("Action")))
+
+        val row = cache2.extras.single { it.key == DiscoverRefresher.MY_GENRES_KEY }
+        assertEquals(listOf("Old One"), row.entries.map { it.title })
+    }
+
+    @Test
+    fun `my genres is ranked again the next day`() = runTest {
+        var clock = 1_700_000_000_000L
+        val first = ExtraApi(genres = mapOf("Action" to listOf(genreTitle(1, "Old One", 9, "Action"))))
+        val cache1 = refresherAt(first, everythingFound("Old One", "New One")) { clock }
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Action")))
+
+        clock += dayMillis + 60_000L
+        val second = ExtraApi(genres = mapOf("Action" to listOf(genreTitle(2, "New One", 99, "Action"))))
+        val cache2 = refresherAt(second, everythingFound("Old One", "New One")) { clock }
+            .refresh(cache1, sources, TasteProfile(pickedGenres = listOf("Action")))
+
+        val row = cache2.extras.single { it.key == DiscoverRefresher.MY_GENRES_KEY }
+        assertEquals(listOf("New One"), row.entries.map { it.title })
+    }
+
+    @Test
+    fun `changing the picked genres rebuilds my genres at once`() = runTest {
+        val clock = 1_700_000_000_000L
+        val api = ExtraApi(
+            genres = mapOf(
+                "Action" to listOf(genreTitle(1, "Action Hit", 9, "Action")),
+                "Romance" to listOf(genreTitle(2, "Romance Hit", 9, "Romance")),
+            ),
+        )
+        val searcher = everythingFound("Action Hit", "Romance Hit")
+        val cache1 = refresherAt(api, searcher) { clock }
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Action")))
+        val cache2 = refresherAt(api, searcher) { clock }
+            .refresh(cache1, sources, TasteProfile(pickedGenres = listOf("Action", "Romance")))
+
+        val row = cache2.extras.single { it.key == DiscoverRefresher.MY_GENRES_KEY }
+        assertEquals(setOf("Action Hit", "Romance Hit"), row.entries.map { it.title }.toSet())
+        assertEquals(listOf("Action", "Romance"), cache2.myGenres.genres)
+    }
+
+    @Test
+    fun `clearing the picked genres removes my genres`() = runTest {
+        val api = ExtraApi(genres = mapOf("Action" to listOf(genreTitle(1, "Action Hit", 9, "Action"))))
+        val searcher = everythingFound("Action Hit", "Fresh")
+        val cache1 = refresher(api, searcher)
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Action")))
+        assertTrue(cache1.extras.any { it.key == DiscoverRefresher.MY_GENRES_KEY })
+        val cache2 = refresher(ExtraApi(fresh = listOf(title(5, "Fresh"))), searcher)
+            .refresh(cache1, sources, TasteProfile())
+        assertTrue(cache2.extras.none { it.key == DiscoverRefresher.MY_GENRES_KEY })
+        assertTrue(cache2.myGenres.titles.isEmpty())
+    }
+
+    @Test
+    fun `my genres keeps the old list when AniList cannot be reached on a new day`() = runTest {
+        var clock = 1_700_000_000_000L
+        val api = ExtraApi(genres = mapOf("Action" to listOf(genreTitle(1, "Old One", 9, "Action"))))
+        val cache1 = refresherAt(api, everythingFound("Old One")) { clock }
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Action")))
+        clock += dayMillis + 60_000L
+        val cache2 = refresherAt(ExtraApi(), everythingFound("Old One")) { clock }
+            .refresh(cache1, sources, TasteProfile(pickedGenres = listOf("Action")))
+        val row = cache2.extras.single { it.key == DiscoverRefresher.MY_GENRES_KEY }
+        assertEquals(listOf("Old One"), row.entries.map { it.title })
+    }
+
     @Test
     fun `fresh starts row lists new series with their readers`() = runTest {
         val api = ExtraApi(fresh = listOf(title(5, "New Hit", popularity = 8195).copy(startYear = 2026)))

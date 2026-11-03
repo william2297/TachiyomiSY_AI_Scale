@@ -38,7 +38,8 @@ class DiscoverRefresher(
         val day = now() / DAY_MILLIS
         val lists = fetchLists().mapValues { (_, titles) -> titles.filterNot(isExcluded) }
         val picks = pickCandidates(lists, previous, day)
-        val extraPlans = buildExtraPlans(profile, day)
+        val myGenres = buildMyGenres(profile, previous.myGenres, localDay(now()))
+        val extraPlans = buildExtraPlans(profile, day) + listOfNotNull(myGenres.plan)
         val knownIds = previous.sections.values.flatten().map { it.anilistId }.toSet() +
             previous.extras.flatMap { it.entries }.map { it.anilistId }
 
@@ -84,7 +85,7 @@ class DiscoverRefresher(
                         completed = title.finished, reason = plan.reason(title), names = title.names,
                         isNew = isNew(title.id, knownIds),
                     )
-                }.take(DISPLAY_SIZE)
+                }.take(plan.limit)
                 entries.takeIf { it.isNotEmpty() }?.let { StoredRow(plan.key, plan.title, plan.hint, it) }
             }
         }
@@ -95,6 +96,7 @@ class DiscoverRefresher(
                     updatedAtMillis = now(),
                     sections = sectionsFor(found),
                     extras = extrasFor(found).ifEmpty { previous.extras },
+                    myGenres = myGenres.pick,
                     errorMessage = null,
                 ),
             )
@@ -104,6 +106,7 @@ class DiscoverRefresher(
             updatedAtMillis = now(),
             sections = sectionsFor(matches),
             extras = extrasFor(matches).ifEmpty { previous.extras },
+            myGenres = myGenres.pick,
             previousTrendingIds = lists[DiscoverSection.RISING].orEmpty().take(TRENDING_MEMORY).map { it.id },
             matches = matches.entries.sortedByDescending { it.value.checkedAtMillis }.take(MAX_MATCHES)
                 .associate { it.key to it.value },
@@ -145,7 +148,73 @@ class DiscoverRefresher(
         val hint: String,
         val titles: List<AniListTitle>,
         val reason: (AniListTitle) -> String,
+        /** Most entries the row keeps; the others show a short row. */
+        val limit: Int = DISPLAY_SIZE,
     )
+
+    private class MyGenresResult(val plan: ExtraPlan?, val pick: MyGenresPick)
+
+    /**
+     * "My genres": the user's own genres, any of them, so one request per genre and a merge; a title that matches more
+     * of the genres ranks higher. The ranked list is kept and reused until the local day or the genres change, so the
+     * row does not reshuffle between refreshes.
+     */
+    private suspend fun buildMyGenres(profile: TasteProfile, previous: MyGenresPick, day: Long): MyGenresResult {
+        val genres = profile.pickedGenres.filter { it in AniListDiscoverApi.KNOWN_GENRES }.distinct().sorted()
+            .take(MAX_PICKED_GENRES)
+        if (genres.isEmpty()) return MyGenresResult(null, MyGenresPick())
+
+        val sameGenres = previous.genres == genres
+        var pick = previous
+        if (!(sameGenres && previous.day == day && previous.titles.isNotEmpty())) {
+            val merged = linkedMapOf<Long, AniListTitle>()
+            for (genre in genres) {
+                for (country in countries) {
+                    try {
+                        api.byGenre(genre, country).forEach { merged.putIfAbsent(it.id, it) }
+                    } catch (e: CancellationException) {
+                        currentCoroutineContext().ensureActive()
+                    } catch (e: Exception) {
+                        // This genre is left out for now
+                    }
+                    pause(API_PAUSE_MILLIS)
+                }
+            }
+            val ranked = merged.values.filterNot(isExcluded)
+                .sortedWith(
+                    compareByDescending<AniListTitle> { title -> title.genres.count { it in genres } }
+                        .thenByDescending { it.trending }
+                        .thenBy { it.id },
+                )
+                .take(MY_GENRES_POOL)
+            pick = when {
+                ranked.isNotEmpty() -> MyGenresPick(day, genres, ranked)
+                // Nothing came back: keep yesterday's list for the same genres, show nothing for new genres
+                sameGenres -> previous
+                else -> MyGenresPick(day, genres, emptyList())
+            }
+        }
+        val titles = pick.titles.filterNot(isExcluded)
+        if (titles.isEmpty()) return MyGenresResult(null, pick)
+        return MyGenresResult(
+            ExtraPlan(
+                key = MY_GENRES_KEY,
+                title = "My genres",
+                hint = genres.joinToString(", ") + ": any of them",
+                titles = titles,
+                reason = { title ->
+                    val matched = title.genres.filter { it in genres }
+                    if (matched.isEmpty()) "Popular right now" else "Matches ${matched.joinToString(", ")}"
+                },
+                limit = MAX_PER_SECTION,
+            ),
+            pick,
+        )
+    }
+
+    private fun localDay(nowMillis: Long): Long {
+        return (nowMillis + java.util.TimeZone.getDefault().getOffset(nowMillis)).floorDiv(DAY_MILLIS)
+    }
 
     private fun isNew(id: Long, known: Set<Long>): Boolean = known.isNotEmpty() && id !in known
 
@@ -399,6 +468,11 @@ class DiscoverRefresher(
         const val DEFAULT_MAX_DURATION_MILLIS = 7 * 60 * 1000L
         private const val MAX_SOURCE_FAILURES = 3
         private const val MAX_GENRES = 3
+        private const val MAX_PICKED_GENRES = 10
+
+        /** Titles kept for "My genres", more than the 50 shown because some are not in any of the user's sources. */
+        private const val MY_GENRES_POOL = 75
+        const val MY_GENRES_KEY = "my-genres"
         private const val GENRE_SEED = 97L
         private const val PROGRESS_EVERY = 4
         private const val NEW_IN_TOP_RANKS = 50

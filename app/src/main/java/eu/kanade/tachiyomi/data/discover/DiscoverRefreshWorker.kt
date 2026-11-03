@@ -57,7 +57,8 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 onProgress = { partial -> store.save(partial) },
                 onStatus = { text -> setProgress(workDataOf(KEY_STATUS to text)) },
             )
-            store.save(refresher.refresh(previous, sources, tasteProfile(graph)))
+            val picked = DiscoverGenreStore(genresFile(context), graph.json).load()
+            store.save(refresher.refresh(previous, sources, tasteProfile(graph).copy(pickedGenres = picked.sorted())))
             Result.success()
         } catch (e: IOException) {
             logcat(LogPriority.WARN, e) { "Discover refresh failed" }
@@ -100,6 +101,8 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
 
         fun hiddenFile(context: Context) = File(context.filesDir, "discover_hidden.json")
 
+        fun genresFile(context: Context) = File(context.filesDir, "discover_genres.json")
+
         /** The pinned sources that can be searched, at most [MAX_SOURCES], in name order. */
         suspend fun pinnedSearchSources(context: Context): List<SearchSource> {
             val graph = context.appGraph
@@ -136,9 +139,10 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
          * already going is left alone; an older request that is only waiting is replaced, so one that got stuck
          * (for example from an earlier version) cannot block every later refresh.
          */
-        suspend fun startNow(context: Context) {
+        suspend fun startNow(context: Context, replaceRunning: Boolean = false) {
             val existing = context.workManager.getWorkInfosForUniqueWorkFlow(WORK_NAME_NOW).first()
-            if (existing.any { it.state == WorkInfo.State.RUNNING }) return
+            // A change of genres replaces a run that is going, so the new genres do not wait for tomorrow
+            if (!replaceRunning && existing.any { it.state == WorkInfo.State.RUNNING }) return
             val request = OneTimeWorkRequestBuilder<DiscoverRefreshWorker>()
                 .setConstraints(wifiConstraints())
                 .build()

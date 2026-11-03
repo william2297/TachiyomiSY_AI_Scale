@@ -59,6 +59,7 @@ fun DiscoverScreen(
     onOpen: (DiscoverEntry) -> Unit,
     onRefresh: () -> Unit,
     onSeeAll: (DiscoverSection) -> Unit = {},
+    onSeeAllRow: (DiscoverRow) -> Unit = {},
 ) {
     val visible = DiscoverSection.entries.mapNotNull { section ->
         state.sections[section]?.takeIf { it.isNotEmpty() }?.let { section to it }
@@ -96,7 +97,7 @@ fun DiscoverScreen(
                     } else {
                         visible.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
                     }
-                    state.extraRows.forEach { row -> extraRow(row, onOpen) }
+                    state.extraRows.forEach { row -> extraRow(row, onOpen, onSeeAllRow) }
                 }
                 state.loading -> {
                     state.status?.let { status ->
@@ -158,8 +159,12 @@ private fun LazyListScope.section(
     }
 }
 
-/** A row built from the user's taste. It is short, so it has no "See all". */
-private fun LazyListScope.extraRow(row: DiscoverRow, onOpen: (DiscoverEntry) -> Unit) {
+/** A row built from the user's taste. Most are short; one with more than [ROW_LIMIT] entries ends in "See all". */
+private fun LazyListScope.extraRow(
+    row: DiscoverRow,
+    onOpen: (DiscoverEntry) -> Unit,
+    onSeeAllRow: (DiscoverRow) -> Unit,
+) {
     item(key = "extra-header-${row.key}") {
         TextSectionHeader(title = row.title, hint = row.hint)
     }
@@ -171,6 +176,11 @@ private fun LazyListScope.extraRow(row: DiscoverRow, onOpen: (DiscoverEntry) -> 
         ) {
             items(items = row.entries.take(ROW_LIMIT), key = { it.id }) { entry ->
                 DiscoverCard(entry = entry, onClick = { onOpen(entry) })
+            }
+            if (row.entries.size > ROW_LIMIT) {
+                item(key = "see-all") {
+                    DiscoverSeeAllCard(count = row.entries.size, onClick = { onSeeAllRow(row) })
+                }
             }
         }
     }

@@ -36,6 +36,7 @@ fun Screen.discoverTab(): TabContent {
                     },
                     onRefresh = viewModel::refresh,
                     onSeeAll = { section -> navigator.push(DiscoverSectionScreen(section)) },
+                    onSeeAllRow = { row -> navigator.push(DiscoverRowScreen(row.key)) },
                 )
             }
         },

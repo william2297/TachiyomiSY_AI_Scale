@@ -59,6 +59,18 @@ data class StoredRow(
     val entries: List<StoredEntry>,
 )
 
+/**
+ * The ranked titles behind the "My genres" row, kept so the row stays the same all day: it is rebuilt only when the
+ * local day or the chosen genres change.
+ */
+@Serializable
+data class MyGenresPick(
+    /** Local day number (days since 1970-01-01 in the device's time zone) the list was built on. */
+    val day: Long = 0,
+    val genres: List<String> = emptyList(),
+    val titles: List<AniListTitle> = emptyList(),
+)
+
 @Serializable
 data class DiscoverCache(
     val updatedAtMillis: Long = 0,
@@ -68,6 +80,7 @@ data class DiscoverCache(
     val previousTrendingIds: List<Long> = emptyList(),
     val matches: Map<Long, MatchRecord> = emptyMap(),
     val extras: List<StoredRow> = emptyList(),
+    val myGenres: MyGenresPick = MyGenresPick(),
     /** Why the last refresh failed, or null. The picks above are then from an earlier refresh. */
     val errorMessage: String? = null,
 )
@@ -78,6 +91,8 @@ data class TasteProfile(
     val seeds: List<String> = emptyList(),
     /** AniList genre names, most liked first. */
     val genres: List<String> = emptyList(),
+    /** Genres the user chose for the "My genres" row, any of them. Empty means the row is not built. */
+    val pickedGenres: List<String> = emptyList(),
 )
 
 /** What AniList knows about a seed title and the series readers recommend after it. */

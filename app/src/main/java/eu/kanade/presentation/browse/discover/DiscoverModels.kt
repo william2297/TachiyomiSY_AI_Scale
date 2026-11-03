@@ -52,4 +52,6 @@ data class DiscoverState(
     val status: String? = null,
     /** Rows built from the user's taste, shown below the fixed ones. */
     val extraRows: List<DiscoverRow> = emptyList(),
+    /** Genres the user chose for the "My genres" row (any of them); empty until the user picks some. */
+    val pickedGenres: Set<String> = emptySet(),
 )

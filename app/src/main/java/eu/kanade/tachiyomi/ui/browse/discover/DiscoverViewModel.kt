@@ -14,6 +14,7 @@ import eu.kanade.presentation.browse.discover.DiscoverRow
 import eu.kanade.presentation.browse.discover.DiscoverSection
 import eu.kanade.presentation.browse.discover.DiscoverState
 import eu.kanade.tachiyomi.data.discover.DiscoverCache
+import eu.kanade.tachiyomi.data.discover.DiscoverGenreStore
 import eu.kanade.tachiyomi.data.discover.DiscoverHiddenStore
 import eu.kanade.tachiyomi.data.discover.DiscoverRefreshWorker
 import eu.kanade.tachiyomi.data.discover.DiscoverStore
@@ -62,6 +63,10 @@ class DiscoverViewModel(
         DiscoverHiddenStore(DiscoverRefreshWorker.hiddenFile(context), context.appGraph.json)
     }
     private val hidden = MutableStateFlow<Set<Long>>(emptySet())
+    private val genreStore by lazy {
+        DiscoverGenreStore(DiscoverRefreshWorker.genresFile(context), context.appGraph.json)
+    }
+    private val pickedGenres = MutableStateFlow<Set<String>>(emptySet())
 
     /** Normalized titles of everything in the library, and of everything read that is not in it. */
     private val libraryTitles = MutableStateFlow<Set<String>>(emptySet())
@@ -75,6 +80,7 @@ class DiscoverViewModel(
         readTitles,
         status,
         hidden,
+        pickedGenres,
     ) { values ->
         val cache = values[0] as DiscoverCache
         val loading = values[1] as Boolean
@@ -89,10 +95,14 @@ class DiscoverViewModel(
 
         @Suppress("UNCHECKED_CAST")
         val notInterested = values[6] as Set<Long>
+
+        @Suppress("UNCHECKED_CAST")
+        val picked = values[7] as Set<String>
         DiscoverState(
             status = status,
             sections = toSections(cache, inLibrary + read, notInterested),
             extraRows = toExtraRows(cache, inLibrary + read, notInterested),
+            pickedGenres = picked,
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
             error = if (waiting) WAITING_FOR_WIFI else cache.errorMessage,
@@ -102,6 +112,7 @@ class DiscoverViewModel(
     init {
         DiscoverRefreshWorker.setupTask(context)
         viewModelScope.launch { hidden.value = withContext(Dispatchers.IO) { hiddenStore.load() } }
+        viewModelScope.launch { pickedGenres.value = withContext(Dispatchers.IO) { genreStore.load() } }
         viewModelScope.launch {
             // Follows the library live, so marking chapters read shows up here without a refresh
             getLibraryManga.subscribe().collect { library ->
@@ -151,6 +162,19 @@ class DiscoverViewModel(
     /** "Not interested": the title leaves every row now and is skipped by later refreshes. */
     fun hide(entry: DiscoverEntry) {
         viewModelScope.launch { hidden.value = withContext(Dispatchers.IO) { hiddenStore.add(entry.id) } }
+    }
+
+    /**
+     * The genres for the "My genres" row (any of them). A real change builds the row again at once, a refresh that
+     * waits for Wi-Fi like any other; choosing the same genres again does nothing.
+     */
+    fun setGenres(genres: Set<String>) {
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) { genreStore.save(genres) }
+            if (saved == pickedGenres.value) return@launch
+            pickedGenres.value = saved
+            DiscoverRefreshWorker.startNow(context, replaceRunning = true)
+        }
     }
 
     /** Starts a refresh now. It waits for Wi-Fi if the tablet is not on Wi-Fi. */

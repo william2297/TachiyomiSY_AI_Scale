@@ -36,11 +36,29 @@ fun DiscoverSectionContent(
     onBack: () -> Unit,
     onOpen: (DiscoverEntry) -> Unit,
 ) {
+    DiscoverListContent(
+        title = stringResource(section.titleRes),
+        hint = stringResource(section.hintRes),
+        entries = entries,
+        onBack = onBack,
+        onOpen = onOpen,
+    )
+}
+
+/** The same full list for any row, including the rows built from the user's taste, which have text titles. */
+@Composable
+fun DiscoverListContent(
+    title: String,
+    hint: String,
+    entries: List<DiscoverEntry>,
+    onBack: () -> Unit,
+    onOpen: (DiscoverEntry) -> Unit,
+) {
     Scaffold(
         topBar = { scrollBehavior ->
             AppBar(
-                title = stringResource(section.titleRes),
-                subtitle = stringResource(section.hintRes),
+                title = title,
+                subtitle = hint,
                 navigateUp = onBack,
                 scrollBehavior = scrollBehavior,
             )
