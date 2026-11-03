@@ -164,7 +164,7 @@ class DiscoverRefresher(
      * row does not reshuffle between refreshes.
      */
     private suspend fun buildMyGenres(profile: TasteProfile, previous: MyGenresPick, day: Long): MyGenresResult {
-        val genres = profile.pickedGenres.filter { it in AniListDiscoverApi.KNOWN_GENRES }.distinct().sorted()
+        val genres = profile.pickedGenres.filter { it in AniListDiscoverApi.PICKABLE_GENRES }.distinct().sorted()
             .take(MAX_PICKED_GENRES)
         if (genres.isEmpty()) return MyGenresResult(null, MyGenresPick())
 

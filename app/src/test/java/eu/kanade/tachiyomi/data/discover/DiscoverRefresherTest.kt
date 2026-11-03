@@ -523,6 +523,23 @@ class DiscoverRefresherTest {
     }
 
     @Test
+    fun `adult genre can be picked for my genres but never comes from the library genres`() = runTest {
+        val api = ExtraApi(genres = mapOf("Hentai" to listOf(genreTitle(7, "Adult One", 5, "Hentai"))))
+        val searcher = everythingFound("Adult One")
+        val picked = refresher(api, searcher)
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Hentai")))
+        assertEquals(
+            listOf("Adult One"),
+            picked.extras.single {
+                it.key == DiscoverRefresher.MY_GENRES_KEY
+            }.entries.map { it.title },
+        )
+        val fromLibrary = refresher(api, searcher)
+            .refresh(DiscoverCache(), sources, TasteProfile(genres = listOf("Hentai")))
+        assertTrue(fromLibrary.extras.none { it.key == "genres" })
+    }
+
+    @Test
     fun `fresh starts row lists new series with their readers`() = runTest {
         val api = ExtraApi(fresh = listOf(title(5, "New Hit", popularity = 8195).copy(startYear = 2026)))
         val cache = refresher(api, everythingFound("New Hit")).refresh(DiscoverCache(), sources)

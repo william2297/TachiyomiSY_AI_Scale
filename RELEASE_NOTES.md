@@ -8,3 +8,4 @@ What is new in this build
 - Release file names carry the version number, so downloads of different builds do not collide.
 - Auto scroll asks the screen for its highest refresh rate while it runs, to avoid dropping to 60 Hz and looking choppy.
 - Enhancement settings show a "Last auto scroll" line with frame timings (frames, fps, skipped refreshes, slow frames), to trace stutter during auto scroll.
+- "My genres" can also use Mecha, Music and Adult (18+) (AniList's adult genre). Adult only shows up when you pick it yourself.

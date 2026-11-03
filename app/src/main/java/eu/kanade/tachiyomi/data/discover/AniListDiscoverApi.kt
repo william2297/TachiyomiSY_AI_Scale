@@ -43,7 +43,7 @@ class AniListDiscoverApi(
     }
 
     override suspend fun byGenre(genre: String, country: String): List<AniListTitle> {
-        require(genre in KNOWN_GENRES) { "Unknown genre $genre" }
+        require(genre in PICKABLE_GENRES) { "Unknown genre $genre" }
         return parse(json, post(buildJsonObject { put("query", genreQuery(genre, country)) }))
     }
 
@@ -80,6 +80,13 @@ class AniListDiscoverApi(
             "Action", "Adventure", "Comedy", "Drama", "Ecchi", "Fantasy", "Horror", "Mahou Shoujo", "Mystery",
             "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller",
         )
+
+        /**
+         * The genres the user can choose for "My genres": the list above plus the rest of AniList's genre list.
+         * "Hentai" is AniList's adult genre; it is only ever queried when the user picks it, never for the rows that
+         * are built from the library's genres.
+         */
+        val PICKABLE_GENRES = KNOWN_GENRES + setOf("Hentai", "Mecha", "Music")
 
         private val RECOMMENDATIONS_QUERY = "query(\$s:String){ Media(search:\$s, type:MANGA){ $FIELDS " +
             "recommendations(sort:RATING_DESC, perPage:20){ nodes{ rating mediaRecommendation{ $FIELDS } } } } }"

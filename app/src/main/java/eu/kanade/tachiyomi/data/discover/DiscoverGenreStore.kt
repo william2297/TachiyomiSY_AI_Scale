@@ -15,7 +15,7 @@ class DiscoverGenreStore(private val file: File, private val json: Json) {
         return try {
             if (file.exists()) {
                 json.decodeFromString(ListSerializer(String.serializer()), file.readText())
-                    .filter { it in AniListDiscoverApi.KNOWN_GENRES }
+                    .filter { it in AniListDiscoverApi.PICKABLE_GENRES }
                     .toSet()
             } else {
                 emptySet()
@@ -27,7 +27,7 @@ class DiscoverGenreStore(private val file: File, private val json: Json) {
 
     @Synchronized
     fun save(genres: Set<String>): Set<String> {
-        val clean = genres.filter { it in AniListDiscoverApi.KNOWN_GENRES }.toSet()
+        val clean = genres.filter { it in AniListDiscoverApi.PICKABLE_GENRES }.toSet()
         file.writeText(json.encodeToString(ListSerializer(String.serializer()), clean.sorted()))
         return clean
     }

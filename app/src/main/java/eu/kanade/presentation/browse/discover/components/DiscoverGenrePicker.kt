@@ -76,6 +76,9 @@ import mihon.icons.phosphor.bold.Tag
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.i18n.stringResource
 
+/** AniList calls its adult genre "Hentai"; the screen says what it is. */
+internal fun genreLabel(genre: String): String = if (genre == "Hentai") "Adult (18+)" else genre
+
 /** One glyph per AniList genre, so a row of picked genres can be read at a glance, not only by its words. */
 internal fun genreIcon(genre: String): ImageVector = when (genre) {
     "Action" -> Phosphor.Bold.Sword
@@ -257,7 +260,7 @@ private fun GenreChip(genre: String, selected: Boolean, onClick: () -> Unit) {
         onClick = onClick,
         label = {
             Text(
-                text = genre,
+                text = genreLabel(genre),
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
             )
@@ -458,7 +461,7 @@ private fun GenreTag(genre: String, quiet: Boolean) {
         ) {
             Icon(imageVector = genreIcon(genre), contentDescription = null, modifier = Modifier.size(14.dp))
             Spacer(Modifier.size(5.dp))
-            Text(text = genre, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            Text(text = genreLabel(genre), style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 }

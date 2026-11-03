@@ -47,4 +47,4 @@ fun Screen.discoverTab(): TabContent {
 }
 
 /** AniList's genres in the order the picker shows them. */
-private val GENRES = AniListDiscoverApi.KNOWN_GENRES.sorted()
+private val GENRES = AniListDiscoverApi.PICKABLE_GENRES.sorted()
