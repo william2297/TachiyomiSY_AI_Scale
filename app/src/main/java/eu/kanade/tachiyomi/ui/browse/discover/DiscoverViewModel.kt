@@ -10,6 +10,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import eu.kanade.presentation.browse.discover.DiscoverEntry
+import eu.kanade.presentation.browse.discover.DiscoverRow
 import eu.kanade.presentation.browse.discover.DiscoverSection
 import eu.kanade.presentation.browse.discover.DiscoverState
 import eu.kanade.tachiyomi.data.discover.DiscoverCache
@@ -91,6 +92,7 @@ class DiscoverViewModel(
         DiscoverState(
             status = status,
             sections = toSections(cache, inLibrary + read, notInterested),
+            extraRows = toExtraRows(cache, inLibrary + read, notInterested),
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
             error = if (waiting) WAITING_FOR_WIFI else cache.errorMessage,
@@ -183,6 +185,16 @@ class DiscoverViewModel(
         return sections
     }
 
+    private fun toExtraRows(cache: DiscoverCache, hidden: Set<String>, notInterested: Set<Long>): List<DiscoverRow> {
+        return cache.extras.mapNotNull { row ->
+            val entries = row.entries
+                .filterNot { it.anilistId in notInterested }
+                .filterNot { stored -> (stored.names + stored.title).any { TitleMatcher.normalize(it) in hidden } }
+                .map { it.toEntry() }
+            entries.takeIf { it.isNotEmpty() }?.let { DiscoverRow(row.key, row.title, row.hint, it) }
+        }
+    }
+
     private fun StoredEntry.toEntry() = DiscoverEntry(
         id = anilistId,
         title = title,
@@ -193,6 +205,7 @@ class DiscoverViewModel(
         score = score,
         completed = completed,
         reason = reason,
+        isNew = isNew,
     )
 
     private companion object {

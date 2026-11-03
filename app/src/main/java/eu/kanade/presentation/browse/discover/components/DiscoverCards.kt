@@ -185,13 +185,24 @@ internal fun DiscoverRisingCard(
 
 @Composable
 private fun SourceAndReason(entry: DiscoverEntry) {
-    Text(
-        text = entry.sourceName,
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-    )
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = entry.sourceName,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (entry.isNew) {
+            Text(
+                text = stringResource(MR.strings.discover_new_today),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+            )
+        }
+    }
     Text(
         text = entry.reason,
         style = MaterialTheme.typography.bodySmall,

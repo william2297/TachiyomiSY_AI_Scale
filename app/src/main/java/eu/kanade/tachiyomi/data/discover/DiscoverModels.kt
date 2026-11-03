@@ -18,6 +18,7 @@ data class AniListTitle(
     val chapters: Int?,
     val startYear: Int?,
     val endYear: Int?,
+    val genres: List<String> = emptyList(),
 )
 
 /** A recommendation already matched to a title in one of the user's sources. */
@@ -34,6 +35,7 @@ data class StoredEntry(
     val reason: String,
     /** Every name AniList knows, so a title the user already read under another name can be hidden. */
     val names: List<String> = emptyList(),
+    val isNew: Boolean = false,
 )
 
 /** What an earlier search for one series found, so it is not searched for again every day. */
@@ -48,6 +50,15 @@ data class MatchRecord(
     val sourcesKey: String = "",
 )
 
+/** A row built from the user's taste, stored with its own title because the title names the seed. */
+@Serializable
+data class StoredRow(
+    val key: String,
+    val title: String,
+    val hint: String,
+    val entries: List<StoredEntry>,
+)
+
 @Serializable
 data class DiscoverCache(
     val updatedAtMillis: Long = 0,
@@ -56,8 +67,23 @@ data class DiscoverCache(
     /** AniList ids of the trending list at the last refresh, to spot titles that just entered the top. */
     val previousTrendingIds: List<Long> = emptyList(),
     val matches: Map<Long, MatchRecord> = emptyMap(),
+    val extras: List<StoredRow> = emptyList(),
     /** Why the last refresh failed, or null. The picks above are then from an earlier refresh. */
     val errorMessage: String? = null,
+)
+
+/** What the user reads, in the two forms the extra rows need. */
+data class TasteProfile(
+    /** Titles the user read or keeps, a few per day, to ask AniList what readers of them also read. */
+    val seeds: List<String> = emptyList(),
+    /** AniList genre names, most liked first. */
+    val genres: List<String> = emptyList(),
+)
+
+/** What AniList knows about a seed title and the series readers recommend after it. */
+data class SeedRecommendations(
+    val seedNames: List<String>,
+    val recommendations: List<AniListTitle>,
 )
 
 data class SearchSource(val id: Long, val name: String)

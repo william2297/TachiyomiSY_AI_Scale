@@ -63,7 +63,7 @@ fun DiscoverScreen(
     val visible = DiscoverSection.entries.mapNotNull { section ->
         state.sections[section]?.takeIf { it.isNotEmpty() }?.let { section to it }
     }
-    val hasData = visible.isNotEmpty()
+    val hasData = visible.isNotEmpty() || state.extraRows.isNotEmpty()
 
     PullRefresh(
         refreshing = state.loading && hasData,
@@ -96,6 +96,7 @@ fun DiscoverScreen(
                     } else {
                         visible.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
                     }
+                    state.extraRows.forEach { row -> extraRow(row, onOpen) }
                 }
                 state.loading -> {
                     state.status?.let { status ->
@@ -157,6 +158,24 @@ private fun LazyListScope.section(
     }
 }
 
+/** A row built from the user's taste. It is short, so it has no "See all". */
+private fun LazyListScope.extraRow(row: DiscoverRow, onOpen: (DiscoverEntry) -> Unit) {
+    item(key = "extra-header-${row.key}") {
+        TextSectionHeader(title = row.title, hint = row.hint)
+    }
+    item(key = "extra-row-${row.key}") {
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            items(items = row.entries.take(ROW_LIMIT), key = { it.id }) { entry ->
+                DiscoverCard(entry = entry, onClick = { onOpen(entry) })
+            }
+        }
+    }
+}
+
 /** Shows the first [ROW_LIMIT] entries; with more, a "See all" tile ends the row and opens the full list. */
 @Composable
 private fun SectionRow(
@@ -194,18 +213,23 @@ private const val ROW_LIMIT = 12
 
 @Composable
 private fun SectionHeader(title: StringResource, hint: StringResource) {
+    TextSectionHeader(title = stringResource(title), hint = stringResource(hint))
+}
+
+@Composable
+private fun TextSectionHeader(title: String, hint: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
     ) {
         Text(
-            text = stringResource(title),
+            text = title,
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
-            text = stringResource(hint),
+            text = hint,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

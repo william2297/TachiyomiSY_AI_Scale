@@ -309,4 +309,119 @@ class DiscoverRefresherTest {
         refresher.refresh(DiscoverCache(), listOf(SearchSource(1, "Asura")))
         assertTrue(searcher.calls.size < 20)
     }
+
+    private inner class ExtraApi(
+        val recs: Map<String, SeedRecommendations?> = emptyMap(),
+        val genres: Map<String, List<AniListTitle>> = emptyMap(),
+        val fresh: List<AniListTitle> = emptyList(),
+    ) : DiscoverListApi {
+        override suspend fun fetch(section: DiscoverSection, country: String): List<AniListTitle> =
+            if (section == DiscoverSection.RISING && country == "KR") listOf(title(900, "Filler", 5)) else emptyList()
+
+        override suspend fun recommendationsFor(title: String) = recs[title]
+        override suspend fun byGenre(genre: String, country: String) = if (country ==
+            "KR"
+        ) {
+            genres[genre].orEmpty()
+        } else {
+            emptyList()
+        }
+        override suspend fun fresh(country: String, sinceYyyymmdd: Int) = if (country == "KR") fresh else emptyList()
+    }
+
+    private fun everythingFound(vararg names: String) = FakeSearcher(mapOf(1L to names.toSet() + "Filler"))
+
+    @Test
+    fun `because you read row comes from the recommendations of a verified seed`() = runTest {
+        val api = ExtraApi(
+            recs = mapOf(
+                "Omniscient Reader" to SeedRecommendations(
+                    listOf("Omniscient Reader", "ORV"),
+                    listOf(title(10, "Solo Leveling"), title(11, "Tower of God")),
+                ),
+            ),
+        )
+        val cache = refresher(api, everythingFound("Solo Leveling", "Tower of God"))
+            .refresh(DiscoverCache(), sources, TasteProfile(seeds = listOf("Omniscient Reader")))
+        val row = cache.extras.single { it.key.startsWith("because-") }
+        assertEquals("Because you read Omniscient Reader", row.title)
+        assertEquals(listOf("Solo Leveling", "Tower of God"), row.entries.map { it.title })
+        assertEquals("Recommended by readers of Omniscient Reader", row.entries[0].reason)
+    }
+
+    @Test
+    fun `a seed that AniList matched to a different series is ignored`() = runTest {
+        val api = ExtraApi(
+            recs = mapOf(
+                "My Library Title" to
+                    SeedRecommendations(listOf("Something Else Entirely"), listOf(title(10, "Solo Leveling"))),
+            ),
+        )
+        val cache = refresher(api, everythingFound("Solo Leveling"))
+            .refresh(DiscoverCache(), sources, TasteProfile(seeds = listOf("My Library Title")))
+        assertTrue(cache.extras.none { it.key.startsWith("because-") })
+    }
+
+    @Test
+    fun `your genres row merges the genres and ranks titles that match more of them first`() = runTest {
+        val api = ExtraApi(
+            genres = mapOf(
+                "Action" to
+                    listOf(
+                        title(1, "Only Action", 50).copy(genres = listOf("Action")),
+                        title(2, "Both", 10).copy(genres = listOf("Action", "Fantasy")),
+                    ),
+                "Fantasy" to
+                    listOf(
+                        title(2, "Both", 10).copy(genres = listOf("Action", "Fantasy")),
+                        title(3, "Only Fantasy", 40).copy(genres = listOf("Fantasy")),
+                    ),
+            ),
+        )
+        val cache = refresher(api, everythingFound("Only Action", "Both", "Only Fantasy"))
+            .refresh(DiscoverCache(), sources, TasteProfile(genres = listOf("Action", "Fantasy")))
+        val row = cache.extras.single { it.key == "genres" }
+        assertEquals("Both", row.entries.first().title)
+        assertEquals("Matches Action, Fantasy", row.entries.first().reason)
+        assertEquals(3, row.entries.size)
+    }
+
+    @Test
+    fun `genres that AniList does not know are not sent`() = runTest {
+        val cache = refresher(ExtraApi(), everythingFound())
+            .refresh(DiscoverCache(), sources, TasteProfile(genres = listOf("Martial Arts")))
+        assertTrue(cache.extras.none { it.key == "genres" })
+    }
+
+    @Test
+    fun `fresh starts row lists new series with their readers`() = runTest {
+        val api = ExtraApi(fresh = listOf(title(5, "New Hit", popularity = 8195).copy(startYear = 2026)))
+        val cache = refresher(api, everythingFound("New Hit")).refresh(DiscoverCache(), sources)
+        val row = cache.extras.single { it.key == "fresh" }
+        assertEquals("Started 2026, 8k readers already", row.entries.single().reason)
+    }
+
+    @Test
+    fun `a title that was not in any row at the previous refresh is marked new`() = runTest {
+        val first = refresher(ExtraApi(fresh = listOf(title(5, "Old Hit"))), everythingFound("Old Hit"))
+            .refresh(DiscoverCache(), sources)
+        assertTrue(first.extras.single { it.key == "fresh" }.entries.none { it.isNew })
+
+        val second = refresher(
+            ExtraApi(fresh = listOf(title(5, "Old Hit"), title(6, "Brand New"))),
+            everythingFound("Old Hit", "Brand New"),
+        )
+            .refresh(first, sources)
+        val entries = second.extras.single { it.key == "fresh" }.entries.associateBy { it.title }
+        assertFalse(entries.getValue("Old Hit").isNew)
+        assertTrue(entries.getValue("Brand New").isNew)
+    }
+
+    @Test
+    fun `titles the user hid or already has never reach the extra rows`() = runTest {
+        val api = ExtraApi(fresh = listOf(title(5, "Seen It"), title(6, "Keep Me")))
+        val cache = refresher(api, everythingFound("Seen It", "Keep Me"), excluded = { it.id == 5L })
+            .refresh(DiscoverCache(), sources)
+        assertEquals(listOf("Keep Me"), cache.extras.single { it.key == "fresh" }.entries.map { it.title })
+    }
 }

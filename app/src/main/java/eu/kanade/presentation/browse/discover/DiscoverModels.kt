@@ -16,6 +16,16 @@ data class DiscoverEntry(
     val score: Int?,
     val completed: Boolean,
     val reason: String,
+    /** True when it was not in any row at the previous refresh, so a daily visit shows what changed. */
+    val isNew: Boolean = false,
+)
+
+/** A row that is not one of the fixed ones: "Because you read X", "Your genres", "Fresh starts". */
+data class DiscoverRow(
+    val key: String,
+    val title: String,
+    val hint: String,
+    val entries: List<DiscoverEntry>,
 )
 
 /** Rows of the Discover tab, in display order. */
@@ -40,4 +50,6 @@ data class DiscoverState(
     val error: String?,
     /** What the refresh is doing right now, shown above the placeholders while there is nothing else to see. */
     val status: String? = null,
+    /** Rows built from the user's taste, shown below the fixed ones. */
+    val extraRows: List<DiscoverRow> = emptyList(),
 )

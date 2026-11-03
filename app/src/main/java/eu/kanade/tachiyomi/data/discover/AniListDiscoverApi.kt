@@ -7,6 +7,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -15,6 +18,15 @@ import okhttp3.RequestBody.Companion.toRequestBody
 fun interface DiscoverListApi {
     /** One list for [section] (NEW_IN_TOP uses the RISING list) limited to a country of origin such as "KR". */
     suspend fun fetch(section: DiscoverSection, country: String): List<AniListTitle>
+
+    /** The series AniList readers recommend after [title], or null when AniList has no such series. */
+    suspend fun recommendationsFor(title: String): SeedRecommendations? = null
+
+    /** Trending series of one genre in one country. */
+    suspend fun byGenre(genre: String, country: String): List<AniListTitle> = emptyList()
+
+    /** Series that started after [sinceYyyymmdd] and already have readers. */
+    suspend fun fresh(country: String, sinceYyyymmdd: Int): List<AniListTitle> = emptyList()
 }
 
 /**
@@ -27,21 +39,71 @@ class AniListDiscoverApi(
 ) : DiscoverListApi {
 
     override suspend fun fetch(section: DiscoverSection, country: String): List<AniListTitle> {
-        val body = json.encodeToString(QueryBody.serializer(), QueryBody(query(section, country)))
-            .toRequestBody("application/json".toMediaType())
-        val response = client.newCall(POST(URL, body = body)).awaitSuccess()
-        return response.use { parse(json, it.body.string()) }
+        return parse(json, post(buildJsonObject { put("query", query(section, country)) }))
     }
 
-    @Serializable
-    private data class QueryBody(val query: String)
+    override suspend fun byGenre(genre: String, country: String): List<AniListTitle> {
+        require(genre in KNOWN_GENRES) { "Unknown genre $genre" }
+        return parse(json, post(buildJsonObject { put("query", genreQuery(genre, country)) }))
+    }
+
+    override suspend fun fresh(country: String, sinceYyyymmdd: Int): List<AniListTitle> {
+        return parse(json, post(buildJsonObject { put("query", freshQuery(country, sinceYyyymmdd)) }))
+    }
+
+    override suspend fun recommendationsFor(title: String): SeedRecommendations? {
+        // The title travels as a variable, so quotes in it cannot break the query
+        val body = post(
+            buildJsonObject {
+                put("query", RECOMMENDATIONS_QUERY)
+                put("variables", buildJsonObject { put("s", title) })
+            },
+        )
+        return parseRecommendations(json, body)
+    }
+
+    private suspend fun post(payload: JsonObject): String {
+        val body = json.encodeToString(JsonObject.serializer(), payload).toRequestBody("application/json".toMediaType())
+        val response = client.newCall(POST(URL, body = body)).awaitSuccess()
+        return response.use { it.body.string() }
+    }
 
     companion object {
         private const val URL = "https://graphql.anilist.co"
         private const val PER_PAGE = 50
 
         private const val FIELDS = "id title{romaji english native} synonyms coverImage{large} trending popularity " +
-            "averageScore status chapters startDate{year} endDate{year}"
+            "averageScore status chapters genres format startDate{year} endDate{year}"
+
+        /** AniList's genre names; anything else is not sent, so a genre from a source's own list cannot break a query. */
+        val KNOWN_GENRES = setOf(
+            "Action", "Adventure", "Comedy", "Drama", "Ecchi", "Fantasy", "Horror", "Mahou Shoujo", "Mystery",
+            "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller",
+        )
+
+        private val RECOMMENDATIONS_QUERY = "query(\$s:String){ Media(search:\$s, type:MANGA){ $FIELDS " +
+            "recommendations(sort:RATING_DESC, perPage:20){ nodes{ rating mediaRecommendation{ $FIELDS } } } } }"
+
+        fun genreQuery(genre: String, country: String): String {
+            return "{ Page(perPage:$PER_PAGE){ media(type:MANGA, countryOfOrigin:$country, genre:\"$genre\", " +
+                "format_not:NOVEL, sort:TRENDING_DESC, popularity_greater:8000){ $FIELDS } } }"
+        }
+
+        fun freshQuery(country: String, sinceYyyymmdd: Int): String {
+            return "{ Page(perPage:$PER_PAGE){ media(type:MANGA, countryOfOrigin:$country, status:RELEASING, " +
+                "format_not:NOVEL, sort:POPULARITY_DESC, startDate_greater:$sinceYyyymmdd, popularity_greater:3000){ " +
+                "$FIELDS } } }"
+        }
+
+        fun parseRecommendations(json: Json, body: String): SeedRecommendations? {
+            val media = json.decodeFromString(RecommendationsResponse.serializer(), body).data?.media ?: return null
+            val seed = media.toTitle()
+            val recommended = media.recommendations?.nodes.orEmpty()
+                .mapNotNull { it.mediaRecommendation }
+                .filter { it.format != "NOVEL" }
+                .map { it.toTitle() }
+            return SeedRecommendations(seedNames = seed.names, recommendations = recommended)
+        }
 
         fun query(section: DiscoverSection, country: String): String {
             val filter = when (section) {
@@ -83,6 +145,7 @@ class AniListDiscoverApi(
                 chapters = chapters,
                 startYear = startDate?.year,
                 endYear = endDate?.year,
+                genres = genres,
             )
         }
     }
@@ -107,9 +170,24 @@ class AniListDiscoverApi(
         val averageScore: Int? = null,
         val status: String? = null,
         val chapters: Int? = null,
+        val genres: List<String> = emptyList(),
+        val format: String? = null,
         val startDate: DateDto? = null,
         val endDate: DateDto? = null,
+        val recommendations: RecommendationsDto? = null,
     )
+
+    @Serializable
+    private data class RecommendationsDto(val nodes: List<RecommendationNodeDto> = emptyList())
+
+    @Serializable
+    private data class RecommendationNodeDto(val mediaRecommendation: MediaDto? = null)
+
+    @Serializable
+    private data class RecommendationsResponse(val data: RecommendationsDataDto? = null)
+
+    @Serializable
+    private data class RecommendationsDataDto(@SerialName("Media") val media: MediaDto? = null)
 
     @Serializable
     private data class TitleDto(val romaji: String? = null, val english: String? = null, val native: String? = null)

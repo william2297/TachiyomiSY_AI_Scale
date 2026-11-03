@@ -30,14 +30,22 @@ class DiscoverRefresher(
     private val onStatus: suspend (String) -> Unit = {},
 ) {
 
-    suspend fun refresh(previous: DiscoverCache, sources: List<SearchSource>): DiscoverCache {
+    suspend fun refresh(
+        previous: DiscoverCache,
+        sources: List<SearchSource>,
+        profile: TasteProfile = TasteProfile(),
+    ): DiscoverCache {
         val day = now() / DAY_MILLIS
         val lists = fetchLists().mapValues { (_, titles) -> titles.filterNot(isExcluded) }
         val picks = pickCandidates(lists, previous, day)
+        val extraPlans = buildExtraPlans(profile, day)
+        val knownIds = previous.sections.values.flatten().map { it.anilistId }.toSet() +
+            previous.extras.flatMap { it.entries }.map { it.anilistId }
 
         val sourcesKey = sources.joinToString(",") { it.id.toString() }
         // The 12 shown in each row are searched first; the rest of the 50 fill in over the next days
-        val ordered = (picks.values.flatMap { it.take(DISPLAY_SIZE) } + picks.values.flatMap { it.drop(DISPLAY_SIZE) })
+        val allPicks = picks.values.toList() + extraPlans.map { it.titles }
+        val ordered = (allPicks.flatMap { it.take(DISPLAY_SIZE) } + allPicks.flatMap { it.drop(DISPLAY_SIZE) })
             .distinctBy { it.id }
         val sourceIds = sources.map(SearchSource::id)
 
@@ -46,7 +54,14 @@ class DiscoverRefresher(
             for ((section, titles) in picks) {
                 val entries = titles.withIndex().mapNotNull { (index, title) ->
                     val match = matches[title.id]?.takeIf { it.found && it.sourceId in sourceIds }
-                    match?.let { toEntry(section, title, it, rankOf(section, lists, title, index)) }
+                    match?.let {
+                        toEntry(
+                            section,
+                            title,
+                            it,
+                            rankOf(section, lists, title, index),
+                        ).copy(isNew = isNew(title.id, knownIds))
+                    }
                 }
                 if (entries.isNotEmpty()) {
                     sections[section.name] = entries.take(MAX_PER_SECTION)
@@ -58,13 +73,37 @@ class DiscoverRefresher(
             return sections
         }
 
+        fun extrasFor(matches: Map<Long, MatchRecord>): List<StoredRow> {
+            return extraPlans.mapNotNull { plan ->
+                val entries = plan.titles.mapNotNull { title ->
+                    val match =
+                        matches[title.id]?.takeIf { it.found && it.sourceId in sourceIds } ?: return@mapNotNull null
+                    StoredEntry(
+                        anilistId = title.id, title = title.title, coverUrl = title.coverUrl, sourceId = match.sourceId,
+                        sourceName = match.sourceName, mangaUrl = match.mangaUrl, score = title.score,
+                        completed = title.finished, reason = plan.reason(title), names = title.names,
+                        isNew = isNew(title.id, knownIds),
+                    )
+                }.take(DISPLAY_SIZE)
+                entries.takeIf { it.isNotEmpty() }?.let { StoredRow(plan.key, plan.title, plan.hint, it) }
+            }
+        }
+
         val matches = match(ordered, previous.matches, sources, sourcesKey) { found ->
-            onProgress(previous.copy(updatedAtMillis = now(), sections = sectionsFor(found), errorMessage = null))
+            onProgress(
+                previous.copy(
+                    updatedAtMillis = now(),
+                    sections = sectionsFor(found),
+                    extras = extrasFor(found).ifEmpty { previous.extras },
+                    errorMessage = null,
+                ),
+            )
         }
 
         return DiscoverCache(
             updatedAtMillis = now(),
             sections = sectionsFor(matches),
+            extras = extrasFor(matches).ifEmpty { previous.extras },
             previousTrendingIds = lists[DiscoverSection.RISING].orEmpty().take(TRENDING_MEMORY).map { it.id },
             matches = matches.entries.sortedByDescending { it.value.checkedAtMillis }.take(MAX_MATCHES)
                 .associate { it.key to it.value },
@@ -97,6 +136,114 @@ class DiscoverRefresher(
             result[section] = sorted(section, merged.distinctBy { it.id })
         }
         return result
+    }
+
+    /** One row of titles built from the user's taste, with how each title explains itself. */
+    private class ExtraPlan(
+        val key: String,
+        val title: String,
+        val hint: String,
+        val titles: List<AniListTitle>,
+        val reason: (AniListTitle) -> String,
+    )
+
+    private fun isNew(id: Long, known: Set<Long>): Boolean = known.isNotEmpty() && id !in known
+
+    private suspend fun buildExtraPlans(profile: TasteProfile, day: Long): List<ExtraPlan> {
+        val plans = mutableListOf<ExtraPlan>()
+
+        // "Because you read X": what AniList readers of X went on to read
+        for (seed in profile.seeds) {
+            val result = try {
+                api.recommendationsFor(seed)
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                null
+            } catch (e: Exception) {
+                null
+            }
+            pause(API_PAUSE_MILLIS)
+            // AniList searches loosely; only a series that really carries the seed's name is accepted
+            if (result == null || TitleMatcher.match(result.seedNames, seed) == TitleMatcher.Quality.NONE) continue
+            val titles = result.recommendations.filterNot(isExcluded).filter { it.names.isNotEmpty() }
+            if (titles.isEmpty()) continue
+            plans += ExtraPlan(
+                key = "because-" + TitleMatcher.normalize(seed).replace(' ', '-'),
+                title = "Because you read $seed",
+                hint = "What readers who liked it went on to read",
+                titles = titles.take(MAX_PER_SECTION),
+                reason = { "Recommended by readers of $seed" },
+            )
+        }
+
+        // "Your genres": any of them, so one request per genre and a merge; more matching genres ranks higher
+        val genres = profile.genres.filter { it in AniListDiscoverApi.KNOWN_GENRES }.take(MAX_GENRES)
+        if (genres.isNotEmpty()) {
+            val merged = linkedMapOf<Long, AniListTitle>()
+            for (genre in genres) {
+                for (country in countries) {
+                    try {
+                        api.byGenre(genre, country).forEach { merged.putIfAbsent(it.id, it) }
+                    } catch (e: CancellationException) {
+                        currentCoroutineContext().ensureActive()
+                    } catch (e: Exception) {
+                        // This genre is left out today
+                    }
+                    pause(API_PAUSE_MILLIS)
+                }
+            }
+            val ranked = merged.values.filterNot(isExcluded)
+                .sortedWith(
+                    compareByDescending<AniListTitle> { title -> title.genres.count { it in genres } }
+                        .thenByDescending { it.trending },
+                )
+            if (ranked.isNotEmpty()) {
+                plans += ExtraPlan(
+                    key = "genres",
+                    title = "Your genres",
+                    hint = genres.joinToString(", ") + ": any of them",
+                    titles = rotate(ranked.take(POOL_SIZE), MAX_PER_SECTION, day * 31 + GENRE_SEED),
+                    reason = { title ->
+                        val matched = title.genres.filter { it in genres }
+                        if (matched.isEmpty()) "Popular right now" else "Matches ${matched.joinToString(", ")}"
+                    },
+                )
+            }
+        }
+
+        // "Fresh starts": series from the last year that already have readers
+        val fresh = linkedMapOf<Long, AniListTitle>()
+        val since = yyyymmddAYearBefore(now())
+        for (country in countries) {
+            try {
+                api.fresh(country, since).forEach { fresh.putIfAbsent(it.id, it) }
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
+            } catch (e: Exception) {
+                // No fresh row today
+            }
+            pause(API_PAUSE_MILLIS)
+        }
+        val freshTitles = fresh.values.filterNot(isExcluded).sortedByDescending { it.popularity }
+        if (freshTitles.isNotEmpty()) {
+            plans += ExtraPlan(
+                key = "fresh",
+                title = "Fresh starts",
+                hint = "New series that already have readers",
+                titles = freshTitles.take(MAX_PER_SECTION),
+                reason = { title ->
+                    "Started ${title.startYear ?: "recently"}, ${readers(title.popularity)} readers already"
+                },
+            )
+        }
+        return plans
+    }
+
+    private fun yyyymmddAYearBefore(nowMillis: Long): Int {
+        val date = java.time.Instant.ofEpochMilli(
+            nowMillis,
+        ).atZone(java.time.ZoneOffset.UTC).toLocalDate().minusYears(1)
+        return date.year * 10_000 + date.monthValue * 100 + date.dayOfMonth
     }
 
     private fun sorted(section: DiscoverSection, titles: List<AniListTitle>): List<AniListTitle> {
@@ -251,6 +398,8 @@ class DiscoverRefresher(
         const val DEFAULT_MAX_SEARCHES = 250
         const val DEFAULT_MAX_DURATION_MILLIS = 7 * 60 * 1000L
         private const val MAX_SOURCE_FAILURES = 3
+        private const val MAX_GENRES = 3
+        private const val GENRE_SEED = 97L
         private const val PROGRESS_EVERY = 4
         private const val NEW_IN_TOP_RANKS = 50
         private const val TRENDING_MEMORY = 100

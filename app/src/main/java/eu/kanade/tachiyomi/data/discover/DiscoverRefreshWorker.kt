@@ -19,6 +19,7 @@ import eu.kanade.tachiyomi.util.system.isConnectedToWifi
 import eu.kanade.tachiyomi.util.system.workManager
 import kotlinx.coroutines.flow.first
 import logcat.LogPriority
+import mihon.app.di.AppGraph
 import mihon.app.di.appGraph
 import tachiyomi.core.common.util.system.logcat
 import tachiyomi.source.local.isLocal
@@ -56,7 +57,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 onProgress = { partial -> store.save(partial) },
                 onStatus = { text -> setProgress(workDataOf(KEY_STATUS to text)) },
             )
-            store.save(refresher.refresh(previous, sources))
+            store.save(refresher.refresh(previous, sources, tasteProfile(graph)))
             Result.success()
         } catch (e: IOException) {
             logcat(LogPriority.WARN, e) { "Discover refresh failed" }
@@ -74,8 +75,28 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         private const val MAX_ATTEMPTS = 3
         const val KEY_STATUS = "status"
         private const val MAX_SOURCES = 6
+        private const val SEED_POOL = 20
+        private const val SEEDS_PER_DAY = 3
 
         fun storeFile(context: Context) = File(context.filesDir, "discover.json")
+
+        /** A few titles the user read recently (a different few each day) and the genres they keep most. */
+        private suspend fun tasteProfile(graph: AppGraph): TasteProfile {
+            val library = graph.getLibraryManga.await()
+            val day = System.currentTimeMillis() / 86_400_000L
+            val recentlyRead = library.filter { it.readCount > 0 }
+                .sortedByDescending { it.lastRead }
+                .take(SEED_POOL)
+                .map { it.manga.title }
+            val seeds = DiscoverRefresher.rotate(recentlyRead, SEEDS_PER_DAY, day)
+            val genres = library.flatMap { it.manga.genre.orEmpty() }
+                .map { it.trim() }
+                .filter { it in AniListDiscoverApi.KNOWN_GENRES }
+                .groupingBy { it }.eachCount()
+                .entries.sortedByDescending { it.value }
+                .map { it.key }
+            return TasteProfile(seeds = seeds, genres = genres)
+        }
 
         fun hiddenFile(context: Context) = File(context.filesDir, "discover_hidden.json")
 
