@@ -407,7 +407,7 @@ class DiscoverRefresherTest {
     private val dayMillis = 86_400_000L
 
     @Test
-    fun `my genres ranks titles matching more of the picked genres first and keeps up to 50`() = runTest {
+    fun `my genres ranks titles matching more of the picked genres first and keeps up to 30`() = runTest {
         val many = (1L..60L).map { genreTitle(100 + it, "Action $it", trending = it.toInt(), "Action") }
         val api = ExtraApi(
             genres = mapOf(
@@ -422,7 +422,7 @@ class DiscoverRefresherTest {
         assertEquals("My genres", row.title)
         assertEquals("Both", row.entries.first().title)
         assertEquals("Matches Action, Fantasy", row.entries.first().reason)
-        assertEquals(50, row.entries.size)
+        assertEquals(DiscoverRefresher.MY_GENRES_SHOWN, row.entries.size)
         // After the two-genre title the rest follow by trending, highest first
         assertEquals("Action 60", row.entries[1].title)
     }

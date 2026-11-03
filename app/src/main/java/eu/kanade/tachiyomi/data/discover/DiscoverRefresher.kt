@@ -210,7 +210,7 @@ class DiscoverRefresher(
                     val matched = title.genres.filter { it in genres }
                     if (matched.isEmpty()) "Popular right now" else "Matches ${matched.joinToString(", ")}"
                 },
-                limit = MAX_PER_SECTION,
+                limit = MY_GENRES_SHOWN,
             ),
             pick,
         )
@@ -474,8 +474,11 @@ class DiscoverRefresher(
         private const val MAX_GENRES = 3
         private const val MAX_PICKED_GENRES = 10
 
-        /** Titles kept for "My genres", more than the 50 shown because some are not in any of the user's sources. */
-        private const val MY_GENRES_POOL = 75
+        /** Titles "My genres" shows. Fewer than the other rows so its search finishes in minutes, not tens of minutes. */
+        const val MY_GENRES_SHOWN = 30
+
+        /** Titles kept for "My genres", more than are shown because some are not in any of the user's sources. */
+        private const val MY_GENRES_POOL = 45
         const val MY_GENRES_KEY = "my-genres"
         private const val GENRE_SEED = 97L
         private const val PROGRESS_EVERY = 4
