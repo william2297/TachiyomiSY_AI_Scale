@@ -36,21 +36,32 @@ class WebtoonRecyclerView @JvmOverloads constructor(
     var highFrameRate = false
         set(value) {
             field = value
-            if (Build.VERSION.SDK_INT >= 35) {
-                val rate = if (value) {
-                    View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
-                } else {
-                    View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
-                }
-                requestedFrameRate = rate
-                children.forEach { it.requestedFrameRate = rate }
-            }
+            applyFrameRate()
         }
+
+    /** The screen's fastest refresh rate; an exact rate is a stronger request than the "high" category. */
+    var highFrameRateHz = 120f
+        set(value) {
+            field = value
+            applyFrameRate()
+        }
+
+    private fun requestedRate(): Float {
+        return if (highFrameRate) highFrameRateHz else View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+    }
+
+    private fun applyFrameRate() {
+        if (Build.VERSION.SDK_INT >= 35) {
+            val rate = requestedRate()
+            requestedFrameRate = rate
+            children.forEach { it.requestedFrameRate = rate }
+        }
+    }
 
     override fun onChildAttachedToWindow(child: View) {
         super.onChildAttachedToWindow(child)
         if (highFrameRate && Build.VERSION.SDK_INT >= 35) {
-            child.requestedFrameRate = View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
+            child.requestedFrameRate = requestedRate()
         }
     }
 
