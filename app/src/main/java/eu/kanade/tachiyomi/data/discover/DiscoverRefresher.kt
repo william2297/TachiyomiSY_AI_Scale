@@ -45,9 +45,13 @@ class DiscoverRefresher(
 
         val sourcesKey = sources.joinToString(",") { it.id.toString() }
         // The 12 shown in each row are searched first; the rest of the 50 fill in over the next days
-        val allPicks = picks.values.toList() + extraPlans.map { it.titles }
-        val ordered = (allPicks.flatMap { it.take(DISPLAY_SIZE) } + allPicks.flatMap { it.drop(DISPLAY_SIZE) })
-            .distinctBy { it.id }
+        // "My genres" goes first and whole: the user just chose it, and it must not wait behind the other rows
+        // for the search budget
+        val myTitles = myGenres.plan?.titles.orEmpty()
+        val allPicks = picks.values.toList() + extraPlans.filter { it.key != MY_GENRES_KEY }.map { it.titles }
+        val ordered = (
+            myTitles + allPicks.flatMap { it.take(DISPLAY_SIZE) } + allPicks.flatMap { it.drop(DISPLAY_SIZE) }
+            ).distinctBy { it.id }
         val sourceIds = sources.map(SearchSource::id)
 
         fun sectionsFor(matches: Map<Long, MatchRecord>): Map<String, List<StoredEntry>> {

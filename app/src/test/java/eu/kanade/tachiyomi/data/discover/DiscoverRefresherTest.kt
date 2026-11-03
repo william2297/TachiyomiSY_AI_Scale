@@ -506,6 +506,23 @@ class DiscoverRefresherTest {
     }
 
     @Test
+    fun `my genres is searched before the other rows when the search budget is small`() = runTest {
+        val api =
+            ExtraApi(
+                genres = mapOf(
+                    "Action" to (1L..5L).map {
+                        genreTitle(200 + it, "Mine $it", it.toInt(), "Action")
+                    },
+                ),
+            )
+        val searcher = everythingFound("Mine 1", "Mine 2", "Mine 3", "Mine 4", "Mine 5")
+        val cache = refresher(api, searcher, max = 5)
+            .refresh(DiscoverCache(), sources, TasteProfile(pickedGenres = listOf("Action")))
+        val row = cache.extras.single { it.key == DiscoverRefresher.MY_GENRES_KEY }
+        assertEquals(5, row.entries.size)
+    }
+
+    @Test
     fun `fresh starts row lists new series with their readers`() = runTest {
         val api = ExtraApi(fresh = listOf(title(5, "New Hit", popularity = 8195).copy(startYear = 2026)))
         val cache = refresher(api, everythingFound("New Hit")).refresh(DiscoverCache(), sources)
