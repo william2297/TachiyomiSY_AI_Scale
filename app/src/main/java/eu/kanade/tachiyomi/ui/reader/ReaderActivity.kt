@@ -752,7 +752,6 @@ class ReaderActivity : BaseActivity() {
     private fun requestHighRefreshRate(enabled: Boolean) {
         val currentMode = display?.mode
         val modes = display?.supportedModes.orEmpty()
-        // The fastest mode at the screen's current size; switching size would change the picture
         val fastest = modes
             .filter {
                 it.physicalWidth == currentMode?.physicalWidth && it.physicalHeight == currentMode?.physicalHeight
