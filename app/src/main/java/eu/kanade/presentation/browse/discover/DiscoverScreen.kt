@@ -1,6 +1,7 @@
 package eu.kanade.presentation.browse.discover
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,6 +24,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.StringResource
@@ -64,6 +68,9 @@ fun DiscoverScreen(
         onRefresh = onRefresh,
         indicatorPadding = contentPadding,
     ) {
+        // Landscape tablet: pair the regular rows side by side so about three rows fit on one screen
+        // instead of one and a half. Rising keeps the full width; the page stays a single vertical scroll.
+        val wide = LocalConfiguration.current.screenWidthDp >= WIDE_LAYOUT_MIN_WIDTH_DP
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
@@ -79,9 +86,15 @@ fun DiscoverScreen(
                     if (state.error != null) {
                         item(key = "offline") { OfflineBanner() }
                     }
-                    visible.forEach { (section, entries) -> section(section, entries, onOpen) }
+                    if (wide) {
+                        val (rising, rest) = visible.partition { it.first == DiscoverSection.RISING }
+                        rising.forEach { (section, entries) -> section(section, entries, onOpen) }
+                        rest.chunked(2).forEach { pair -> sectionPair(pair, onOpen) }
+                    } else {
+                        visible.forEach { (section, entries) -> section(section, entries, onOpen) }
+                    }
                 }
-                state.loading -> loadingSkeleton()
+                state.loading -> loadingSkeleton(wide)
                 else -> item(key = "empty") {
                     EmptyOrOffline(
                         offline = state.error != null,
@@ -90,6 +103,33 @@ fun DiscoverScreen(
                     )
                 }
             }
+        }
+    }
+}
+
+private const val WIDE_LAYOUT_MIN_WIDTH_DP = 960
+
+/** Two regular rows next to each other; an odd last row keeps the left half. */
+private fun LazyListScope.sectionPair(
+    pair: List<Pair<DiscoverSection, List<DiscoverEntry>>>,
+    onOpen: (DiscoverEntry) -> Unit,
+) {
+    item(key = "pair-" + pair.joinToString("-") { it.first.name }) {
+        Row(Modifier.fillMaxWidth()) {
+            pair.forEach { (section, entries) ->
+                Column(Modifier.weight(1f)) {
+                    SectionHeader(title = section.titleRes, hint = section.hintRes)
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(items = entries, key = { it.id }) { entry ->
+                            DiscoverCard(entry = entry, onClick = { onOpen(entry) })
+                        }
+                    }
+                }
+            }
+            if (pair.size == 1) Spacer(Modifier.weight(1f))
         }
     }
 }
@@ -194,33 +234,53 @@ private fun OfflineBanner() {
     }
 }
 
-private fun LazyListScope.loadingSkeleton() {
-    // Rising row first (wide cards), then two regular rows: the shape of the page before data arrives
-    repeat(3) { index ->
+private fun LazyListScope.loadingSkeleton(wide: Boolean) {
+    // Same shape as the loaded page: a Rising row of wide cards, then regular rows (paired when wide)
+    item(key = "skeleton-rising") {
+        Column(Modifier.padding(top = 20.dp)) {
+            SkeletonHeader()
+            // Fixed-width cards cut at the edge, like the real carousel, instead of squeezed
+            Box(Modifier.fillMaxWidth().clipToBounds()) {
+                Row(
+                    modifier = Modifier
+                        .wrapContentWidth(Alignment.Start, unbounded = true)
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    repeat(4) { DiscoverRisingCardSkeleton() }
+                }
+            }
+        }
+    }
+    repeat(2) { index ->
         item(key = "skeleton-$index") {
-            Column(Modifier.padding(top = 20.dp)) {
-                SkeletonLine(width = 120.dp, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(8.dp))
-                SkeletonLine(width = 200.dp, modifier = Modifier.padding(horizontal = 16.dp))
-                Spacer(Modifier.height(12.dp))
-                if (index == 0) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        repeat(3) { DiscoverRisingCardSkeleton() }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        repeat(8) { DiscoverCardSkeleton() }
+            Row(Modifier.fillMaxWidth().padding(top = 20.dp)) {
+                repeat(if (wide) 2 else 1) {
+                    Column(Modifier.weight(1f)) {
+                        SkeletonHeader()
+                        Box(Modifier.fillMaxWidth().clipToBounds()) {
+                            Row(
+                                modifier = Modifier
+                                    .wrapContentWidth(Alignment.Start, unbounded = true)
+                                    .padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                repeat(8) { DiscoverCardSkeleton() }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SkeletonHeader() {
+    SkeletonLine(width = 120.dp, modifier = Modifier.padding(horizontal = 16.dp))
+    Spacer(Modifier.height(8.dp))
+    SkeletonLine(width = 200.dp, modifier = Modifier.padding(horizontal = 16.dp))
+    Spacer(Modifier.height(12.dp))
 }
 
 @Composable

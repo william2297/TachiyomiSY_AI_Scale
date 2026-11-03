@@ -47,7 +47,7 @@ data object BrowseTab : Tab {
         navigator.push(GlobalSearchScreen())
     }
 
-    // Position of the Extensions tab in the list below (Discover, Sources, Extensions, Migrate)
+    // Position of the Extensions tab in the list below (Sources, Discover, Extensions, Migrate)
     private const val EXTENSIONS_TAB_INDEX = 2
 
     private val switchToExtensionTabChannel = Channel<Unit>(1, BufferOverflow.DROP_OLDEST)
@@ -64,11 +64,10 @@ data object BrowseTab : Tab {
         val extensionsViewModel = metroViewModel<ExtensionsViewModel>()
         val extensionsSearchQuery by extensionsViewModel.searchQuery.collectAsStateWithLifecycle()
 
-        // Discover first: it answers "what should I read now", the question this tab is opened for most.
-        // Sources stays one swipe away.
+        // Sources first (the "Sources" shortcut lands on page 0), Discover right next to it
         val tabs = listOf(
-            discoverTab(),
             sourcesTab(),
+            discoverTab(),
             extensionsTab(extensionsViewModel),
             migrateSourceTab(),
         )

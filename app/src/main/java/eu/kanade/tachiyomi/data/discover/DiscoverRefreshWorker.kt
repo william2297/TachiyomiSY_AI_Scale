@@ -65,7 +65,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         fun storeFile(context: Context) = File(context.filesDir, "discover.json")
 
         /** The pinned sources that can be searched, at most [MAX_SOURCES], in name order. */
-        fun pinnedSearchSources(context: Context): List<SearchSource> {
+        suspend fun pinnedSearchSources(context: Context): List<SearchSource> {
             val graph = context.appGraph
             val pinned = graph.sourcePreferences.pinnedSources.get()
             return graph.sourceManager.getAll()
@@ -104,5 +104,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         }
 
         fun nowWorkName() = WORK_NAME_NOW
+
+        fun autoWorkName() = WORK_NAME_AUTO
     }
 }

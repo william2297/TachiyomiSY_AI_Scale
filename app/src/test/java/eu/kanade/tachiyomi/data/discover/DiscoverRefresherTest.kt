@@ -33,7 +33,10 @@ class DiscoverRefresherTest {
         val calls = mutableListOf<Pair<Long, String>>()
         override suspend fun search(source: SearchSource, query: String): List<FoundManga> {
             calls += source.id to query
-            return catalogue[source.id].orEmpty().filter { it.contains(query, ignoreCase = true) || query.contains(it, true) }
+            return catalogue[source.id].orEmpty().filter {
+                it.contains(query, ignoreCase = true) ||
+                    query.contains(it, true)
+            }
                 .map { FoundManga(it, "/series/${it.lowercase().replace(' ', '-')}") }
         }
     }
@@ -41,14 +44,21 @@ class DiscoverRefresherTest {
     private val sources = listOf(SearchSource(1, "Asura"), SearchSource(2, "Comick"))
 
     private fun refresher(api: DiscoverListApi, searcher: TitleSearcher, max: Int = 150) = DiscoverRefresher(
-        api = api, searcher = searcher, now = { 1_700_000_000_000L }, pause = {}, countries = listOf("KR"),
+        api = api,
+        searcher = searcher,
+        now = { 1_700_000_000_000L },
+        pause = {},
+        countries = listOf("KR"),
         maxSearches = max,
     )
 
     @Test
     fun `only titles found in a source are shown, with that source`() = runTest {
         val api = FakeApi(
-            mapOf(DiscoverSection.RISING to listOf(title(1, "Alpha Hero", 90), title(2, "Beta Knight", 80), title(3, "Gamma", 70))),
+            mapOf(
+                DiscoverSection.RISING to
+                    listOf(title(1, "Alpha Hero", 90), title(2, "Beta Knight", 80), title(3, "Gamma", 70)),
+            ),
         )
         val searcher = FakeSearcher(mapOf(1L to setOf("Alpha Hero"), 2L to setOf("Beta Knight")))
         val cache = refresher(api, searcher).refresh(DiscoverCache(), sources)
@@ -63,7 +73,10 @@ class DiscoverRefresherTest {
     @Test
     fun `a title that entered the top 20 since the last refresh is listed as new`() = runTest {
         val api = FakeApi(
-            mapOf(DiscoverSection.RISING to listOf(title(1, "Alpha Hero", 90), title(2, "Beta Knight", 80), title(3, "Gamma Hero", 70))),
+            mapOf(
+                DiscoverSection.RISING to
+                    listOf(title(1, "Alpha Hero", 90), title(2, "Beta Knight", 80), title(3, "Gamma Hero", 70)),
+            ),
         )
         val searcher = FakeSearcher(mapOf(1L to setOf("Alpha Hero", "Beta Knight", "Gamma Hero")))
         val previous = DiscoverCache(previousTrendingIds = listOf(1L, 2L))
@@ -123,7 +136,9 @@ class DiscoverRefresherTest {
     fun `an unreadable trending list fails so the old picks stay`() = runTest {
         val api = FakeApi(emptyMap(), failRising = true)
         assertThrows(IOException::class.java) {
-            kotlinx.coroutines.runBlocking { refresher(api, FakeSearcher(emptyMap())).refresh(DiscoverCache(), sources) }
+            kotlinx.coroutines.runBlocking {
+                refresher(api, FakeSearcher(emptyMap())).refresh(DiscoverCache(), sources)
+            }
         }
     }
 
@@ -155,7 +170,12 @@ class DiscoverRefresherTest {
 
     @Test
     fun `reasons read naturally for each row`() {
-        val t = title(1, "X", score = 89, popularity = 288_438).copy(finished = true, chapters = 201, endYear = 2021, startYear = 2018)
+        val t = title(
+            1,
+            "X",
+            score = 89,
+            popularity = 288_438,
+        ).copy(finished = true, chapters = 201, endYear = 2021, startYear = 2018)
         assertEquals("Rated 89 by 288k readers", DiscoverRefresher.reason(DiscoverSection.CLASSICS, t, 1))
         assertEquals("201 chapters, finished 2021", DiscoverRefresher.reason(DiscoverSection.COMPLETED, t, 1))
         assertEquals("Running since 2018, score 89", DiscoverRefresher.reason(DiscoverSection.OLDER_ONGOING, t, 1))

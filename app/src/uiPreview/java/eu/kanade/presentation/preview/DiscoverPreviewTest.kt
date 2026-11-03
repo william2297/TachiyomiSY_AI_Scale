@@ -167,7 +167,7 @@ private fun discoverCover(id: Long): Bitmap {
     return bitmap
 }
 
-/** Browse screen as the app builds it: rail on the left, real TabbedScreen with Discover first. */
+/** Browse screen as the app builds it: rail on the left, real TabbedScreen, Discover selected. */
 @Composable
 private fun Browse(state: DiscoverState) {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -177,14 +177,15 @@ private fun Browse(state: DiscoverState) {
                 TabbedScreen(
                     titleRes = MR.strings.browse,
                     tabs = listOf(
+                        TabContent(titleRes = MR.strings.label_sources) { _, _ -> },
                         TabContent(titleRes = MR.strings.label_discover) { contentPadding, _ ->
                             DiscoverScreen(state = state, contentPadding = contentPadding, onOpen = {}, onRefresh = {})
                         },
-                        TabContent(titleRes = MR.strings.label_sources) { _, _ -> },
                         TabContent(titleRes = MR.strings.label_extensions) { _, _ -> },
                         TabContent(titleRes = MR.strings.label_migration) { _, _ -> },
                     ),
-                    state = rememberPagerState { 4 },
+                    // Discover is the second tab, after Sources
+                    state = rememberPagerState(initialPage = 1) { 4 },
                 )
             }
         }
