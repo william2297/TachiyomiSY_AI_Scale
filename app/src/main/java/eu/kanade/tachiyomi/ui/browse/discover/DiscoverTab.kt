@@ -12,6 +12,7 @@ import dev.zacsweers.metrox.viewmodel.metroViewModel
 import eu.kanade.presentation.browse.discover.DiscoverScreen
 import eu.kanade.presentation.browse.discover.components.LocalDiscoverHide
 import eu.kanade.presentation.components.TabContent
+import eu.kanade.tachiyomi.data.discover.AniListDiscoverApi
 import eu.kanade.tachiyomi.ui.manga.MangaScreen
 import kotlinx.coroutines.launch
 import tachiyomi.i18n.MR
@@ -37,8 +38,13 @@ fun Screen.discoverTab(): TabContent {
                     onRefresh = viewModel::refresh,
                     onSeeAll = { section -> navigator.push(DiscoverSectionScreen(section)) },
                     onSeeAllRow = { row -> navigator.push(DiscoverRowScreen(row.key)) },
+                    genres = GENRES,
+                    onPickGenres = viewModel::setGenres,
                 )
             }
         },
     )
 }
+
+/** AniList's genres in the order the picker shows them. */
+private val GENRES = AniListDiscoverApi.KNOWN_GENRES.sorted()

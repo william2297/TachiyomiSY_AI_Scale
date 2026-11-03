@@ -1270,4 +1270,18 @@
     <string name="discover_new_today">New today</string>
     <string name="discover_not_interested">Not interested</string>
     <string name="discover_back">Back</string>
+    <string name="discover_my_genres">My genres</string>
+    <string name="discover_my_genres_invite">Pick a few genres you like. You get a row of titles in any of them, picked again each day.</string>
+    <string name="discover_choose_genres">Choose genres</string>
+    <string name="discover_edit_genres">Edit</string>
+    <string name="discover_genres_any">any of them</string>
+    <string name="discover_genres_more">+%1$d more</string>
+    <string name="discover_genres_updating">Updating</string>
+    <string name="discover_genres_sheet_hint">Titles in any of these genres. The more of them a title has, the higher it ranks.</string>
+    <string name="discover_genres_picked">%1$d picked</string>
+    <string name="discover_genres_none_picked">None picked</string>
+    <string name="discover_genres_clear">Clear</string>
+    <string name="discover_genres_apply">Apply</string>
+    <string name="discover_genres_none_hides_row">With no genres, the row goes away</string>
+    <string name="discover_my_genres_empty">Nothing in your sources matched these genres today. Add a genre or check back tomorrow.</string>
 </resources>

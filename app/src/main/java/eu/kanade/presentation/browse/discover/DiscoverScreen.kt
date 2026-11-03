@@ -22,6 +22,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -31,11 +33,16 @@ import androidx.compose.ui.unit.dp
 import dev.icerock.moko.resources.StringResource
 import eu.kanade.presentation.browse.discover.components.DiscoverCard
 import eu.kanade.presentation.browse.discover.components.DiscoverCardSkeleton
+import eu.kanade.presentation.browse.discover.components.DiscoverGenreSheet
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingCard
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingCardSkeleton
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingSeeAllCard
 import eu.kanade.presentation.browse.discover.components.DiscoverSeeAllCard
+import eu.kanade.presentation.browse.discover.components.MyGenresHeader
+import eu.kanade.presentation.browse.discover.components.MyGenresInvite
+import eu.kanade.presentation.browse.discover.components.MyGenresPending
 import eu.kanade.presentation.browse.discover.components.SkeletonLine
+import eu.kanade.presentation.browse.discover.components.rememberGenreSheetOpen
 import mihon.icons.phosphor.Phosphor
 import mihon.icons.phosphor.bold.ArrowsClockwise
 import mihon.icons.phosphor.bold.CloudSlash
@@ -60,7 +67,10 @@ fun DiscoverScreen(
     onRefresh: () -> Unit,
     onSeeAll: (DiscoverSection) -> Unit = {},
     onSeeAllRow: (DiscoverRow) -> Unit = {},
+    genres: List<String> = emptyList(),
+    onPickGenres: (Set<String>) -> Unit = {},
 ) {
+    var genreSheetOpen by rememberGenreSheetOpen()
     val visible = DiscoverSection.entries.mapNotNull { section ->
         state.sections[section]?.takeIf { it.isNotEmpty() }?.let { section to it }
     }
@@ -97,7 +107,17 @@ fun DiscoverScreen(
                     } else {
                         visible.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
                     }
-                    state.extraRows.forEach { row -> extraRow(row, onOpen, onSeeAllRow) }
+                    state.extraRows.filterNot { it.key == MY_GENRES_KEY }
+                        .forEach { row -> extraRow(row, onOpen, onSeeAllRow) }
+                    if (genres.isNotEmpty()) {
+                        myGenres(
+                            state = state,
+                            genres = genres,
+                            onOpen = onOpen,
+                            onSeeAllRow = onSeeAllRow,
+                            onEdit = { genreSheetOpen = true },
+                        )
+                    }
                 }
                 state.loading -> {
                     state.status?.let { status ->
@@ -122,9 +142,56 @@ fun DiscoverScreen(
             }
         }
     }
+
+    if (genreSheetOpen) {
+        DiscoverGenreSheet(
+            genres = genres,
+            picked = state.pickedGenres,
+            onApply = { picked ->
+                genreSheetOpen = false
+                onPickGenres(picked)
+            },
+            onDismiss = { genreSheetOpen = false },
+        )
+    }
 }
 
 private const val WIDE_LAYOUT_MIN_WIDTH_DP = 960
+
+/** Same key as DiscoverRefresher.MY_GENRES_KEY; the row is drawn by [myGenres], not as a plain extra row. */
+private const val MY_GENRES_KEY = "my-genres"
+
+/**
+ * The "My genres" slot, after the other rows built from taste (the refresher puts it last as well). No genres picked:
+ * an invitation to pick some. Genres picked: a header with them and an edit button, then the row, its placeholders
+ * while it is first built, or a note when nothing matched.
+ */
+private fun LazyListScope.myGenres(
+    state: DiscoverState,
+    genres: List<String>,
+    onOpen: (DiscoverEntry) -> Unit,
+    onSeeAllRow: (DiscoverRow) -> Unit,
+    onEdit: () -> Unit,
+) {
+    if (state.pickedGenres.isEmpty()) {
+        item(key = "my-genres-invite") {
+            MyGenresInvite(genres = genres, onChoose = onEdit)
+        }
+        return
+    }
+    val picked = genres.filter { it in state.pickedGenres }
+    val row = state.extraRows.firstOrNull { it.key == MY_GENRES_KEY }
+    item(key = "extra-header-$MY_GENRES_KEY") {
+        MyGenresHeader(picked = picked, updating = state.loading, onEdit = onEdit)
+    }
+    item(key = "extra-row-$MY_GENRES_KEY") {
+        if (row != null) {
+            ExtraRowCards(row, onOpen, onSeeAllRow)
+        } else {
+            MyGenresPending(loading = state.loading)
+        }
+    }
+}
 
 /** Two regular rows next to each other; an odd last row keeps the left half. */
 private fun LazyListScope.sectionPair(
@@ -169,18 +236,23 @@ private fun LazyListScope.extraRow(
         TextSectionHeader(title = row.title, hint = row.hint)
     }
     item(key = "extra-row-${row.key}") {
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            items(items = row.entries.take(ROW_LIMIT), key = { it.id }) { entry ->
-                DiscoverCard(entry = entry, onClick = { onOpen(entry) })
-            }
-            if (row.entries.size > ROW_LIMIT) {
-                item(key = "see-all") {
-                    DiscoverSeeAllCard(count = row.entries.size, onClick = { onSeeAllRow(row) })
-                }
+        ExtraRowCards(row, onOpen, onSeeAllRow)
+    }
+}
+
+@Composable
+private fun ExtraRowCards(row: DiscoverRow, onOpen: (DiscoverEntry) -> Unit, onSeeAllRow: (DiscoverRow) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        items(items = row.entries.take(ROW_LIMIT), key = { it.id }) { entry ->
+            DiscoverCard(entry = entry, onClick = { onOpen(entry) })
+        }
+        if (row.entries.size > ROW_LIMIT) {
+            item(key = "see-all") {
+                DiscoverSeeAllCard(count = row.entries.size, onClick = { onSeeAllRow(row) })
             }
         }
     }
