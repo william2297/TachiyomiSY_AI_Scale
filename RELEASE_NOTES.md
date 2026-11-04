@@ -12,3 +12,4 @@ What is new in this build
 - Auto scroll: the page list now tells Android its content moves fast, so the screen should stay at its highest refresh rate instead of dropping to half (the "Last auto scroll" line shows the result).
 - Auto scroll: a tiny invisible surface now asks the screen for its refresh rate directly (experiment, ColorOS may revise window-level requests).
 - Reader settings > General: a checkbox turns the tiny auto scroll refresh-rate dot on or off.
+- Image decoding and upscaling threads run a little below normal priority, so the screen draws first while pages ahead are prepared (less stutter with a high preload count).

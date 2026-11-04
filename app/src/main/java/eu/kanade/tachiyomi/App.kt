@@ -52,6 +52,7 @@ import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.notify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -230,6 +231,19 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         )
     }
 
+    /** Three decoder threads, a little below normal priority so the screen's own threads win when both are busy. */
+    private val decoderDispatcher by lazy {
+        java.util.concurrent.Executors.newFixedThreadPool(DECODER_THREADS) { runnable ->
+            Thread(
+                {
+                    android.os.Process.setThreadPriority(DECODER_THREAD_PRIORITY)
+                    runnable.run()
+                },
+                "coil-decoder",
+            ).apply { isDaemon = true }
+        }.asCoroutineDispatcher()
+    }
+
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this).apply {
             val callFactoryLazy = lazy { networkHelper.value.client }
@@ -268,7 +282,9 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 
             // Coil spawns a new thread for every image load by default
             fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(8))
-            decoderCoroutineContext(Dispatchers.IO.limitedParallelism(3))
+            // Decoding (and upscaling, which runs inside the decoder) is big work. At normal priority it competes with
+            // the threads that draw the screen, so a long strip scrolls unevenly while pages ahead are prepared.
+            decoderCoroutineContext(decoderDispatcher)
         }
             .build()
     }
@@ -334,3 +350,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 }
 
 private const val ACTION_DISABLE_INCOGNITO_MODE = "tachi.action.DISABLE_INCOGNITO_MODE"
+
+private const val DECODER_THREADS = 3
+
+/** Android nice value: 0 is normal, 10 and above is the restricted background group, so 4 stays in between. */
+private const val DECODER_THREAD_PRIORITY = 4
