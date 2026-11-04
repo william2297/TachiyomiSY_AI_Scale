@@ -42,10 +42,6 @@ object FrameJankMonitor {
         val shortestGapMs: Float = 0f,
         /** What the device reports: Android version, refresh rate and the modes the screen supports. */
         val deviceInfo: String = "",
-        /** Vsync signals the system delivered to the app (Choreographer), by gap in refreshes: 1, 2, more. */
-        val signalsAt1: Int = 0,
-        val signalsAt2: Int = 0,
-        val signalsMore: Int = 0,
     ) {
         val fps: Float get() = if (activeSeconds > 0f) frames / activeSeconds else 0f
     }
@@ -69,29 +65,6 @@ object FrameJankMonitor {
     private var refreshNanos = 8_333_333L
     private var shortestGapNanos = Long.MAX_VALUE
     private var deviceInfo = ""
-    private var signals1 = 0
-    private var signals2 = 0
-    private var signalsMore = 0
-    private var lastSignalNanos = 0L
-    private var signalLoopRunning = false
-
-    private val signalCallback = object : android.view.Choreographer.FrameCallback {
-        override fun doFrame(frameTimeNanos: Long) {
-            if (!signalLoopRunning) return
-            if (lastSignalNanos != 0L) {
-                val gap = ((frameTimeNanos - lastSignalNanos) / refreshNanos.toFloat() + 0.25f).toInt()
-                if (gap in 1..IDLE_REFRESHES) {
-                    when (gap) {
-                        1 -> signals1++
-                        2 -> signals2++
-                        else -> signalsMore++
-                    }
-                }
-            }
-            lastSignalNanos = frameTimeNanos
-            android.view.Choreographer.getInstance().postFrameCallback(this)
-        }
-    }
 
     @Synchronized
     fun start(window: Window, refreshRate: Float, deviceInfo: String = "") {
@@ -108,19 +81,10 @@ object FrameJankMonitor {
         thread = handlerThread
         attachedWindow = window
         listener = frameListener
-        // Counts the vsync signals the system hands the app, to tell a throttled signal from a skipped draw.
-        // Must run on the main thread, where the reader starts it.
-        runCatching {
-            lastSignalNanos = 0L
-            signalLoopRunning = true
-            android.view.Choreographer.getInstance().postFrameCallback(signalCallback)
-        }
     }
 
     @Synchronized
     fun stop() {
-        signalLoopRunning = false
-        runCatching { android.view.Choreographer.getInstance().removeFrameCallback(signalCallback) }
         val frameListener = listener
         val window = attachedWindow
         if (frameListener != null && window != null) {
@@ -144,9 +108,6 @@ object FrameJankMonitor {
         phaseNanos.fill(0L)
         lastVsync = 0L
         shortestGapNanos = Long.MAX_VALUE
-        signals1 = 0
-        signals2 = 0
-        signalsMore = 0
         mutableStats.value = Stats()
     }
 
@@ -205,9 +166,6 @@ object FrameJankMonitor {
             otherDelayMs = phaseNanos[8] / divisor,
             shortestGapMs = if (shortestGapNanos == Long.MAX_VALUE) 0f else shortestGapNanos / 1_000_000f,
             deviceInfo = deviceInfo,
-            signalsAt1 = signals1,
-            signalsAt2 = signals2,
-            signalsMore = signalsMore,
         )
     }
 

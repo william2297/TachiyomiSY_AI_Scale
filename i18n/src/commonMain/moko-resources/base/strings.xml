@@ -1180,7 +1180,7 @@
     <string name="reader_background_enhancement_off">Off</string>
     <string name="reader_background_enhancement_chapter">Whole chapter</string>
     <string name="reader_enhancement_stats">This session: %1$d pages enhanced, %2$s s on average, %3$d without a result, %4$d retries</string>
-    <string name="reader_autoscroll_frame_stats">Last auto scroll: %1$d frames, %2$s fps while moving. Gaps between frames: %3$d at 1 refresh, %4$d at 2 (half rate), %5$d at 3 or more. %6$d slow frames, average ms in them: input+animation %7$s, layout %8$s, draw %9$s, sync %10$s, commands %11$s, swap %12$s, GPU %13$s, other delay %14$s. Shortest gap %15$s ms. %16$s Vsync signals to the app: %17$d at 1 refresh, %18$d at 2, %19$d at 3 or more.</string>
+    <string name="reader_autoscroll_frame_stats">Last auto scroll: %1$d frames, %2$s fps while moving. Gaps between frames: %3$d at 1 refresh, %4$d at 2 (half rate), %5$d at 3 or more. %6$d slow frames, average ms in them: input+animation %7$s, layout %8$s, draw %9$s, sync %10$s, commands %11$s, swap %12$s, GPU %13$s, other delay %14$s. Shortest gap %15$s ms. %16$s</string>
     <string name="reader_auto_scroll_refresh_vote">Auto scroll: ask for the top refresh rate with a tiny nearly invisible dot (bottom right)</string>
     <string name="reader_enhancement_stats_reset">Reset counters</string>
     <string name="reader_enhancement_not_with_hq_renderer">The high quality renderer is on, and it does not show AI-enhanced pages. Turn it off in Settings, Advanced, to see enhancement.</string>
