@@ -56,4 +56,6 @@ data class DiscoverState(
     val extraRows: List<DiscoverRow> = emptyList(),
     /** Genres the user chose for the "My genres" row (any of them); empty until the user picks some. */
     val pickedGenres: Set<String> = emptySet(),
+    /** What the "Your taste" row learned, or why it is missing; shown under the "Updated" line. */
+    val tasteNote: String? = null,
 )

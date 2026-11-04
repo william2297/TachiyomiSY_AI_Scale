@@ -112,6 +112,7 @@ class DiscoverViewModel(
             sections = sections,
             extraRows = extraRows,
             pickedGenres = picked,
+            tasteNote = cache.tasteNote,
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
             error = if (waiting) WAITING_FOR_WIFI else cache.errorMessage,

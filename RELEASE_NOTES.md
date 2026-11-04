@@ -15,3 +15,4 @@ What is new in this build
 - Image decoding and upscaling threads run a little below normal priority, so the screen draws first while pages ahead are prepared (less stutter with a high preload count).
 - Discover: new row "Your taste" built from the tags of what you read (for example Martial Arts, Cultivation), ranked by fit and spread out so it is not full of near copies, with a few picks from outside your usual. "Your genres" stays beside it so you can compare.
 - Discover: Chinese manhua are included (switch in Settings > Browse), a title shows in one row only, and "Not interested" also lowers the tags of that title for a few weeks. Rows say which tags fit.
+- Discover: a small line under "Updated" says what the "Your taste" row learned, or why it is missing. The shown titles of all rows are now searched in turns, so no row waits behind the others.

@@ -32,6 +32,8 @@ class DiscoverRefresher(
     private val onTitleTags: suspend (String, List<TitleTag>) -> Unit = { _, _ -> },
 ) {
 
+    private var tasteNote: String? = null
+
     suspend fun refresh(
         previous: DiscoverCache,
         sources: List<SearchSource>,
@@ -51,9 +53,10 @@ class DiscoverRefresher(
         // for the search budget
         val myTitles = myGenres.plan?.titles.orEmpty()
         val allPicks = picks.values.toList() + extraPlans.filter { it.key != MY_GENRES_KEY }.map { it.titles }
-        val ordered = (
-            myTitles + allPicks.flatMap { it.take(DISPLAY_SIZE) } + allPicks.flatMap { it.drop(DISPLAY_SIZE) }
-            ).distinctBy { it.id }
+        // The shown 12 of every row are taken in turns (first of each row, then second of each...), so no row waits
+        // behind the others for the search budget
+        val shown = (0 until DISPLAY_SIZE).flatMap { index -> allPicks.mapNotNull { it.getOrNull(index) } }
+        val ordered = (myTitles + shown + allPicks.flatMap { it.drop(DISPLAY_SIZE) }).distinctBy { it.id }
         val sourceIds = sources.map(SearchSource::id)
 
         fun sectionsFor(matches: Map<Long, MatchRecord>): Map<String, List<StoredEntry>> {
@@ -108,10 +111,14 @@ class DiscoverRefresher(
             )
         }
 
+        val finalExtras = extrasFor(matches)
+        val tasteMissing = extraPlans.any { it.key == TASTE_KEY } && finalExtras.none { it.key == TASTE_KEY }
+        val note = tasteNote?.let { if (tasteMissing) "$it None found in your sources yet." else it }
         return DiscoverCache(
             updatedAtMillis = now(),
+            tasteNote = note,
             sections = sectionsFor(matches),
-            extras = extrasFor(matches).ifEmpty { previous.extras },
+            extras = finalExtras.ifEmpty { previous.extras },
             myGenres = myGenres.pick,
             previousTrendingIds = lists[DiscoverSection.RISING].orEmpty().take(TRENDING_MEMORY).map { it.id },
             matches = matches.entries.sortedByDescending { it.value.checkedAtMillis }.take(MAX_MATCHES)
@@ -290,7 +297,15 @@ class DiscoverRefresher(
         }
 
         // "Your taste": what fits the tags of the titles the user read, with a little variety
-        tastePlan(profile, known, day)?.let { plans += it }
+        tasteNote = null
+        try {
+            tastePlan(profile, known, day)?.let { plans += it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A fault in the taste row must not take the rest of the refresh down with it
+            tasteNote = "Taste: could not be built (${e.javaClass.simpleName})."
+        }
 
         // "Fresh starts": series from the last year that already have readers
         val fresh = linkedMapOf<Long, AniListTitle>()
@@ -359,7 +374,11 @@ class DiscoverRefresher(
             known[TitleMatcher.normalize(it)]
         }.filter { it.isNotEmpty() }
         val weights = Taste.weights(recentTags, profile.negatives, now())
-        if (weights.isEmpty()) return null
+        val recentCount = profile.recentTitles.size
+        if (weights.isEmpty()) {
+            tasteNote = "Taste: no tags yet. ${recentTags.size} of $recentCount recent reads matched on AniList."
+            return null
+        }
         val topTags = weights.entries.sortedByDescending { it.value }.take(TASTE_QUERY_TAGS).map { it.key }
 
         val merged = linkedMapOf<Long, AniListTitle>()
@@ -379,7 +398,12 @@ class DiscoverRefresher(
             .map { it to TASTE_FIT_SHARE * Taste.fit(weights, it.tags) + (1f - TASTE_FIT_SHARE) * quality(it) }
             .sortedByDescending { it.second }
             .take(TASTE_POOL)
-        if (scored.isEmpty()) return null
+        if (scored.isEmpty()) {
+            tasteNote = "Taste: no candidates found for ${topTags.joinToString(", ")}."
+            return null
+        }
+        tasteNote =
+            "Taste: learned from ${recentTags.size} of $recentCount recent reads (${topTags.joinToString(", ")})."
 
         val varied = Taste.diversify(scored, TASTE_SHOWN - TASTE_EXPLORE, TASTE_LAMBDA, {
             it.second

@@ -95,7 +95,11 @@ fun DiscoverScreen(
             when {
                 hasData -> {
                     item(key = "status") {
-                        StatusLine(updatedAtMillis = state.updatedAtMillis, onRefresh = onRefresh)
+                        StatusLine(
+                            updatedAtMillis = state.updatedAtMillis,
+                            note = state.tasteNote,
+                            onRefresh = onRefresh,
+                        )
                     }
                     if (state.error != null) {
                         item(key = "offline") { OfflineBanner() }
@@ -319,19 +323,27 @@ private fun TextSectionHeader(title: String, hint: String) {
 }
 
 @Composable
-private fun StatusLine(updatedAtMillis: Long?, onRefresh: () -> Unit) {
+private fun StatusLine(updatedAtMillis: Long?, note: String?, onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = updatedAtMillis?.let { updatedLabel(it) }.orEmpty(),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.weight(1f),
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = updatedAtMillis?.let { updatedLabel(it) }.orEmpty(),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (note != null) {
+                Text(
+                    text = note,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         TextButton(onClick = onRefresh) {
             Icon(
                 imageVector = Phosphor.Bold.ArrowsClockwise,

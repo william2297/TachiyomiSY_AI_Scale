@@ -87,6 +87,8 @@ data class DiscoverCache(
     val myGenres: MyGenresPick = MyGenresPick(),
     /** Why the last refresh failed, or null. The picks above are then from an earlier refresh. */
     val errorMessage: String? = null,
+    /** A line on what the "Your taste" row learned or why it is missing, shown under the "Updated" line. */
+    val tasteNote: String? = null,
 )
 
 /** What the user reads, in the two forms the extra rows need. */
