@@ -50,15 +50,29 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
             // What is already in the library is not recommended; read titles outside the library are hidden in the tab
             val owned = graph.getFavorites.await().map { TitleMatcher.normalize(it.title) }.toSet()
             val hidden = DiscoverHiddenStore(hiddenFile(context), graph.json).load()
+            val tasteStore = DiscoverTasteStore(tasteFile(context), graph.json)
+            val countries = if (graph.sourcePreferences.discoverIncludeChinese.get()) {
+                listOf("KR", "JP", "CN")
+            } else {
+                listOf("KR", "JP")
+            }
             val refresher = DiscoverRefresher(
                 api = AniListDiscoverApi(graph.networkHelper.client, graph.json),
+                countries = countries,
                 searcher = SourceTitleSearcher(graph.sourceManager),
                 isExcluded = { title -> title.id in hidden || title.names.any { TitleMatcher.normalize(it) in owned } },
                 onProgress = { partial -> store.save(partial) },
                 onStatus = { text -> setProgress(workDataOf(KEY_STATUS to text)) },
+                onTitleTags = { key, tags -> tasteStore.putTitle(key, tags) },
             )
             val picked = DiscoverGenreStore(genresFile(context), graph.json).load()
-            store.save(refresher.refresh(previous, sources, tasteProfile(graph).copy(pickedGenres = picked.sorted())))
+            val taste = tasteStore.load()
+            val profile = tasteProfile(graph).copy(
+                pickedGenres = picked.sorted(),
+                knownTags = taste.titles,
+                negatives = taste.negatives,
+            )
+            store.save(refresher.refresh(previous, sources, profile))
             Result.success()
         } catch (e: IOException) {
             logcat(LogPriority.WARN, e) { "Discover refresh failed" }
@@ -90,16 +104,19 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 .take(SEED_POOL)
                 .map { it.manga.title }
             val seeds = DiscoverRefresher.rotate(recentlyRead, SEEDS_PER_DAY, day)
+            val recentTitles = recentlyRead
             val genres = library.flatMap { it.manga.genre.orEmpty() }
                 .map { it.trim() }
                 .filter { it in AniListDiscoverApi.KNOWN_GENRES }
                 .groupingBy { it }.eachCount()
                 .entries.sortedByDescending { it.value }
                 .map { it.key }
-            return TasteProfile(seeds = seeds, genres = genres)
+            return TasteProfile(seeds = seeds, genres = genres, recentTitles = recentTitles)
         }
 
         fun hiddenFile(context: Context) = File(context.filesDir, "discover_hidden.json")
+
+        fun tasteFile(context: Context) = File(context.filesDir, "discover_taste.json")
 
         fun genresFile(context: Context) = File(context.filesDir, "discover_genres.json")
 

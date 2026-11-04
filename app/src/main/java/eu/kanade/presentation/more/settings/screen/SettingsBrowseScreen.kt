@@ -43,6 +43,11 @@ object SettingsBrowseScreen : SearchableSettings {
                         preference = sourcePreferences.hideInLibraryItems,
                         title = stringResource(MR.strings.pref_hide_in_library_items),
                     ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = sourcePreferences.discoverIncludeChinese,
+                        title = stringResource(MR.strings.pref_discover_include_chinese),
+                        subtitle = stringResource(MR.strings.pref_discover_include_chinese_summary),
+                    ),
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(MR.strings.extensionStores),
                         subtitle = pluralStringResource(MR.plurals.num_repos, reposCount.toInt(), reposCount),

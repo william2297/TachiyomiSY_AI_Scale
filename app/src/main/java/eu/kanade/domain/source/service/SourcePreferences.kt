@@ -65,6 +65,9 @@ class SourcePreferences(
 
     val hideInLibraryItems: Preference<Boolean> = preferenceStore.getBoolean("browse_hide_in_library_items", false)
 
+    /** Discover also asks AniList for Chinese manhua, not only Korean and Japanese series. */
+    val discoverIncludeChinese: Preference<Boolean> = preferenceStore.getBoolean("discover_include_chinese", true)
+
     val extensionRepos: Preference<Set<String>> = preferenceStore.getStringSet("extension_repos", emptySet())
 
     val extensionUpdatesCount: Preference<Int> = preferenceStore.getInt("ext_updates_count", 0)

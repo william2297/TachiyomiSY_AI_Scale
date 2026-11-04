@@ -18,6 +18,8 @@ data class DiscoverEntry(
     val reason: String,
     /** True when it was not in any row at the previous refresh, so a daily visit shows what changed. */
     val isNew: Boolean = false,
+    /** Its best tags, so "Not interested" can lower them in the taste profile. */
+    val tags: List<String> = emptyList(),
 )
 
 /** A row that is not one of the fixed ones: "Because you read X", "Your genres", "Fresh starts". */

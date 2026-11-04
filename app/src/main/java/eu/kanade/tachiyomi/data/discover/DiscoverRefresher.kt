@@ -28,6 +28,8 @@ class DiscoverRefresher(
     private val maxDurationMillis: Long = DEFAULT_MAX_DURATION_MILLIS,
     /** A short line on what is happening, for the tab to show while it waits. */
     private val onStatus: suspend (String) -> Unit = {},
+    /** Called with the tags found for a title the user read, so they are kept for the next refresh. */
+    private val onTitleTags: suspend (String, List<TitleTag>) -> Unit = { _, _ -> },
 ) {
 
     suspend fun refresh(
@@ -87,7 +89,7 @@ class DiscoverRefresher(
                         anilistId = title.id, title = title.title, coverUrl = title.coverUrl, sourceId = match.sourceId,
                         sourceName = match.sourceName, mangaUrl = match.mangaUrl, score = title.score,
                         completed = title.finished, reason = plan.reason(title), names = title.names,
-                        isNew = isNew(title.id, knownIds),
+                        isNew = isNew(title.id, knownIds), tags = title.tags.take(STORED_TAGS).map { it.name },
                     )
                 }.take(plan.limit)
                 entries.takeIf { it.isNotEmpty() }?.let { StoredRow(plan.key, plan.title, plan.hint, it) }
@@ -224,6 +226,7 @@ class DiscoverRefresher(
 
     private suspend fun buildExtraPlans(profile: TasteProfile, day: Long): List<ExtraPlan> {
         val plans = mutableListOf<ExtraPlan>()
+        val known = profile.knownTags.toMutableMap()
 
         // "Because you read X": what AniList readers of X went on to read
         for (seed in profile.seeds) {
@@ -238,6 +241,8 @@ class DiscoverRefresher(
             pause(API_PAUSE_MILLIS)
             // AniList searches loosely; only a series that really carries the seed's name is accepted
             if (result == null || TitleMatcher.match(result.seedNames, seed) == TitleMatcher.Quality.NONE) continue
+            known[TitleMatcher.normalize(seed)] = result.seedTags
+            onTitleTags(TitleMatcher.normalize(seed), result.seedTags)
             val titles = result.recommendations.filterNot(isExcluded).filter { it.names.isNotEmpty() }
             if (titles.isEmpty()) continue
             plans += ExtraPlan(
@@ -284,6 +289,9 @@ class DiscoverRefresher(
             }
         }
 
+        // "Your taste": what fits the tags of the titles the user read, with a little variety
+        tastePlan(profile, known, day)?.let { plans += it }
+
         // "Fresh starts": series from the last year that already have readers
         val fresh = linkedMapOf<Long, AniListTitle>()
         val since = yyyymmddAYearBefore(now())
@@ -311,6 +319,101 @@ class DiscoverRefresher(
         }
         return plans
     }
+
+    /**
+     * The "Your taste" row. Tags of recently read titles are looked up on AniList (a few per refresh, remembered), turned
+     * into weights, and the series that carry the strongest tags are fetched and ranked by how well they fit.
+     * The ranking is then spread out so near copies do not fill the row, with a few picks from outside the usual.
+     */
+    private suspend fun tastePlan(
+        profile: TasteProfile,
+        known: MutableMap<String, List<TitleTag>>,
+        day: Long,
+    ): ExtraPlan? {
+        // Look up tags for titles not yet known, newest first, a few per refresh so the rate limit is respected
+        var lookups = 0
+        for (title in profile.recentTitles) {
+            val key = TitleMatcher.normalize(title)
+            if (key in known) continue
+            if (lookups >= TAG_LOOKUPS_PER_REFRESH) break
+            lookups++
+            val result = try {
+                api.recommendationsFor(title)
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                null
+            } catch (e: Exception) {
+                null
+            }
+            pause(API_PAUSE_MILLIS)
+            val tags = if (result != null && TitleMatcher.match(result.seedNames, title) != TitleMatcher.Quality.NONE) {
+                result.seedTags
+            } else {
+                emptyList()
+            }
+            known[key] = tags
+            onTitleTags(key, tags)
+        }
+
+        val recentTags = profile.recentTitles.mapNotNull {
+            known[TitleMatcher.normalize(it)]
+        }.filter { it.isNotEmpty() }
+        val weights = Taste.weights(recentTags, profile.negatives, now())
+        if (weights.isEmpty()) return null
+        val topTags = weights.entries.sortedByDescending { it.value }.take(TASTE_QUERY_TAGS).map { it.key }
+
+        val merged = linkedMapOf<Long, AniListTitle>()
+        for (tag in topTags) {
+            for (country in countries) {
+                try {
+                    api.byTag(tag, country).forEach { merged.putIfAbsent(it.id, it) }
+                } catch (e: CancellationException) {
+                    currentCoroutineContext().ensureActive()
+                } catch (e: Exception) {
+                    // This tag is left out today
+                }
+                pause(API_PAUSE_MILLIS)
+            }
+        }
+        val scored = merged.values.filterNot(isExcluded).filter { it.tags.isNotEmpty() }
+            .map { it to TASTE_FIT_SHARE * Taste.fit(weights, it.tags) + (1f - TASTE_FIT_SHARE) * quality(it) }
+            .sortedByDescending { it.second }
+            .take(TASTE_POOL)
+        if (scored.isEmpty()) return null
+
+        val varied = Taste.diversify(scored, TASTE_SHOWN - TASTE_EXPLORE, TASTE_LAMBDA, {
+            it.second
+        }, { it.first.tags })
+        val rest = scored - varied.toSet()
+        val median = scored.map { it.second }.sorted()[scored.size / 2]
+        val explorers = rotate(rest.filter { it.second >= median }, TASTE_EXPLORE, day * 31 + TASTE_SEED)
+        val explorerIds = explorers.map { it.first.id }.toSet()
+        val ordered = varied.map { it.first }.toMutableList()
+        // Spread the unusual picks through the first screens instead of hiding them at the end
+        explorers.forEachIndexed { index, pick ->
+            ordered.add((TASTE_EXPLORE_START + index * TASTE_EXPLORE_STEP).coerceAtMost(ordered.size), pick.first)
+        }
+        return ExtraPlan(
+            key = TASTE_KEY,
+            title = "Your taste",
+            hint = "Tags you read most: " + topTags.joinToString(", "),
+            titles = ordered,
+            reason = { title ->
+                val matched = title.tags.filter { (weights[it.name] ?: 0f) > 0f }
+                    .sortedByDescending { (weights[it.name] ?: 0f) * it.rank }
+                    .take(2).joinToString(", ") { it.name }
+                when {
+                    title.id in explorerIds -> "Outside your usual" + if (matched.isEmpty()) "" else ", still $matched"
+                    matched.isEmpty() -> "Popular with your tags"
+                    else -> "Fits $matched"
+                }
+            },
+            limit = TASTE_SHOWN,
+        )
+    }
+
+    /** A small nudge for well rated series, 0 to 1, so a good fit with a poor rating does not lead. */
+    private fun quality(title: AniListTitle): Float = ((title.score ?: DEFAULT_SCORE) / 100f).coerceIn(0f, 1f)
 
     private fun yyyymmddAYearBefore(nowMillis: Long): Int {
         val date = java.time.Instant.ofEpochMilli(
@@ -459,6 +562,7 @@ class DiscoverRefresher(
             completed = title.finished,
             reason = reason(section, title, rank),
             names = title.names,
+            tags = title.tags.take(STORED_TAGS).map { it.name },
         )
     }
 
@@ -473,6 +577,22 @@ class DiscoverRefresher(
         private const val MAX_SOURCE_FAILURES = 3
         private const val MAX_GENRES = 3
         private const val MAX_PICKED_GENRES = 10
+
+        const val TASTE_KEY = "taste"
+
+        /** Titles "Your taste" shows, three of them picks from outside the usual. */
+        const val TASTE_SHOWN = 30
+        private const val TASTE_EXPLORE = 3
+        private const val TASTE_EXPLORE_START = 4
+        private const val TASTE_EXPLORE_STEP = 6
+        private const val TASTE_POOL = 45
+        private const val TASTE_QUERY_TAGS = 3
+        private const val TASTE_LAMBDA = 0.7f
+        private const val TASTE_FIT_SHARE = 0.85f
+        private const val TASTE_SEED = 131L
+        private const val DEFAULT_SCORE = 60
+        private const val TAG_LOOKUPS_PER_REFRESH = 4
+        private const val STORED_TAGS = 4
 
         /** Titles "My genres" shows. Fewer than the other rows so its search finishes in minutes, not tens of minutes. */
         const val MY_GENRES_SHOWN = 30

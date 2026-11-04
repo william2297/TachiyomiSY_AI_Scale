@@ -25,6 +25,9 @@ fun interface DiscoverListApi {
     /** Trending series of one genre in one country. */
     suspend fun byGenre(genre: String, country: String): List<AniListTitle> = emptyList()
 
+    /** Trending series that carry [tag] strongly in one country. */
+    suspend fun byTag(tag: String, country: String): List<AniListTitle> = emptyList()
+
     /** Series that started after [sinceYyyymmdd] and already have readers. */
     suspend fun fresh(country: String, sinceYyyymmdd: Int): List<AniListTitle> = emptyList()
 }
@@ -45,6 +48,17 @@ class AniListDiscoverApi(
     override suspend fun byGenre(genre: String, country: String): List<AniListTitle> {
         require(genre in PICKABLE_GENRES) { "Unknown genre $genre" }
         return parse(json, post(buildJsonObject { put("query", genreQuery(genre, country)) }))
+    }
+
+    override suspend fun byTag(tag: String, country: String): List<AniListTitle> {
+        // The tag travels as a variable, so a name with quotes in it cannot break the query
+        val body = post(
+            buildJsonObject {
+                put("query", tagQuery(country))
+                put("variables", buildJsonObject { put("t", tag) })
+            },
+        )
+        return parse(json, body)
     }
 
     override suspend fun fresh(country: String, sinceYyyymmdd: Int): List<AniListTitle> {
@@ -73,7 +87,8 @@ class AniListDiscoverApi(
         private const val PER_PAGE = 50
 
         private const val FIELDS = "id title{romaji english native} synonyms coverImage{large} trending popularity " +
-            "averageScore status chapters genres format startDate{year} endDate{year}"
+            "averageScore status chapters genres format startDate{year} endDate{year} " +
+            "tags{name rank isMediaSpoiler category}"
 
         /** AniList's genre names; anything else is not sent, so a genre from a source's own list cannot break a query. */
         val KNOWN_GENRES = setOf(
@@ -96,6 +111,12 @@ class AniListDiscoverApi(
                 "format_not:NOVEL, sort:TRENDING_DESC, popularity_greater:8000){ $FIELDS } } }"
         }
 
+        fun tagQuery(country: String): String {
+            return "query(\$t:String){ Page(perPage:$PER_PAGE){ media(type:MANGA, countryOfOrigin:$country, " +
+                "tag_in:[\$t], minimumTagRank:60, format_not:NOVEL, sort:TRENDING_DESC, popularity_greater:3000){ " +
+                "$FIELDS } } }"
+        }
+
         fun freshQuery(country: String, sinceYyyymmdd: Int): String {
             return "{ Page(perPage:$PER_PAGE){ media(type:MANGA, countryOfOrigin:$country, status:RELEASING, " +
                 "format_not:NOVEL, sort:POPULARITY_DESC, startDate_greater:$sinceYyyymmdd, popularity_greater:3000){ " +
@@ -109,7 +130,11 @@ class AniListDiscoverApi(
                 .mapNotNull { it.mediaRecommendation }
                 .filter { it.format != "NOVEL" }
                 .map { it.toTitle() }
-            return SeedRecommendations(seedNames = seed.names, recommendations = recommended)
+            return SeedRecommendations(
+                seedNames = seed.names,
+                recommendations = recommended,
+                seedTags = seed.tags,
+            )
         }
 
         fun query(section: DiscoverSection, country: String): String {
@@ -153,8 +178,17 @@ class AniListDiscoverApi(
                 startYear = startDate?.year,
                 endYear = endDate?.year,
                 genres = genres,
+                tags = tags
+                    .filter { it.isMediaSpoiler != true && it.category?.startsWith("Technical") != true }
+                    .filter { (it.rank ?: 0) >= MIN_TAG_RANK }
+                    .sortedByDescending { it.rank ?: 0 }
+                    .take(MAX_TAGS)
+                    .map { TitleTag(it.name, it.rank ?: 0) },
             )
         }
+
+        private const val MIN_TAG_RANK = 40
+        private const val MAX_TAGS = 12
     }
 
     @Serializable
@@ -178,10 +212,19 @@ class AniListDiscoverApi(
         val status: String? = null,
         val chapters: Int? = null,
         val genres: List<String> = emptyList(),
+        val tags: List<TagDto> = emptyList(),
         val format: String? = null,
         val startDate: DateDto? = null,
         val endDate: DateDto? = null,
         val recommendations: RecommendationsDto? = null,
+    )
+
+    @Serializable
+    private data class TagDto(
+        val name: String,
+        val rank: Int? = null,
+        val isMediaSpoiler: Boolean? = null,
+        val category: String? = null,
     )
 
     @Serializable

@@ -19,6 +19,8 @@ data class AniListTitle(
     val startYear: Int?,
     val endYear: Int?,
     val genres: List<String> = emptyList(),
+    /** The tags that fit the series best, without spoiler and format tags; used to match it to the user's taste. */
+    val tags: List<TitleTag> = emptyList(),
 )
 
 /** A recommendation already matched to a title in one of the user's sources. */
@@ -36,6 +38,8 @@ data class StoredEntry(
     /** Every name AniList knows, so a title the user already read under another name can be hidden. */
     val names: List<String> = emptyList(),
     val isNew: Boolean = false,
+    /** Names of its best tags, so "Not interested" can lower those tags. */
+    val tags: List<String> = emptyList(),
 )
 
 /** What an earlier search for one series found, so it is not searched for again every day. */
@@ -93,12 +97,19 @@ data class TasteProfile(
     val genres: List<String> = emptyList(),
     /** Genres the user chose for the "My genres" row, any of them. Empty means the row is not built. */
     val pickedGenres: List<String> = emptyList(),
+    /** Titles the user read, newest first, whose tags build the taste profile. */
+    val recentTitles: List<String> = emptyList(),
+    /** Tags already known for titles (normalized title to tags), so AniList is asked once per title. */
+    val knownTags: Map<String, List<TitleTag>> = emptyMap(),
+    /** Tags of titles the user rejected, which lower those tags in the profile. */
+    val negatives: List<NegativeTag> = emptyList(),
 )
 
 /** What AniList knows about a seed title and the series readers recommend after it. */
 data class SeedRecommendations(
     val seedNames: List<String>,
     val recommendations: List<AniListTitle>,
+    val seedTags: List<TitleTag> = emptyList(),
 )
 
 data class SearchSource(val id: Long, val name: String)

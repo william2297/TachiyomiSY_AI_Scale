@@ -9,6 +9,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import eu.kanade.presentation.browse.discover.DiscoverDedupe
 import eu.kanade.presentation.browse.discover.DiscoverEntry
 import eu.kanade.presentation.browse.discover.DiscoverRow
 import eu.kanade.presentation.browse.discover.DiscoverSection
@@ -18,6 +19,7 @@ import eu.kanade.tachiyomi.data.discover.DiscoverGenreStore
 import eu.kanade.tachiyomi.data.discover.DiscoverHiddenStore
 import eu.kanade.tachiyomi.data.discover.DiscoverRefreshWorker
 import eu.kanade.tachiyomi.data.discover.DiscoverStore
+import eu.kanade.tachiyomi.data.discover.DiscoverTasteStore
 import eu.kanade.tachiyomi.data.discover.StoredEntry
 import eu.kanade.tachiyomi.data.discover.TitleMatcher
 import eu.kanade.tachiyomi.source.model.SManga
@@ -63,6 +65,9 @@ class DiscoverViewModel(
         DiscoverHiddenStore(DiscoverRefreshWorker.hiddenFile(context), context.appGraph.json)
     }
     private val hidden = MutableStateFlow<Set<Long>>(emptySet())
+    private val tasteStore by lazy {
+        DiscoverTasteStore(DiscoverRefreshWorker.tasteFile(context), context.appGraph.json)
+    }
     private val genreStore by lazy {
         DiscoverGenreStore(DiscoverRefreshWorker.genresFile(context), context.appGraph.json)
     }
@@ -98,10 +103,14 @@ class DiscoverViewModel(
 
         @Suppress("UNCHECKED_CAST")
         val picked = values[7] as Set<String>
+        val (sections, extraRows) = DiscoverDedupe.apply(
+            toSections(cache, inLibrary + read, notInterested),
+            toExtraRows(cache, inLibrary + read, notInterested),
+        )
         DiscoverState(
             status = status,
-            sections = toSections(cache, inLibrary + read, notInterested),
-            extraRows = toExtraRows(cache, inLibrary + read, notInterested),
+            sections = sections,
+            extraRows = extraRows,
             pickedGenres = picked,
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
@@ -161,7 +170,11 @@ class DiscoverViewModel(
 
     /** "Not interested": the title leaves every row now and is skipped by later refreshes. */
     fun hide(entry: DiscoverEntry) {
-        viewModelScope.launch { hidden.value = withContext(Dispatchers.IO) { hiddenStore.add(entry.id) } }
+        viewModelScope.launch {
+            hidden.value = withContext(Dispatchers.IO) { hiddenStore.add(entry.id) }
+            // The tags of what the user rejected count against those tags in the taste profile, fading over weeks
+            withContext(Dispatchers.IO) { tasteStore.addNegative(entry.tags, System.currentTimeMillis()) }
+        }
     }
 
     /**
@@ -230,6 +243,7 @@ class DiscoverViewModel(
         completed = completed,
         reason = reason,
         isNew = isNew,
+        tags = tags,
     )
 
     private companion object {

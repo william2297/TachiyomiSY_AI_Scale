@@ -314,7 +314,11 @@ class DiscoverRefresherTest {
         val recs: Map<String, SeedRecommendations?> = emptyMap(),
         val genres: Map<String, List<AniListTitle>> = emptyMap(),
         val fresh: List<AniListTitle> = emptyList(),
+        val tagged: Map<String, List<AniListTitle>> = emptyMap(),
     ) : DiscoverListApi {
+        override suspend fun byTag(tag: String, country: String) =
+            if (country == "KR") tagged[tag].orEmpty() else emptyList()
+
         override suspend fun fetch(section: DiscoverSection, country: String): List<AniListTitle> =
             if (section == DiscoverSection.RISING && country == "KR") listOf(title(900, "Filler", 5)) else emptyList()
 
@@ -537,6 +541,97 @@ class DiscoverRefresherTest {
         val fromLibrary = refresher(api, searcher)
             .refresh(DiscoverCache(), sources, TasteProfile(genres = listOf("Hentai")))
         assertTrue(fromLibrary.extras.none { it.key == "genres" })
+    }
+
+    private fun tagTitle(id: Long, name: String, vararg tags: Pair<String, Int>, score: Int = 80) =
+        title(id, name, score = score).copy(tags = tags.map { TitleTag(it.first, it.second) })
+
+    @Test
+    fun `your taste ranks series by how well their tags fit what was read`() = runTest {
+        val api = ExtraApi(
+            tagged = mapOf(
+                "Martial Arts" to listOf(
+                    tagTitle(1, "Fits Well", "Martial Arts" to 90, "Cultivation" to 85),
+                    tagTitle(2, "Fits Badly", "Romance" to 90, "Martial Arts" to 60),
+                ),
+            ),
+        )
+        val profile = TasteProfile(
+            recentTitles = listOf("Read One"),
+            knownTags = mapOf(
+                TitleMatcher.normalize("Read One") to listOf(TitleTag("Martial Arts", 90), TitleTag("Cultivation", 80)),
+            ),
+        )
+        val cache = refresher(
+            api,
+            everythingFound("Fits Well", "Fits Badly"),
+        ).refresh(DiscoverCache(), sources, profile)
+        val row = cache.extras.single { it.key == DiscoverRefresher.TASTE_KEY }
+        assertEquals("Your taste", row.title)
+        assertEquals("Fits Well", row.entries.first().title)
+        assertEquals("Fits Martial Arts, Cultivation", row.entries.first().reason)
+        assertTrue(row.entries.first().tags.contains("Martial Arts"))
+    }
+
+    @Test
+    fun `tags of a read title are looked up once and handed back to be remembered`() = runTest {
+        val api = ExtraApi(
+            recs = mapOf(
+                "Read Two" to SeedRecommendations(listOf("Read Two"), emptyList(), listOf(TitleTag("Wuxia", 90))),
+            ),
+            tagged = mapOf("Wuxia" to listOf(tagTitle(5, "Wuxia Hit", "Wuxia" to 95))),
+        )
+        val remembered = mutableMapOf<String, List<TitleTag>>()
+        val refresher = DiscoverRefresher(
+            api = api,
+            searcher = everythingFound("Wuxia Hit"),
+            now = { 1_700_000_000_000L },
+            pause = {},
+            countries = listOf("KR"),
+            onTitleTags = { key, tags -> remembered[key] = tags },
+        )
+        val cache = refresher.refresh(DiscoverCache(), sources, TasteProfile(recentTitles = listOf("Read Two")))
+        assertEquals(listOf(TitleTag("Wuxia", 90)), remembered[TitleMatcher.normalize("Read Two")])
+        assertEquals(
+            listOf("Wuxia Hit"),
+            cache.extras.single {
+                it.key == DiscoverRefresher.TASTE_KEY
+            }.entries.map { it.title },
+        )
+    }
+
+    @Test
+    fun `no taste row without tags to learn from`() = runTest {
+        val cache = refresher(ExtraApi(), everythingFound())
+            .refresh(DiscoverCache(), sources, TasteProfile(recentTitles = listOf("Unknown Title")))
+        assertTrue(cache.extras.none { it.key == DiscoverRefresher.TASTE_KEY })
+    }
+
+    @Test
+    fun `chinese series are asked for when China is one of the countries`() = runTest {
+        val asked = mutableListOf<String>()
+        val api = object : DiscoverListApi {
+            override suspend fun fetch(section: DiscoverSection, country: String): List<AniListTitle> {
+                asked += country
+                return if (section == DiscoverSection.RISING &&
+                    country == "CN"
+                ) {
+                    listOf(title(9, "Manhua Hit", 50))
+                } else {
+                    emptyList()
+                }
+            }
+        }
+        val refresher = DiscoverRefresher(
+            api = api,
+            searcher = everythingFound("Manhua Hit"),
+            now = { 1_700_000_000_000L },
+            pause = {},
+            countries = listOf("KR", "JP", "CN"),
+        )
+        val cache = refresher.refresh(DiscoverCache(), sources)
+        assertTrue("CN" in asked)
+        assertEquals(listOf("Manhua Hit"), cache.sections.getValue("RISING").map { it.title })
     }
 
     @Test

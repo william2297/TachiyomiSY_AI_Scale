@@ -13,3 +13,5 @@ What is new in this build
 - Auto scroll: a tiny invisible surface now asks the screen for its refresh rate directly (experiment, ColorOS may revise window-level requests).
 - Reader settings > General: a checkbox turns the tiny auto scroll refresh-rate dot on or off.
 - Image decoding and upscaling threads run a little below normal priority, so the screen draws first while pages ahead are prepared (less stutter with a high preload count).
+- Discover: new row "Your taste" built from the tags of what you read (for example Martial Arts, Cultivation), ranked by fit and spread out so it is not full of near copies, with a few picks from outside your usual. "Your genres" stays beside it so you can compare.
+- Discover: Chinese manhua are included (switch in Settings > Browse), a title shows in one row only, and "Not interested" also lowers the tags of that title for a few weeks. Rows say which tags fit.

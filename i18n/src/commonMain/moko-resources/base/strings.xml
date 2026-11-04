@@ -594,6 +594,8 @@
     <string name="refresh_tracker_error">%1$s refresh error: %2$s</string>
 
       <!-- Browse section -->
+    <string name="pref_discover_include_chinese">Discover: include Chinese manhua</string>
+    <string name="pref_discover_include_chinese_summary">Also asks AniList for series from China. Applies from the next refresh.</string>
     <string name="pref_hide_in_library_items">Hide entries already in library</string>
 
       <!-- Data and storage section -->
