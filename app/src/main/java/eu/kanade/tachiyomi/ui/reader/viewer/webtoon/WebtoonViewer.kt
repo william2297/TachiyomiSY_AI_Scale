@@ -530,9 +530,11 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             autoScrollHasRuntimeSpeedOverride = false
             interruptAutoScrollDelay = false
             recycler.stopScroll()
+            requestAutoScrollFrameRate(false)
             updateAutoScrollGestureMode()
             return
         }
+        requestAutoScrollFrameRate(true)
 
         if (!autoScrollEnabled || forceInterval) {
             autoScrollIntervalMillis = intervalMillis
@@ -544,6 +546,21 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 
         autoScrollEnabled = true
         updateAutoScrollGestureMode()
+    }
+
+    /**
+     * A slow, program-driven scroll gets Android's "normal" frame rate category, which is 60 Hz on the
+     * Oppo Pad Mini even though the panel runs at 120 Hz (a finger fling gets 120). Measured: auto scroll
+     * frames every 16.7 ms, fling every 8.3 ms. Ask for 120 Hz on the scrolling RecyclerView itself while
+     * auto scroll is on; a request on an outer wrapper was tried before and had no effect.
+     */
+    private fun requestAutoScrollFrameRate(enabled: Boolean) {
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM) return
+        recycler.requestedFrameRate = if (enabled) {
+            AUTO_SCROLL_FRAME_RATE
+        } else {
+            View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT
+        }
     }
 
     /** The menu is open: auto scroll holds still and carries on when the menu closes. */
@@ -791,6 +808,7 @@ private const val TAP_SCROLL_FINISH_SPEED = 60f
 
 // SY -->
 private const val AUTO_SCROLL_POLL_DELAY_MILLIS = 100L
+private const val AUTO_SCROLL_FRAME_RATE = 120f
 private const val AUTO_SCROLL_RESUME_DELAY_MILLIS = 700L
 private const val DEFAULT_AUTO_SCROLL_INTERVAL_MILLIS = 3_000L
 private const val MIN_AUTO_SCROLL_INTERVAL_MILLIS = 250L

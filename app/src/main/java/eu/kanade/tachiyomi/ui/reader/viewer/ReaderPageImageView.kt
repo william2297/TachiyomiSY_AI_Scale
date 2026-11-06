@@ -708,34 +708,66 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 )
             }
         } else {
-            val previewBitmap = try {
-                android.graphics.BitmapFactory.decodeStream(transformedSource.peek().inputStream())
-            } catch (_: Exception) {
-                null
-            }
-
-            if (previewBitmap != null) {
-                enhancedOverlay.scaleType = ImageView.ScaleType.FIT_CENTER
-                enhancedOverlay.bringToFront()
-                enhancedOverlay.setImageBitmap(previewBitmap)
-                enhancedOverlay.alpha = 1f
-                enhancedOverlay.isVisible = true
-                bringEnhancementStatusToFront()
-                enhancedBitmap = previewBitmap
-                isSettingProcessedImage = true
-                pageView?.alpha = 0f
-            } else {
-                pageView?.alpha = 1f
-                enhancedOverlay.animate().cancel()
-                enhancedOverlay.setImageBitmap(null)
-                enhancedOverlay.isVisible = false
-                enhancedBitmap?.recycle()
-                enhancedBitmap = null
-                isSettingProcessedImage = false
+            // Decoding a full upscaled page (about 3240 px wide at 2x) and uploading it to the GPU used to happen
+            // here on the UI thread, which froze auto scroll for 30-70 ms every time a page finished enhancing.
+            // Decode, shrink to the view width (the screen cannot show more) and pre-upload in the background,
+            // then only hand the ready bitmap to the overlay on the UI thread.
+            val revision = imageRevision
+            val targetWidth = width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+            viewScope.launchIO {
+                val previewBitmap = decodePreviewBitmap(transformedSource, targetWidth)
+                withUIContext {
+                    if (revision != imageRevision || currentCachedFile != file) {
+                        previewBitmap?.recycle()
+                    } else {
+                        applyPreviewBitmap(previewBitmap)
+                    }
+                }
             }
         }
         currentLoadedUri = uriString
         isVisible = true
+    }
+
+    private fun decodePreviewBitmap(source: BufferedSource, targetWidth: Int): Bitmap? {
+        return try {
+            val decoded = source.use { android.graphics.BitmapFactory.decodeStream(it.inputStream()) }
+                ?: return null
+            val bitmap = if (targetWidth in 1 until decoded.width) {
+                val targetHeight = (decoded.height.toLong() * targetWidth / decoded.width).toInt().coerceAtLeast(1)
+                Bitmap.createScaledBitmap(decoded, targetWidth, targetHeight, true).also {
+                    if (it !== decoded) decoded.recycle()
+                }
+            } else {
+                decoded
+            }
+            bitmap.prepareToDraw()
+            bitmap
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun applyPreviewBitmap(previewBitmap: Bitmap?) {
+        if (previewBitmap != null) {
+            enhancedOverlay.scaleType = ImageView.ScaleType.FIT_CENTER
+            enhancedOverlay.bringToFront()
+            enhancedOverlay.setImageBitmap(previewBitmap)
+            enhancedOverlay.alpha = 1f
+            enhancedOverlay.isVisible = true
+            bringEnhancementStatusToFront()
+            enhancedBitmap = previewBitmap
+            isSettingProcessedImage = true
+            pageView?.alpha = 0f
+        } else {
+            pageView?.alpha = 1f
+            enhancedOverlay.animate().cancel()
+            enhancedOverlay.setImageBitmap(null)
+            enhancedOverlay.isVisible = false
+            enhancedBitmap?.recycle()
+            enhancedBitmap = null
+            isSettingProcessedImage = false
+        }
     }
 
     private fun enhancementVariant(): String {
