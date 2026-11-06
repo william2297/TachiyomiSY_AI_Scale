@@ -51,12 +51,6 @@ class ReaderPreferences(
      */
     val autoScrollRefreshVote: Preference<Boolean> = preferenceStore.getBoolean("pref_auto_scroll_refresh_vote", false)
 
-    /**
-     * Pages are decoded (and upscaled) by threads a little below normal priority, so the screen draws first. This
-     * keeps scrolling smooth with a high preload, and a page can appear a moment later. Off: normal priority.
-     */
-    val decoderLowPriority: Preference<Boolean> = preferenceStore.getBoolean("pref_decoder_low_priority", true)
-
     // TachiyomiSY gestures while auto scroll runs: tap pauses, vertical drag changes the speed, sideways swipe stops,
     // two fingers scroll by hand. Off by default; holding a finger on the screen always holds auto scroll still.
     val autoscrollGesturesEnabled: Preference<Boolean> =
