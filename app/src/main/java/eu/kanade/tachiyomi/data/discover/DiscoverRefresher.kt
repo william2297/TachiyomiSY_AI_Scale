@@ -517,9 +517,23 @@ class DiscoverRefresher(
             DiscoverSection.OLDER_ONGOING,
         )) {
             picks[section] =
-                rotate(lists[section].orEmpty().take(POOL_SIZE), MAX_PER_SECTION, day * 31 + section.ordinal)
+                rotate(preferCountryPool(lists[section].orEmpty()), MAX_PER_SECTION, day * 31 + section.ordinal)
         }
         return picks
+    }
+
+    /**
+     * The daily pool for a score row, about two thirds from the preferred country. A score bonus alone was not
+     * enough: Japanese classics score so high that Completed still came out mostly Japanese for a manhwa reader.
+     * Titles keep their score order within each part; if one country has too few, the other fills the pool.
+     */
+    private fun preferCountryPool(titles: List<AniListTitle>): List<AniListTitle> {
+        val preferred = countries.firstOrNull() ?: return titles.take(POOL_SIZE)
+        val (own, other) = titles.partition { it.country == preferred }
+        val ownCount = minOf(own.size, POOL_SIZE * 2 / 3)
+        val otherCount = minOf(other.size, POOL_SIZE - ownCount)
+        val pool = own.take(ownCount) + other.take(otherCount)
+        return if (pool.size < POOL_SIZE) pool + own.drop(ownCount).take(POOL_SIZE - pool.size) else pool
     }
 
     private suspend fun match(
@@ -620,8 +634,9 @@ class DiscoverRefresher(
         index: Int,
     ): Int {
         return when (section) {
+            // The label says "Trending #N", so N is the plain AniList trending order, not the Rising order
             DiscoverSection.RISING, DiscoverSection.NEW_IN_TOP ->
-                lists[DiscoverSection.RISING].orEmpty().indexOfFirst { it.id == title.id } + 1
+                byRawTrending(lists[DiscoverSection.RISING].orEmpty()).indexOfFirst { it.id == title.id } + 1
             else -> index + 1
         }
     }
