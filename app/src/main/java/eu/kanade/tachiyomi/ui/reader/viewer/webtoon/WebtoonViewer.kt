@@ -212,6 +212,7 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
 
         frame.layoutParams = ViewGroup.LayoutParams(MATCH_PARENT, MATCH_PARENT)
         frame.addView(recycler)
+        if (readerPreferences.pageTraceOverlay.get()) startPageTrace()
     }
 
     private fun checkAllowPreload(page: ReaderPage?): Boolean {
@@ -246,6 +247,8 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
      */
     override fun destroy() {
         super.destroy()
+        traceListener?.let { recycler.viewTreeObserver.removeOnPreDrawListener(it) }
+        traceListener = null
         cancelTapScroll()
         autoScrollToast?.cancel()
         eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer.cancelAll("webtoon viewer destroyed")
@@ -484,6 +487,60 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
     }
 
     private var frameRateVote: FrameRateVoteView? = null
+
+    private var traceListener: android.view.ViewTreeObserver.OnPreDrawListener? = null
+
+    /**
+     * Blank page tracker: on every drawn frame, checks which part of the pages on screen has no picture yet, feeds
+     * [PageTrace] and shows the result as a small text at the top left. Only runs when switched on in the reader
+     * settings.
+     */
+    private fun startPageTrace() {
+        val overlay = android.widget.TextView(activity).apply {
+            setTextColor(android.graphics.Color.WHITE)
+            setBackgroundColor(0xAA000000.toInt())
+            textSize = 11f
+            setPadding(8, 4, 8, 4)
+            isClickable = false
+            isFocusable = false
+        }
+        frame.addView(
+            overlay,
+            android.widget.FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.TOP or android.view.Gravity.START,
+            ),
+        )
+        val startNanos = System.nanoTime()
+        var lastTextNanos = 0L
+        val listener = android.view.ViewTreeObserver.OnPreDrawListener {
+            val now = System.nanoTime()
+            // The first seconds after opening a chapter are always loading; they would drown the real cases
+            if (now - startNanos > 3_000_000_000L) {
+                var found: Pair<PageTrace.Reason, String>? = null
+                for (i in 0 until recycler.childCount) {
+                    val child = recycler.getChildAt(i)
+                    val holder = recycler.getChildViewHolder(child) as? WebtoonPageHolder ?: continue
+                    val blank = holder.blankReason(child.top, child.bottom, recycler.height)
+                    if (blank != null && (found == null || blank.first > found.first)) found = blank
+                }
+                PageTrace.sample(found?.first, found?.second.orEmpty(), now)
+                if (now - lastTextNanos > 250_000_000L) {
+                    lastTextNanos = now
+                    val stats = PageTrace.snapshot.value
+                    overlay.text = (if (found != null) "BLANK ${found.first.label} ${found.second}" else "ok") +
+                        "\n${stats.blankFrames}/${stats.frames} fr  ${stats.episodes}x  max ${stats.longestMillis} ms"
+                    overlay.setTextColor(
+                        if (found != null) android.graphics.Color.RED else android.graphics.Color.WHITE,
+                    )
+                }
+            }
+            true
+        }
+        traceListener = listener
+        recycler.viewTreeObserver.addOnPreDrawListener(listener)
+    }
 
     fun syncAutoScrollSettings(enabled: Boolean, interval: Duration, forceInterval: Boolean = false) {
         val intervalMillis =

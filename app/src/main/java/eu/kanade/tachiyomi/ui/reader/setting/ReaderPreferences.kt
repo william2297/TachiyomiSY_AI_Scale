@@ -65,6 +65,8 @@ class ReaderPreferences(
     val tapScrollMillis: Preference<Int> = preferenceStore.getInt("pref_tap_scroll_millis", 700)
 
     /** Tints the layers of each webtoon page, so a screenshot shows which layer a black bar belongs to. */
+    val pageTraceOverlay: Preference<Boolean> = preferenceStore.getBoolean("pref_page_trace_overlay", false)
+
     val debugPageLayers: Preference<Boolean> = preferenceStore.getBoolean("pref_debug_page_layers", false)
 
     val bookPageTransitions = preferenceStore.getBoolean("pref_book_page_transitions", true)

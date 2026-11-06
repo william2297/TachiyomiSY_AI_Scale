@@ -141,8 +141,6 @@ class WebtoonStripImageView(
     override fun onTouchEvent(event: MotionEvent): Boolean = false
 }
 
-// A page this big is freed when it leaves the screen. 64 MB freed pages that had only just been on screen, so they
-// came back blank for a second or two; this tablet has the memory to keep much more.
-private const val LARGE_PAGE_BYTES = 256L * 1024 * 1024
+private const val LARGE_PAGE_BYTES = 64L * 1024 * 1024
 private const val MAX_RELOAD_ATTEMPTS = 3
 private const val RELOAD_DELAY_MILLIS = 1_500L

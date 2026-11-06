@@ -221,6 +221,10 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         pref = viewModel.preferences.autoScrollRefreshVote,
     )
     CheckboxItem(
+        label = stringResource(MR.strings.reader_page_trace_overlay),
+        pref = viewModel.preferences.pageTraceOverlay,
+    )
+    CheckboxItem(
         label = stringResource(MR.strings.reader_debug_page_layers),
         pref = viewModel.preferences.debugPageLayers,
     )

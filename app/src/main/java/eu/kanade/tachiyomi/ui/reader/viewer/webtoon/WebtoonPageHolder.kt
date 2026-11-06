@@ -95,6 +95,9 @@ class WebtoonPageHolder(
 
     private val scope = MainScope()
 
+    /** True once the segments of the current page are created; false while the page is loading or being cut up. */
+    private var segmentsBound = false
+
     /**
      * Job for loading the page.
      */
@@ -117,6 +120,7 @@ class WebtoonPageHolder(
         frame.controlsCurrentPageSelection = false
         pendingSelectionSequence = null
         lastSelectionSequence = -1
+        segmentsBound = false
         loadJob?.cancel()
         loadJob = scope.launch { loadPageAndProcessStatus() }
         refreshLayoutParams()
@@ -186,6 +190,7 @@ class WebtoonPageHolder(
 
         removeErrorLayout()
         loadedSegments.clear()
+        segmentsBound = false
         pendingSelectionSequence = null
         lastSelectionSequence = -1
         segmentFrames.forEach { it.recycle() }
@@ -355,7 +360,34 @@ class WebtoonPageHolder(
             )
         }
 
+        segmentsBound = true
         pendingSelectionSequence?.let { notifyPageSelected(it) }
+    }
+
+    /**
+     * Why part of this page, which spans [top] to [bottom] in the list, would show no picture right now, or null when
+     * everything on screen is drawn. Used by [PageTrace].
+     */
+    fun blankReason(top: Int, bottom: Int, viewportHeight: Int): Pair<PageTrace.Reason, String>? {
+        val page = page ?: return null
+        val visibleBottom = minOf(bottom, viewportHeight)
+        if (visibleBottom <= maxOf(top, 0)) return null
+        val what = "p${page.number}"
+        if (!segmentsBound) {
+            return when (page.status) {
+                Page.State.Ready -> PageTrace.Reason.NOT_BOUND to what
+                is Page.State.Error -> null
+                else -> PageTrace.Reason.NOT_READY to what
+            }
+        }
+        if (loadedSegments.size >= segmentFrames.size) return null
+        var contentBottom = 0
+        for (i in segmentFrames.indices) {
+            if (i !in loadedSegments) break
+            contentBottom = pageContainer.top + segmentFrames[i].bottom
+        }
+        if (top + contentBottom + 2 >= visibleBottom) return null
+        return PageTrace.Reason.DECODING to "$what seg ${loadedSegments.size}/${segmentFrames.size}"
     }
 
     private fun ensureSegmentFrames(targetCount: Int) {
