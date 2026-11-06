@@ -852,12 +852,14 @@ open class ReaderPageImageView @JvmOverloads constructor(
         if (pIdx + 1 > last) return
         val appContext = context.applicationContext
         viewScope.launchIO {
+            val states = StringBuilder()
             for (index in pIdx + 1..last) {
                 val page = pages[index]
-                if (page.status == eu.kanade.tachiyomi.source.model.Page.State.Ready) {
-                    ImageEnhancer.enhance(appContext, page, false)
-                }
+                val ready = page.status == eu.kanade.tachiyomi.source.model.Page.State.Ready
+                states.append(index).append(if (ready) "R " else "- ")
+                if (ready) ImageEnhancer.enhance(appContext, page, false)
             }
+            android.util.Log.i("EnhanceTrace", "ahead from $pIdx: $states(R = downloaded, queued low)")
         }
     }
 
@@ -969,6 +971,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 val cachedFile = ImageEnhancementCache.getCachedImage(mId, cId, pIdx, configHash, pageVariant)
                 if (cachedFile != null) {
                     // Already processed - update status and load enhanced image
+                    android.util.Log.i("EnhanceTrace", "selected $pIdx/$pageVariant: already enhanced")
                     logcat(LogPriority.DEBUG) { "ReaderPageImageView: onPageSelected - Page $pIdx found in cache" }
                     val uriString = cachedFile.toURI().toString()
                     if (currentLoadedUri != uriString) {
@@ -1013,9 +1016,15 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         updateStatus(context.stringResource(MR.strings.reader_status_processed))
                     }
                 } else if (ImageEnhancementCache.isSkipped(mId, cId, pIdx, configHash, pageVariant)) {
+                    android.util.Log.i("EnhanceTrace", "selected $pIdx/$pageVariant: skipped marker, shown raw")
                     updateStatus(context.stringResource(MR.strings.reader_status_raw))
                 } else {
                     // Not in cache, not skipped - ensure it's being processed with high priority
+                    android.util.Log.i(
+                        "EnhanceTrace",
+                        "selected $pIdx/$pageVariant: not ready, queued high " +
+                            "(pending=${ImageEnhancer.hasRequest(mId, cId, pIdx, pageVariant)})",
+                    )
                     if (processingJob?.isActive != true) {
                         updateStatus(context.stringResource(MR.strings.reader_status_processing))
                     }
