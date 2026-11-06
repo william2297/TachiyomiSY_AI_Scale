@@ -434,21 +434,18 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             }
         }
 
-        SettingsChipRow(stringResource(MR.strings.reader_background_enhancement)) {
-            val backgroundAhead by viewModel.preferences.realCuganBackgroundAhead().collectAsState()
-            listOf(
-                0 to stringResource(MR.strings.reader_background_enhancement_off),
-                10 to "10",
-                30 to "30",
-                100 to stringResource(MR.strings.reader_background_enhancement_chapter),
-            ).map { (pages, name) ->
-                FilterChip(
-                    selected = backgroundAhead == pages,
-                    onClick = { viewModel.preferences.realCuganBackgroundAhead().set(pages) },
-                    label = { Text(name) },
-                )
-            }
-        }
+        val backgroundAhead by viewModel.preferences.realCuganBackgroundAhead().collectAsState()
+        Text(
+            text = stringResource(MR.strings.reader_background_enhancement),
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        ResolutionNumberField(
+            modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
+            value = backgroundAhead,
+            onValueChange = { viewModel.preferences.realCuganBackgroundAhead().set(it.coerceIn(0, 200)) },
+            label = stringResource(MR.strings.reader_background_enhancement_hint),
+        )
 
         if (!useNpu) {
             SettingsChipRow(stringResource(MR.strings.reader_gpu_performance_mode)) {

@@ -1179,8 +1179,7 @@
     <string name="reader_spatial_scene_compile_title">Preparing spatial image</string>
     <string name="reader_spatial_scene_compiling">Compiling the depth model for %1$s. This only happens on the first run and may take a few minutes.</string>
     <string name="reader_background_enhancement">Enhance ahead in the background (pages)</string>
-    <string name="reader_background_enhancement_off">Off</string>
-    <string name="reader_background_enhancement_chapter">Whole chapter</string>
+    <string name="reader_background_enhancement_hint">Pages (empty = same as Preload; more keeps the NPU busy longer)</string>
     <string name="reader_enhancement_stats">This session: %1$d pages enhanced, %2$s s on average, %3$d without a result, %4$d retries</string>
     <string name="reader_autoscroll_frame_stats">Last auto scroll: %1$d frames, %2$s fps while moving. Gaps between frames: %3$d at 1 refresh, %4$d at 2 (half rate), %5$d at 3 or more. %6$d slow frames, average ms in them: input+animation %7$s, layout %8$s, draw %9$s, sync %10$s, commands %11$s, swap %12$s, GPU %13$s, other delay %14$s. Shortest gap %15$s ms. %16$s</string>
     <string name="reader_enhancement_stats_reset">Reset counters</string>
