@@ -231,16 +231,23 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         )
     }
 
-    /** Three decoder threads, a little below normal priority so the screen's own threads win when both are busy. */
+    /**
+     * Three decoder threads. By default each job runs a little below normal priority so the screen's own threads win
+     * when both are busy; the reader setting "Prepare pages at lower priority" turns that off. The setting is read for
+     * every job, so changing it needs no restart.
+     */
     private val decoderDispatcher by lazy {
-        java.util.concurrent.Executors.newFixedThreadPool(DECODER_THREADS) { runnable ->
-            Thread(
-                {
-                    android.os.Process.setThreadPriority(DECODER_THREAD_PRIORITY)
-                    runnable.run()
-                },
-                "coil-decoder",
-            ).apply { isDaemon = true }
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(DECODER_THREADS) { runnable ->
+            Thread(runnable, "coil-decoder").apply { isDaemon = true }
+        }
+        java.util.concurrent.Executor { job ->
+            pool.execute {
+                val lowered = runCatching { graph.readerPreferences.decoderLowPriority.get() }.getOrDefault(true)
+                android.os.Process.setThreadPriority(
+                    if (lowered) DECODER_THREAD_PRIORITY else android.os.Process.THREAD_PRIORITY_DEFAULT,
+                )
+                job.run()
+            }
         }.asCoroutineDispatcher()
     }
 
