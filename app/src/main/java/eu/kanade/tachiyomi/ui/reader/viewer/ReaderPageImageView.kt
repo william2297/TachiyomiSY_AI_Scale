@@ -1071,6 +1071,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 is WebtoonStripImageView -> it.recycle()
             }
             it.isVisible = false
+            // The upscaled preview hides the page by making it fully transparent. Dropping the preview without
+            // making the page opaque again leaves the next page shown in this view invisible (black).
+            it.alpha = 1f
             enhancedOverlay.setImageBitmap(null)
             enhancedOverlay.isVisible = false
             enhancedBitmap?.recycle()
@@ -1593,6 +1596,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
         enhancedOverlay.setImageBitmap(null)
         enhancedBitmap?.recycle()
         enhancedBitmap = null
+        // Same as in recycle(): the preview that hid the page is gone, so the page itself must show again
+        pageView?.alpha = 1f
         isSettingProcessedImage = false
         currentLoadedUri = null
         clearProcessedSwapView()
