@@ -44,6 +44,9 @@ class NetworkHelper(
         if (preferences.verboseLogging.get()) {
             val httpLoggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.HEADERS
+                // Login tokens must not end up in a log that gets shared
+                redactHeader("Authorization")
+                redactHeader("Auth")
             }
             builder.addNetworkInterceptor(httpLoggingInterceptor)
         }

@@ -11,7 +11,9 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import kotlinx.coroutines.suspendCancellableCoroutine
 import logcat.LogPriority
+import okhttp3.Headers
 import tachiyomi.core.common.util.system.logcat
+import java.util.Locale
 import kotlin.coroutines.resume
 
 object WebViewUtil {
@@ -143,6 +145,33 @@ fun WebView.setUserAgent(userAgent: String) {
         logcat(LogPriority.ERROR, e) { "Failed to set user agent metadata" }
     }
 }
+
+/**
+ * Headers in a form the WebView accepts. Headers the browser engine refuses are left out, because keeping one makes
+ * the WebView fail with an invalid argument error. A source's own Origin header is left out too: the renderer is killed
+ * when it does not match who started the request.
+ */
+fun Headers.toWebViewHeaders(): Map<String, String> {
+    return this
+        .filter { (name, value) -> isRequestHeaderSafe(name, value) }
+        .groupBy(keySelector = { (name, _) -> name }) { (_, value) -> value }
+        .mapValues { it.value.getOrNull(0).orEmpty() }
+}
+
+// Based on [IsRequestHeaderSafe] in
+// https://source.chromium.org/chromium/chromium/src/+/main:services/network/public/cpp/header_util.cc
+private fun isRequestHeaderSafe(rawName: String, rawValue: String): Boolean {
+    val name = rawName.lowercase(Locale.ENGLISH)
+    val value = rawValue.lowercase(Locale.ENGLISH)
+    if (name in UNSAFE_HEADER_NAMES || name.startsWith("proxy-")) return false
+    if (name == "connection" && value == "upgrade") return false
+    return true
+}
+
+private val UNSAFE_HEADER_NAMES = setOf(
+    "content-length", "host", "trailer", "te", "upgrade", "cookie2", "keep-alive", "transfer-encoding", "set-cookie",
+    "origin",
+)
 
 private const val WEBVIEW_BRAND = "Android WebView"
 private const val CHROMIUM_BRAND = "Chromium"

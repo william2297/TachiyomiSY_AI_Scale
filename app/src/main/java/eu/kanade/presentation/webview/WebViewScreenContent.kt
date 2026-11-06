@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import cafe.adriel.voyager.core.stack.mutableStateStackOf
 import com.kevinnzou.web.AccompanistWebChromeClient
 import com.kevinnzou.web.AccompanistWebViewClient
@@ -108,6 +109,9 @@ fun WebViewScreenContent(
         onDispose { isActive = false }
     }
 
+    // Source headers (they can carry login tokens) go to the source's own site only, never to a site it links to
+    val headersHost = remember { url.toUri().host }
+
     val webClient = remember {
         object : AccompanistWebViewClient() {
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
@@ -146,6 +150,9 @@ fun WebViewScreenContent(
 
                 // Ignore intents urls
                 if (url.startsWith("intent://")) return true
+
+                // Another site loads normally, without the source's headers
+                if (request.url.host != headersHost) return false
 
                 // Only open valid web urls
                 if (url.startsWith("http") || url.startsWith("https")) {

@@ -264,6 +264,8 @@ class LibraryUpdateWorker(private val context: Context, workerParams: WorkerPara
 
         coroutineScope {
             mangaToUpdate.groupBy { it.manga.source }.values
+                // The biggest sources first, so the slowest ones do not start last and stretch the whole update
+                .sortedByDescending { it.size }
                 .map { mangaInSource ->
                     async {
                         semaphore.withPermit {
