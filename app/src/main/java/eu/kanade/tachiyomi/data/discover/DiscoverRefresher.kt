@@ -142,23 +142,13 @@ class DiscoverRefresher(
             DiscoverSection.OLDER_ONGOING,
         )
         for (section in sections) {
-            val merged = mutableListOf<AniListTitle>()
-            var lastError: IOException? = null
-            var anyCountryLoaded = false
-            for (country in countries) {
-                try {
-                    merged += api.fetch(section, country)
-                    anyCountryLoaded = true
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: IOException) {
-                    lastError = e
-                }
-                pause(API_PAUSE_MILLIS)
-            }
-            // Without any trending list there is nothing to show; one country failing is not enough to give up
-            if (section == DiscoverSection.RISING && !anyCountryLoaded) {
-                throw lastError ?: IOException("No trending list")
+            val merged = try {
+                acrossCountries({ api.fetchAll(section, it) }, { api.fetch(section, it) })
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                // Without any trending list there is nothing to show; the other rows may fail one by one
+                if (section == DiscoverSection.RISING) throw e
+                emptyList()
             }
             result[section] = sorted(section, merged.distinctBy { it.id })
         }
@@ -193,15 +183,12 @@ class DiscoverRefresher(
         if (!(sameGenres && previous.day == day && previous.titles.isNotEmpty())) {
             val merged = linkedMapOf<Long, AniListTitle>()
             for (genre in genres) {
-                for (country in countries) {
-                    try {
-                        api.byGenre(genre, country).forEach { merged.putIfAbsent(it.id, it) }
-                    } catch (e: CancellationException) {
-                        currentCoroutineContext().ensureActive()
-                    } catch (e: Exception) {
-                        // This genre is left out for now
-                    }
-                    pause(API_PAUSE_MILLIS)
+                try {
+                    acrossCountries({ api.byGenreAll(genre, it) }, { api.byGenre(genre, it) })
+                        .forEach { merged.putIfAbsent(it.id, it) }
+                } catch (e: Exception) {
+                    if (e is CancellationException) currentCoroutineContext().ensureActive()
+                    // This genre is left out for now
                 }
             }
             val ranked = merged.values.filterNot(isExcluded)
@@ -277,15 +264,12 @@ class DiscoverRefresher(
         if (genres.isNotEmpty()) {
             val merged = linkedMapOf<Long, AniListTitle>()
             for (genre in genres) {
-                for (country in countries) {
-                    try {
-                        api.byGenre(genre, country).forEach { merged.putIfAbsent(it.id, it) }
-                    } catch (e: CancellationException) {
-                        currentCoroutineContext().ensureActive()
-                    } catch (e: Exception) {
-                        // This genre is left out today
-                    }
-                    pause(API_PAUSE_MILLIS)
+                try {
+                    acrossCountries({ api.byGenreAll(genre, it) }, { api.byGenre(genre, it) })
+                        .forEach { merged.putIfAbsent(it.id, it) }
+                } catch (e: Exception) {
+                    if (e is CancellationException) currentCoroutineContext().ensureActive()
+                    // This genre is left out today
                 }
             }
             val ranked = merged.values.filterNot(isExcluded)
@@ -322,15 +306,12 @@ class DiscoverRefresher(
         // "Fresh starts": series from the last year that already have readers
         val fresh = linkedMapOf<Long, AniListTitle>()
         val since = yyyymmddAYearBefore(now())
-        for (country in countries) {
-            try {
-                api.fresh(country, since).forEach { fresh.putIfAbsent(it.id, it) }
-            } catch (e: CancellationException) {
-                currentCoroutineContext().ensureActive()
-            } catch (e: Exception) {
-                // No fresh row today
-            }
-            pause(API_PAUSE_MILLIS)
+        try {
+            acrossCountries({ api.freshAll(it, since) }, { api.fresh(it, since) })
+                .forEach { fresh.putIfAbsent(it.id, it) }
+        } catch (e: Exception) {
+            if (e is CancellationException) currentCoroutineContext().ensureActive()
+            // No fresh row today
         }
         // AniList's start-date filter let a 2021 series through on the tablet; check the year here as well
         val sinceYear = since / 10_000
@@ -400,15 +381,12 @@ class DiscoverRefresher(
 
         val merged = linkedMapOf<Long, AniListTitle>()
         for (tag in topTags) {
-            for (country in countries) {
-                try {
-                    api.byTag(tag, country).forEach { merged.putIfAbsent(it.id, it) }
-                } catch (e: CancellationException) {
-                    currentCoroutineContext().ensureActive()
-                } catch (e: Exception) {
-                    // This tag is left out today
-                }
-                pause(API_PAUSE_MILLIS)
+            try {
+                acrossCountries({ api.byTagAll(tag, it) }, { api.byTag(tag, it) })
+                    .forEach { merged.putIfAbsent(it.id, it) }
+            } catch (e: Exception) {
+                if (e is CancellationException) currentCoroutineContext().ensureActive()
+                // This tag is left out today
             }
         }
         val scored = merged.values.filterNot(isExcluded).filter { it.tags.isNotEmpty() }
@@ -472,6 +450,38 @@ class DiscoverRefresher(
                     .thenByDescending { it.popularity },
             )
         }
+    }
+
+    /**
+     * One list for all [countries]: a single AniList request when that works, otherwise one request per country as
+     * before. Each request is followed by the usual pause, so the rate limit is kept either way. Throws only when
+     * nothing at all could be loaded.
+     */
+    private suspend fun acrossCountries(
+        combined: suspend (List<String>) -> List<AniListTitle>,
+        single: suspend (String) -> List<AniListTitle>,
+    ): List<AniListTitle> {
+        try {
+            val all = combined(countries)
+            pause(API_PAUSE_MILLIS)
+            return all
+        } catch (e: Exception) {
+            if (e is CancellationException) currentCoroutineContext().ensureActive()
+        }
+        pause(API_PAUSE_MILLIS)
+        val merged = mutableListOf<AniListTitle>()
+        var lastError: Exception? = null
+        for (country in countries) {
+            try {
+                merged += single(country)
+            } catch (e: Exception) {
+                if (e is CancellationException) currentCoroutineContext().ensureActive()
+                lastError = e
+            }
+            pause(API_PAUSE_MILLIS)
+        }
+        if (merged.isEmpty() && lastError != null) throw lastError
+        return merged
     }
 
     /**

@@ -30,6 +30,22 @@ fun interface DiscoverListApi {
 
     /** Series that started after [sinceYyyymmdd] and already have readers. */
     suspend fun fresh(country: String, sinceYyyymmdd: Int): List<AniListTitle> = emptyList()
+
+    // The same lists for several countries in one request. AniList counts requests, not lists, against its limit of
+    // about 30 a minute, so asking for KR and JP together halves the waiting in a refresh. The defaults just ask
+    // one country at a time.
+
+    suspend fun fetchAll(section: DiscoverSection, countries: List<String>): List<AniListTitle> =
+        countries.flatMap { fetch(section, it) }
+
+    suspend fun byGenreAll(genre: String, countries: List<String>): List<AniListTitle> =
+        countries.flatMap { byGenre(genre, it) }
+
+    suspend fun byTagAll(tag: String, countries: List<String>): List<AniListTitle> =
+        countries.flatMap { byTag(tag, it) }
+
+    suspend fun freshAll(countries: List<String>, sinceYyyymmdd: Int): List<AniListTitle> =
+        countries.flatMap { fresh(it, sinceYyyymmdd) }
 }
 
 /**
@@ -63,6 +79,55 @@ class AniListDiscoverApi(
 
     override suspend fun fresh(country: String, sinceYyyymmdd: Int): List<AniListTitle> {
         return parse(json, post(buildJsonObject { put("query", freshQuery(country, sinceYyyymmdd)) }))
+    }
+
+    override suspend fun fetchAll(section: DiscoverSection, countries: List<String>): List<AniListTitle> {
+        return combined(countries.map { query(section, it) })
+    }
+
+    override suspend fun byGenreAll(genre: String, countries: List<String>): List<AniListTitle> {
+        require(genre in PICKABLE_GENRES) { "Unknown genre $genre" }
+        return combined(countries.map { genreQuery(genre, it) })
+    }
+
+    override suspend fun byTagAll(tag: String, countries: List<String>): List<AniListTitle> {
+        return combined(countries.map { tagQuery(it) }, buildJsonObject { put("t", tag) })
+    }
+
+    override suspend fun freshAll(countries: List<String>, sinceYyyymmdd: Int): List<AniListTitle> {
+        return combined(countries.map { freshQuery(it, sinceYyyymmdd) })
+    }
+
+    /**
+     * Sends several one-page queries as one request, each page under its own alias (c0, c1, ...), and returns the
+     * pages in order. Tested against AniList on 2026-11-07: KR and JP trending (50 each, all fields) in one request
+     * counted once against the rate limit and returned no errors.
+     */
+    private suspend fun combined(queries: List<String>, variables: JsonObject? = null): List<AniListTitle> {
+        if (queries.isEmpty()) return emptyList()
+        val header = queries.first().substringBefore('{')
+        val pages = queries.mapIndexed { index, query ->
+            val page = query.substring(query.indexOf("Page("), query.lastIndexOf('}'))
+            "c$index: $page"
+        }
+        val combinedQuery = header + "{ " + pages.joinToString(" ") + " }"
+        val body = post(
+            buildJsonObject {
+                put("query", combinedQuery)
+                if (variables != null) put("variables", variables)
+            },
+        )
+        val root = json.parseToJsonElement(body) as? JsonObject
+            ?: throw java.io.IOException("AniList returned no data")
+        val data = root["data"] as? JsonObject
+            ?: throw java.io.IOException("AniList returned no list: ${root["errors"]}")
+        return queries.indices.flatMap { index ->
+            val media = (data["c$index"] as? JsonObject)?.get("media") ?: return@flatMap emptyList()
+            json.decodeFromJsonElement(
+                kotlinx.serialization.builtins.ListSerializer(MediaDto.serializer()),
+                media,
+            ).map { it.toTitle() }
+        }
     }
 
     override suspend fun recommendationsFor(title: String): SeedRecommendations? {
