@@ -33,10 +33,7 @@ class WebtoonStripImageView(
 
     private var isReleasedOffScreen = false
 
-    private var blankSinceNanos = 0L
-
     fun setImage(image: ImageDecoder.StripsImage) {
-        endBlankEpisode()
         releaseStrips()
         isReleasedOffScreen = false
         strips = image.strips
@@ -65,7 +62,6 @@ class WebtoonStripImageView(
         if (strips.sumOf { it.allocationByteCount.toLong() } > largePageBytes) {
             releaseStrips()
             isReleasedOffScreen = true
-            StripStats.freed()
         }
     }
 
@@ -73,7 +69,6 @@ class WebtoonStripImageView(
         super.onAttachedToWindow()
         if (isReleasedOffScreen) {
             isReleasedOffScreen = false
-            StripStats.reloaded()
             onReload?.invoke()
         }
     }
@@ -102,18 +97,8 @@ class WebtoonStripImageView(
      * freed off screen, or the request ended without a result). Ask again a few times instead of leaving a blank page
      * that only comes back after scrolling away and back.
      */
-    private fun endBlankEpisode() {
-        if (blankSinceNanos == 0L) return
-        StripStats.blankEnded((System.nanoTime() - blankSinceNanos) / 1_000_000L)
-        blankSinceNanos = 0L
-    }
-
     private fun reloadIfBlank() {
         if (imageWidth <= 0 || strips.isNotEmpty() || onReload == null) return
-        if (blankSinceNanos == 0L) {
-            blankSinceNanos = System.nanoTime()
-            StripStats.blankStarted()
-        }
         if (reloadAttempts >= MAX_RELOAD_ATTEMPTS) return
         reloadAttempts++
         removeCallbacks(reloadAgain)

@@ -773,7 +773,6 @@ class ReaderActivity : BaseActivity() {
         (viewModel.state.value.viewer as? WebtoonViewer)?.setHighFrameRate(
             enabled,
             fastest?.refreshRate ?: 120f,
-            readerPreferences.autoScrollRefreshVote.get(),
         )
         runCatching {
             window.attributes = window.attributes.apply {
