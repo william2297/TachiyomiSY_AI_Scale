@@ -49,6 +49,7 @@ import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView.EASE_IN_OUT
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView.EASE_OUT_QUAD
 import com.davemorrissey.labs.subscaleview.SubsamplingScaleImageView.SCALE_TYPE_CENTER_INSIDE
 import com.github.chrisbanes.photoview.PhotoView
+import eu.kanade.tachiyomi.data.coil.DecoderDispatchers
 import eu.kanade.tachiyomi.data.coil.ImageDecoder
 import eu.kanade.tachiyomi.data.coil.cropBorders
 import eu.kanade.tachiyomi.data.coil.webtoonStrips
@@ -265,6 +266,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
     var suppressDefaultStatus = false
 
     private var stripRequest: Disposable? = null
+    private var stripToken = 0
+    private var stripLoadedToken = 0
 
     private var config: Config? = null
 
@@ -1459,16 +1462,30 @@ open class ReaderPageImageView @JvmOverloads constructor(
         requestStrips(view, data, config, isReload = false)
     }
 
-    private fun requestStrips(view: WebtoonStripImageView, data: BufferedSource, config: Config, isReload: Boolean) {
+    /**
+     * Decodes the strips of a page. A page being prepared ahead of time goes to the low priority lane; one the user is
+     * waiting for goes to the normal lane. A strip that decodes again after it was freed off screen is needed now, and a
+     * page that scrolls into view before it is ready is moved to the normal lane (see [watchStripVisibility]).
+     */
+    private fun requestStrips(
+        view: WebtoonStripImageView,
+        data: BufferedSource,
+        config: Config,
+        isReload: Boolean,
+        urgent: Boolean = isReload,
+    ) {
         // A recycled view is reused for another page, where a request still running for the old one must not land
         stripRequest?.dispose()
+        val token = ++stripToken
         stripRequest = ImageRequest.Builder(context)
+            .decoderCoroutineContext(if (urgent) DecoderDispatchers.normal else DecoderDispatchers.low)
             // Peeking leaves the data whole for decoding again after the strips were freed off screen
             .data(data.peek())
             .memoryCachePolicy(CachePolicy.DISABLED)
             .diskCachePolicy(CachePolicy.DISABLED)
             .target(
                 onSuccess = { result ->
+                    if (token == stripToken) stripLoadedToken = token
                     view.setImage(result as ImageDecoder.StripsImage)
                     if (!isReload) {
                         view.isVisible = true
@@ -1488,6 +1505,33 @@ open class ReaderPageImageView @JvmOverloads constructor(
             .crossfade(false)
             .build()
             .let(context.imageLoader::enqueue)
+        if (!urgent) watchStripVisibility(view, data, config, token, 0)
+    }
+
+    /**
+     * Checks every [STRIP_WATCH_MILLIS] whether a page prepared in the low priority lane has scrolled into view before
+     * it was ready. If so its request is replaced by one in the normal lane, so the page the user is looking at is not
+     * held back behind the preparation of pages further ahead.
+     */
+    private fun watchStripVisibility(
+        view: WebtoonStripImageView,
+        data: BufferedSource,
+        config: Config,
+        token: Int,
+        attempt: Int,
+    ) {
+        postDelayed(
+            {
+                if (token != stripToken || stripLoadedToken == token || !isAttachedToWindow) return@postDelayed
+                val visible = android.graphics.Rect()
+                if (isShown && getGlobalVisibleRect(visible) && visible.height() > 0) {
+                    requestStrips(view, data, config, isReload = false, urgent = true)
+                } else if (attempt < STRIP_WATCH_ATTEMPTS) {
+                    watchStripVisibility(view, data, config, token, attempt + 1)
+                }
+            },
+            STRIP_WATCH_MILLIS,
+        )
     }
 
     private fun prepareAnimatedImageView() {
@@ -1597,6 +1641,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
         /** While auto scroll runs, enhanced images replace the original at once instead of fading in. */
         @Volatile
         var instantProcessedSwap: Boolean = false
+
+        private const val STRIP_WATCH_MILLIS = 150L
+        private const val STRIP_WATCH_ATTEMPTS = 40
 
         /**
          * Global semaphore to serialize image decoding.

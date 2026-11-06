@@ -18,3 +18,4 @@ What is new in this build
 - Discover: a small line under "Updated" says what the "Your taste" row learned, or why it is missing. The shown titles of all rows are now searched in turns, so no row waits behind the others.
 - Ideas taken from Mihon v0.21.3, written our own way: WebView no longer drops the page renderer when a source sets an Origin header, source headers go to the source's own site only, login headers are blanked in network logs, library updates start with the biggest sources, and a cover is not reloaded when an entry leaves the library.
 - Reader settings > General: "Prepare pages at lower priority" can be turned off if pages flash black for a moment while scrolling (it keeps scrolling smoother when on).
+- Reader: pages prepared ahead use the low priority lane, but a page that scrolls into view before it is ready (or is decoded again after being freed) moves to a normal priority lane, so it fills in faster without bringing the stutter back.
