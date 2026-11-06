@@ -32,7 +32,6 @@ import eu.kanade.tachiyomi.crash.GlobalExceptionHandler
 import eu.kanade.tachiyomi.data.cache.CoverCache
 import eu.kanade.tachiyomi.data.coil.BufferedSourceFetcher
 import eu.kanade.tachiyomi.data.coil.CoverRequestInterceptor
-import eu.kanade.tachiyomi.data.coil.DecoderDispatchers
 import eu.kanade.tachiyomi.data.coil.ExtensionIconFetcher
 import eu.kanade.tachiyomi.data.coil.ImageDecoder
 import eu.kanade.tachiyomi.data.coil.InstalledExtensionIconKeyer
@@ -53,6 +52,7 @@ import eu.kanade.tachiyomi.util.system.isDebugBuildType
 import eu.kanade.tachiyomi.util.system.notify
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -231,6 +231,26 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
         )
     }
 
+    /**
+     * Three decoder threads. By default each job runs a little below normal priority so the screen's own threads win
+     * when both are busy; the reader setting "Prepare pages at lower priority" turns that off. The setting is read for
+     * every job, so changing it needs no restart.
+     */
+    private val decoderDispatcher by lazy {
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(DECODER_THREADS) { runnable ->
+            Thread(runnable, "coil-decoder").apply { isDaemon = true }
+        }
+        java.util.concurrent.Executor { job ->
+            pool.execute {
+                val lowered = runCatching { graph.readerPreferences.decoderLowPriority.get() }.getOrDefault(true)
+                android.os.Process.setThreadPriority(
+                    if (lowered) DECODER_THREAD_PRIORITY else android.os.Process.THREAD_PRIORITY_DEFAULT,
+                )
+                job.run()
+            }
+        }.asCoroutineDispatcher()
+    }
+
     override fun newImageLoader(context: Context): ImageLoader {
         return ImageLoader.Builder(this).apply {
             val callFactoryLazy = lazy { networkHelper.value.client }
@@ -271,8 +291,7 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
             fetcherCoroutineContext(Dispatchers.IO.limitedParallelism(8))
             // Decoding (and upscaling, which runs inside the decoder) is big work. At normal priority it competes with
             // the threads that draw the screen, so a long strip scrolls unevenly while pages ahead are prepared.
-            DecoderDispatchers.lowPriorityEnabled = { graph.readerPreferences.decoderLowPriority.get() }
-            decoderCoroutineContext(DecoderDispatchers.low)
+            decoderCoroutineContext(decoderDispatcher)
         }
             .build()
     }
@@ -338,3 +357,8 @@ class App : Application(), DefaultLifecycleObserver, SingletonImageLoader.Factor
 }
 
 private const val ACTION_DISABLE_INCOGNITO_MODE = "tachi.action.DISABLE_INCOGNITO_MODE"
+
+private const val DECODER_THREADS = 3
+
+/** Android nice value: 0 is normal, 10 and above is the restricted background group, so 4 stays in between. */
+private const val DECODER_THREAD_PRIORITY = 4
