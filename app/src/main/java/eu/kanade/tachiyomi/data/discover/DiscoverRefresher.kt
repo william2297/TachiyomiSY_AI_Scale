@@ -2,6 +2,8 @@ package eu.kanade.tachiyomi.data.discover
 
 import eu.kanade.presentation.browse.discover.DiscoverSection
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
@@ -47,7 +49,8 @@ class DiscoverRefresher(
         val knownIds = previous.sections.values.flatten().map { it.anilistId }.toSet() +
             previous.extras.flatMap { it.entries }.map { it.anilistId }
 
-        val sourcesKey = sources.joinToString(",") { it.id.toString() }
+        // "v2": matches made before adult-only sites were kept out for mainstream titles are searched again once
+        val sourcesKey = "v2:" + sources.joinToString(",") { it.id.toString() }
         // The 12 shown in each row are searched first; the rest of the 50 fill in over the next days
         // "My genres" goes first and whole: the user just chose it, and it must not wait behind the other rows
         // for the search budget
@@ -120,7 +123,9 @@ class DiscoverRefresher(
             sections = sectionsFor(matches),
             extras = finalExtras.ifEmpty { previous.extras },
             myGenres = myGenres.pick,
-            previousTrendingIds = lists[DiscoverSection.RISING].orEmpty().take(TRENDING_MEMORY).map { it.id },
+            previousTrendingIds = byRawTrending(lists[DiscoverSection.RISING].orEmpty())
+                .take(TRENDING_MEMORY)
+                .map { it.id },
             matches = matches.entries.sortedByDescending { it.value.checkedAtMillis }.take(MAX_MATCHES)
                 .associate { it.key to it.value },
         )
@@ -138,16 +143,22 @@ class DiscoverRefresher(
         )
         for (section in sections) {
             val merged = mutableListOf<AniListTitle>()
+            var lastError: IOException? = null
+            var anyCountryLoaded = false
             for (country in countries) {
                 try {
                     merged += api.fetch(section, country)
+                    anyCountryLoaded = true
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: IOException) {
-                    // Without the trending list there is nothing to show; the other rows may fail one by one
-                    if (section == DiscoverSection.RISING && country == countries.first()) throw e
+                    lastError = e
                 }
                 pause(API_PAUSE_MILLIS)
+            }
+            // Without any trending list there is nothing to show; one country failing is not enough to give up
+            if (section == DiscoverSection.RISING && !anyCountryLoaded) {
+                throw lastError ?: IOException("No trending list")
             }
             result[section] = sorted(section, merged.distinctBy { it.id })
         }
@@ -285,7 +296,8 @@ class DiscoverRefresher(
             if (ranked.isNotEmpty()) {
                 plans += ExtraPlan(
                     key = "genres",
-                    title = "Your genres",
+                    // Built from the library's genres; "My genres" is the row the user picks, and the two read alike
+                    title = "From your library",
                     hint = genres.joinToString(", ") + ": any of them",
                     titles = rotate(ranked.take(POOL_SIZE), MAX_PER_SECTION, day * 31 + GENRE_SEED),
                     reason = { title ->
@@ -320,7 +332,12 @@ class DiscoverRefresher(
             }
             pause(API_PAUSE_MILLIS)
         }
-        val freshTitles = fresh.values.filterNot(isExcluded).sortedByDescending { it.popularity }
+        // AniList's start-date filter let a 2021 series through on the tablet; check the year here as well
+        val sinceYear = since / 10_000
+        val freshTitles = fresh.values
+            .filterNot(isExcluded)
+            .filter { (it.startYear ?: 0) >= sinceYear }
+            .sortedByDescending { it.popularity * countryWeight(it) }
         if (freshTitles.isNotEmpty()) {
             plans += ExtraPlan(
                 key = "fresh",
@@ -448,11 +465,35 @@ class DiscoverRefresher(
 
     private fun sorted(section: DiscoverSection, titles: List<AniListTitle>): List<AniListTitle> {
         return if (section == DiscoverSection.RISING) {
-            titles.sortedByDescending { it.trending }
+            titles.sortedByDescending { momentum(it) * countryWeight(it) }
         } else {
-            titles.sortedWith(compareByDescending<AniListTitle> { it.score ?: 0 }.thenByDescending { it.popularity })
+            titles.sortedWith(
+                compareByDescending<AniListTitle> { (it.score ?: 0) + countryBonus(it) }
+                    .thenByDescending { it.popularity },
+            )
         }
     }
+
+    /**
+     * How fast a title is climbing compared to how big it already is. AniList's raw trending is topped by series
+     * everyone already reads (One Piece, One-Punch Man); dividing by the square root of the audience lets the ones
+     * actually rising come first.
+     */
+    private fun momentum(title: AniListTitle): Double {
+        return title.trending / kotlin.math.sqrt(title.popularity.coerceAtLeast(1).toDouble())
+    }
+
+    /** The first country in [countries] is what the user reads most (Korean manhwa by default). */
+    private fun countryWeight(title: AniListTitle): Double {
+        return if (title.country == countries.firstOrNull()) PREFERRED_COUNTRY_WEIGHT else 1.0
+    }
+
+    private fun countryBonus(title: AniListTitle): Int {
+        return if (title.country == countries.firstOrNull()) PREFERRED_COUNTRY_SCORE_BONUS else 0
+    }
+
+    private fun byRawTrending(titles: List<AniListTitle>): List<AniListTitle> =
+        titles.sortedByDescending { it.trending }
 
     private fun pickCandidates(
         lists: Map<DiscoverSection, List<AniListTitle>>,
@@ -467,7 +508,7 @@ class DiscoverRefresher(
         picks[DiscoverSection.NEW_IN_TOP] = if (previousTop.isEmpty()) {
             emptyList()
         } else {
-            rising.take(NEW_IN_TOP_RANKS).filter { it.id !in previousTop }.take(MAX_PER_SECTION)
+            byRawTrending(rising).take(NEW_IN_TOP_RANKS).filter { it.id !in previousTop }.take(MAX_PER_SECTION)
         }
         for (section in listOf(
             DiscoverSection.COMPLETED,
@@ -491,48 +532,59 @@ class DiscoverRefresher(
         val matches = known.toMutableMap()
         if (sources.isEmpty()) return matches
         val startedAt = now()
-        val failures = mutableMapOf<Long, Int>()
-        var searches = 0
+        val failures = java.util.concurrent.ConcurrentHashMap<Long, Int>()
+        val searches = java.util.concurrent.atomic.AtomicInteger(0)
         var sinceProgress = 0
         var checked = 0
-        for (title in candidates) {
-            onStatus(statusLine(checked, candidates.size, matches, candidates, failures, sources))
-            checked++
-            if (isFresh(matches[title.id], sourcesKey)) continue
-            var found: MatchRecord? = null
-            var interrupted = false
+
+        /** Tries the sources for one title in priority order; null when the budget ran out first. */
+        suspend fun searchTitle(title: AniListTitle): MatchRecord? {
             for (source in sources) {
                 if ((failures[source.id] ?: 0) >= MAX_SOURCE_FAILURES) continue
-                if (searches >= maxSearches || now() - startedAt > maxDurationMillis) {
-                    interrupted = true
-                    break
-                }
-                searches++
+                // An adult-only site has parody doujin under the exact names of mainstream series
+                if (source.adultOnly && !title.isAdult) continue
+                if (now() - startedAt > maxDurationMillis) return null
+                if (searches.incrementAndGet() > maxSearches) return null
                 val results = try {
                     searcher.search(source, title.title)
                 } catch (e: Exception) {
                     // A cancellation of the whole run must still stop it; a stray one inside a single search must not
                     if (e is CancellationException) currentCoroutineContext().ensureActive()
-                    failures[source.id] = (failures[source.id] ?: 0) + 1
+                    failures.merge(source.id, 1) { old, add -> old + add }
                     emptyList()
                 }
                 pause(SEARCH_PAUSE_MILLIS)
                 val best = TitleMatcher.best(title.names, results) { it.title }
                 if (best != null) {
                     failures[source.id] = 0
-                    found = MatchRecord(true, source.id, source.name, best.first.url, now(), sourcesKey)
-                    break
+                    return MatchRecord(true, source.id, source.name, best.first.url, now(), sourcesKey)
                 }
             }
-            // A title the budget cut short is searched again next time, not remembered as missing
-            if (found != null) {
-                matches[title.id] = found
-                if (++sinceProgress >= PROGRESS_EVERY) {
+            return MatchRecord(false, checkedAtMillis = now(), sourcesKey = sourcesKey)
+        }
+
+        // A few titles are searched at once: each search mostly waits on a website, so running them side by side
+        // cuts the refresh time without asking any single site more often than before. Results are applied in list
+        // order, so what is shown and when the budget stops does not depend on which search answered first.
+        for (chunk in candidates.chunked(PARALLEL_TITLES)) {
+            onStatus(statusLine(checked, candidates.size, matches, candidates, failures, sources))
+            checked += chunk.size
+            val todo = chunk.filterNot { isFresh(matches[it.id], sourcesKey) }
+            val results = kotlinx.coroutines.coroutineScope {
+                todo.map { title -> async { title to searchTitle(title) } }.awaitAll()
+            }
+            var interrupted = false
+            for ((title, record) in results) {
+                // A title the budget cut short is searched again next time, not remembered as missing
+                if (record == null) {
+                    interrupted = true
+                    continue
+                }
+                matches[title.id] = record
+                if (record.found && ++sinceProgress >= PROGRESS_EVERY) {
                     sinceProgress = 0
                     progress(matches)
                 }
-            } else if (!interrupted) {
-                matches[title.id] = MatchRecord(false, checkedAtMillis = now(), sourcesKey = sourcesKey)
             }
             if (interrupted) break
         }
@@ -634,6 +686,15 @@ class DiscoverRefresher(
         private const val FOUND_VALID_MILLIS = 30 * DAY_MILLIS
         private const val MISSING_VALID_MILLIS = 14 * DAY_MILLIS
         private const val API_PAUSE_MILLIS = 2_500L
+
+        /** Titles searched at the same time; each still tries the sources one by one, in priority order. */
+        private const val PARALLEL_TITLES = 3
+
+        /** Rising: how much more a title from the preferred country counts. */
+        private const val PREFERRED_COUNTRY_WEIGHT = 1.3
+
+        /** Score rows: points added for the preferred country, about half the gap between "good" and "great". */
+        private const val PREFERRED_COUNTRY_SCORE_BONUS = 4
         private const val SEARCH_PAUSE_MILLIS = 400L
 
         /** A fixed pick of [count] from [pool] for one day: stable through the day, different the next. */

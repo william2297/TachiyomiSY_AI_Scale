@@ -19,6 +19,10 @@ data class AniListTitle(
     val startYear: Int?,
     val endYear: Int?,
     val genres: List<String> = emptyList(),
+    /** AniList's adult flag; adult-only sources are searched only for these. */
+    val isAdult: Boolean = false,
+    /** Country of origin (KR, JP, CN); used to weight rows toward what the user reads. */
+    val country: String? = null,
     /** The tags that fit the series best, without spoiler and format tags; used to match it to the user's taste. */
     val tags: List<TitleTag> = emptyList(),
 )
@@ -114,7 +118,7 @@ data class SeedRecommendations(
     val seedTags: List<TitleTag> = emptyList(),
 )
 
-data class SearchSource(val id: Long, val name: String)
+data class SearchSource(val id: Long, val name: String, val adultOnly: Boolean = false)
 
 data class FoundManga(val title: String, val url: String)
 

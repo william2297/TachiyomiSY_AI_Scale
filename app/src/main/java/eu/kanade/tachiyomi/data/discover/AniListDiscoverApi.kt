@@ -87,7 +87,7 @@ class AniListDiscoverApi(
         private const val PER_PAGE = 50
 
         private const val FIELDS = "id title{romaji english native} synonyms coverImage{large} trending popularity " +
-            "averageScore status chapters genres format startDate{year} endDate{year} " +
+            "averageScore status chapters genres format startDate{year} endDate{year} isAdult countryOfOrigin " +
             "tags{name rank isMediaSpoiler category}"
 
         /** AniList's genre names; anything else is not sent, so a genre from a source's own list cannot break a query. */
@@ -178,6 +178,8 @@ class AniListDiscoverApi(
                 startYear = startDate?.year,
                 endYear = endDate?.year,
                 genres = genres,
+                isAdult = isAdult == true,
+                country = countryOfOrigin,
                 tags = tags
                     .filter { it.isMediaSpoiler != true && it.category?.startsWith("Technical") != true }
                     .filter { (it.rank ?: 0) >= MIN_TAG_RANK }
@@ -217,6 +219,8 @@ class AniListDiscoverApi(
         val startDate: DateDto? = null,
         val endDate: DateDto? = null,
         val recommendations: RecommendationsDto? = null,
+        val isAdult: Boolean? = null,
+        val countryOfOrigin: String? = null,
     )
 
     @Serializable

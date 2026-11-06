@@ -120,16 +120,26 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
 
         fun genresFile(context: Context) = File(context.filesDir, "discover_genres.json")
 
-        /** The pinned sources that can be searched, at most [MAX_SOURCES], in name order. */
+        /**
+         * The pinned sources that can be searched, at most [MAX_SOURCES], the ones the library reads from most first.
+         * The first source with a match wins, so the order decides where a title opens. Name order put "AsmHentai"
+         * before "Asura Scans" and linked mainstream series to doujin with the same title.
+         */
         suspend fun pinnedSearchSources(context: Context): List<SearchSource> {
             val graph = context.appGraph
             val pinned = graph.sourcePreferences.pinnedSources.get()
+            val libraryCount = graph.getLibraryManga.await().groupingBy { it.manga.source }.eachCount()
             return graph.sourceManager.getAll()
                 .filter { "${it.id}" in pinned && it is CatalogueSource && !it.isLocal() }
-                .sortedBy { it.name.lowercase() }
+                .sortedWith(
+                    compareByDescending<eu.kanade.tachiyomi.source.Source> { libraryCount[it.id] ?: 0 }
+                        .thenBy { it.name.lowercase() },
+                )
                 .take(MAX_SOURCES)
-                .map { SearchSource(it.id, it.name) }
+                .map { SearchSource(it.id, it.name, adultOnly = ADULT_SOURCE_NAME.containsMatchIn(it.name)) }
         }
+
+        private val ADULT_SOURCE_NAME = Regex("hentai|doujin|\\bh-?manga\\b|18\\+", RegexOption.IGNORE_CASE)
 
         private fun wifiConstraints(): Constraints {
             // Any Wi-Fi counts, including one the system calls metered (a phone hotspot, some routers)
