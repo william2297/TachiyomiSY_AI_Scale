@@ -571,8 +571,21 @@ internal fun ColumnScope.ColorFilterPage(viewModel: ReaderSettingsViewModel) {
             modifier = Modifier.padding(horizontal = 24.dp),
             style = MaterialTheme.typography.bodySmall,
         )
+        val stripStats by eu.kanade.tachiyomi.ui.reader.viewer.webtoon.StripStats.snapshot.collectAsState()
+        Text(
+            text = stringResource(
+                MR.strings.reader_strip_stats,
+                stripStats.freed,
+                stripStats.reloaded,
+                stripStats.blankEpisodes,
+                stripStats.longestBlankMillis,
+            ),
+            modifier = Modifier.padding(horizontal = 24.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
         TextButton(
             onClick = {
+                eu.kanade.tachiyomi.ui.reader.viewer.webtoon.StripStats.reset()
                 ImageEnhancer.resetStats()
                 eu.kanade.tachiyomi.util.system.FrameJankMonitor.reset()
             },

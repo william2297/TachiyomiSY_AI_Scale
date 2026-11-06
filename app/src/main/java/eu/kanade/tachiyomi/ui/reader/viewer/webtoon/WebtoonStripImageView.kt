@@ -33,7 +33,10 @@ class WebtoonStripImageView(
 
     private var isReleasedOffScreen = false
 
+    private var blankSinceNanos = 0L
+
     fun setImage(image: ImageDecoder.StripsImage) {
+        endBlankEpisode()
         releaseStrips()
         isReleasedOffScreen = false
         strips = image.strips
@@ -62,6 +65,7 @@ class WebtoonStripImageView(
         if (strips.sumOf { it.allocationByteCount.toLong() } > largePageBytes) {
             releaseStrips()
             isReleasedOffScreen = true
+            StripStats.freed()
         }
     }
 
@@ -69,6 +73,7 @@ class WebtoonStripImageView(
         super.onAttachedToWindow()
         if (isReleasedOffScreen) {
             isReleasedOffScreen = false
+            StripStats.reloaded()
             onReload?.invoke()
         }
     }
@@ -97,8 +102,18 @@ class WebtoonStripImageView(
      * freed off screen, or the request ended without a result). Ask again a few times instead of leaving a blank page
      * that only comes back after scrolling away and back.
      */
+    private fun endBlankEpisode() {
+        if (blankSinceNanos == 0L) return
+        StripStats.blankEnded((System.nanoTime() - blankSinceNanos) / 1_000_000L)
+        blankSinceNanos = 0L
+    }
+
     private fun reloadIfBlank() {
         if (imageWidth <= 0 || strips.isNotEmpty() || onReload == null) return
+        if (blankSinceNanos == 0L) {
+            blankSinceNanos = System.nanoTime()
+            StripStats.blankStarted()
+        }
         if (reloadAttempts >= MAX_RELOAD_ATTEMPTS) return
         reloadAttempts++
         removeCallbacks(reloadAgain)
@@ -126,6 +141,8 @@ class WebtoonStripImageView(
     override fun onTouchEvent(event: MotionEvent): Boolean = false
 }
 
-private const val LARGE_PAGE_BYTES = 64L * 1024 * 1024
+// A page this big is freed when it leaves the screen. 64 MB freed pages that had only just been on screen, so they
+// came back blank for a second or two; this tablet has the memory to keep much more.
+private const val LARGE_PAGE_BYTES = 256L * 1024 * 1024
 private const val MAX_RELOAD_ATTEMPTS = 3
 private const val RELOAD_DELAY_MILLIS = 1_500L
