@@ -203,17 +203,23 @@ class AniListDiscoverApi(
         }
 
         fun query(section: DiscoverSection, country: String): String {
+            // Manhwa have far fewer AniList readers than manga. With the manga floors only 35 Korean series qualified
+            // for Completed, 10 for Classics and 33 for Older ongoing (5000+ Japanese each), so after the user's own
+            // reads were left out these rows came out Japanese. Korean floors are about a quarter (checked on
+            // AniList 2026-11-07: Omniscient Reader, Eleceed, The Horizon, Pick Me Up and the like qualify).
+            val korean = country == "KR"
             val filter = when (section) {
                 DiscoverSection.RISING, DiscoverSection.NEW_IN_TOP ->
                     "sort:TRENDING_DESC, popularity_greater:5000"
                 DiscoverSection.COMPLETED ->
-                    "status:FINISHED, sort:SCORE_DESC, popularity_greater:20000"
+                    "status:FINISHED, sort:SCORE_DESC, popularity_greater:${if (korean) 5_000 else 20_000}"
                 DiscoverSection.CLASSICS ->
-                    "sort:SCORE_DESC, popularity_greater:50000, startDate_lesser:20210101"
+                    "sort:SCORE_DESC, popularity_greater:${if (korean) 12_000 else 50_000}, startDate_lesser:20210101"
                 DiscoverSection.HIDDEN_GEMS ->
                     "sort:SCORE_DESC, popularity_greater:4000, popularity_lesser:25000, averageScore_greater:78"
                 DiscoverSection.OLDER_ONGOING ->
-                    "status:RELEASING, sort:SCORE_DESC, popularity_greater:20000, startDate_lesser:20230101"
+                    "status:RELEASING, sort:SCORE_DESC, popularity_greater:${if (korean) 5_000 else 20_000}, " +
+                        "startDate_lesser:20230101"
             }
             return "{ Page(perPage:$PER_PAGE){ media(type:MANGA, countryOfOrigin:$country, $filter){ $FIELDS } } }"
         }

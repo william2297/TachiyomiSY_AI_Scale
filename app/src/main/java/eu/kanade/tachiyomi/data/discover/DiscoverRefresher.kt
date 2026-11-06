@@ -43,7 +43,14 @@ class DiscoverRefresher(
     ): DiscoverCache {
         val day = now() / DAY_MILLIS
         val lists = fetchLists().mapValues { (_, titles) -> titles.filterNot(isExcluded) }
-        val picks = pickCandidates(lists, previous, day)
+        // "New in the top 50" compares with the last list from an earlier day. It used to compare with the previous
+        // refresh, so after a second refresh the same day almost nothing counted as new.
+        val trendingBaseline = if (previous.trendingDay == day) {
+            previous.previousTrendingIds
+        } else {
+            previous.todayTrendingIds.ifEmpty { previous.previousTrendingIds }
+        }
+        val picks = pickCandidates(lists, previous.copy(previousTrendingIds = trendingBaseline), day)
         val myGenres = buildMyGenres(profile, previous.myGenres, localDay(now()))
         val extraPlans = buildExtraPlans(profile, day) + listOfNotNull(myGenres.plan)
         val knownIds = previous.sections.values.flatten().map { it.anilistId }.toSet() +
@@ -123,9 +130,11 @@ class DiscoverRefresher(
             sections = sectionsFor(matches),
             extras = finalExtras.ifEmpty { previous.extras },
             myGenres = myGenres.pick,
-            previousTrendingIds = byRawTrending(lists[DiscoverSection.RISING].orEmpty())
+            previousTrendingIds = trendingBaseline,
+            todayTrendingIds = byRawTrending(lists[DiscoverSection.RISING].orEmpty())
                 .take(TRENDING_MEMORY)
                 .map { it.id },
+            trendingDay = day,
             matches = matches.entries.sortedByDescending { it.value.checkedAtMillis }.take(MAX_MATCHES)
                 .associate { it.key to it.value },
         )
@@ -180,7 +189,8 @@ class DiscoverRefresher(
 
         val sameGenres = previous.genres == genres
         var pick = previous
-        if (!(sameGenres && previous.day == day && previous.titles.isNotEmpty())) {
+        val sameRanking = previous.ranking == MY_GENRES_RANKING
+        if (!(sameGenres && sameRanking && previous.day == day && previous.titles.isNotEmpty())) {
             val merged = linkedMapOf<Long, AniListTitle>()
             for (genre in genres) {
                 try {
@@ -193,13 +203,15 @@ class DiscoverRefresher(
             }
             val ranked = merged.values.filterNot(isExcluded)
                 .sortedWith(
+                    // More of the chosen genres first; within that, titles actually climbing (not the series everyone
+                    // already reads), Korean ones weighted up like the other rows
                     compareByDescending<AniListTitle> { title -> title.genres.count { it in genres } }
-                        .thenByDescending { it.trending }
+                        .thenByDescending { momentum(it) * countryWeight(it) }
                         .thenBy { it.id },
                 )
                 .take(MY_GENRES_POOL)
             pick = when {
-                ranked.isNotEmpty() -> MyGenresPick(day, genres, ranked)
+                ranked.isNotEmpty() -> MyGenresPick(day, genres, ranked, MY_GENRES_RANKING)
                 // Nothing came back: keep yesterday's list for the same genres, show nothing for new genres
                 sameGenres -> previous
                 else -> MyGenresPick(day, genres, emptyList())
@@ -275,7 +287,7 @@ class DiscoverRefresher(
             val ranked = merged.values.filterNot(isExcluded)
                 .sortedWith(
                     compareByDescending<AniListTitle> { title -> title.genres.count { it in genres } }
-                        .thenByDescending { it.trending },
+                        .thenByDescending { momentum(it) * countryWeight(it) },
                 )
             if (ranked.isNotEmpty()) {
                 plans += ExtraPlan(
@@ -700,6 +712,9 @@ class DiscoverRefresher(
 
         /** Titles kept for "My genres", more than are shown because some are not in any of the user's sources. */
         private const val MY_GENRES_POOL = 45
+
+        /** Bumped when the "My genres" ranking changes, so a list built earlier today is rebuilt. */
+        private const val MY_GENRES_RANKING = 2
         const val MY_GENRES_KEY = "my-genres"
         private const val GENRE_SEED = 97L
         private const val PROGRESS_EVERY = 4

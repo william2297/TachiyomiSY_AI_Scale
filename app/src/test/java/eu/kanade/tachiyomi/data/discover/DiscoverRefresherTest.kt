@@ -91,7 +91,9 @@ class DiscoverRefresherTest {
         val fresh = cache.sections.getValue("NEW_IN_TOP")
         assertEquals(listOf("Gamma Hero"), fresh.map { it.title })
         assertEquals("Entered the top 50 at #3", fresh[0].reason)
-        assertEquals(listOf(1L, 2L, 3L), cache.previousTrendingIds)
+        // Today's list is kept for tomorrow; the comparison list stays yesterday's for the rest of the day
+        assertEquals(listOf(1L, 2L, 3L), cache.todayTrendingIds)
+        assertEquals(listOf(1L, 2L), cache.previousTrendingIds)
     }
 
     @Test

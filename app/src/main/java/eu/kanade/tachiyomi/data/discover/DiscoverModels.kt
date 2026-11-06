@@ -77,6 +77,8 @@ data class MyGenresPick(
     val day: Long = 0,
     val genres: List<String> = emptyList(),
     val titles: List<AniListTitle> = emptyList(),
+    /** How the list was ranked; a list from an older ranking is rebuilt at once instead of waiting for tomorrow. */
+    val ranking: Int = 0,
 )
 
 @Serializable
@@ -85,7 +87,12 @@ data class DiscoverCache(
     /** Section name to its entries, in display order. */
     val sections: Map<String, List<StoredEntry>> = emptyMap(),
     /** AniList ids of the trending list at the last refresh, to spot titles that just entered the top. */
+    /** The trending list "New in the top 50" compares with: the last one from an earlier day. */
     val previousTrendingIds: List<Long> = emptyList(),
+    /** Today's trending list, which becomes [previousTrendingIds] on the first refresh of the next day. */
+    val todayTrendingIds: List<Long> = emptyList(),
+    /** The day [todayTrendingIds] is from (days since 1970-01-01, UTC). */
+    val trendingDay: Long = 0,
     val matches: Map<Long, MatchRecord> = emptyMap(),
     val extras: List<StoredRow> = emptyList(),
     val myGenres: MyGenresPick = MyGenresPick(),
