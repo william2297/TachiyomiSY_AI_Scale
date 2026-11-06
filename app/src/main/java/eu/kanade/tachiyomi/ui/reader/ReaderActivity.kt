@@ -747,12 +747,18 @@ class ReaderActivity : BaseActivity() {
 
     /**
      * Auto scroll moves slowly, and the system may drop a 120 Hz screen to 60 Hz for slow content, which looks like
-     * stutter (a tap scroll is fast, so it never drops). While auto scroll runs, ask for the highest refresh rate.
+     * stutter (a tap scroll is fast, so it never drops). While auto scroll runs, ask for the rate the panel is
+     * actually running.
+     *
+     * Asking for the fastest mode backfired on the Oppo Pad Mini: the reader voted an exact 144 Hz, ColorOS keeps
+     * the panel at 120 Hz for this app, and 144 does not divide 120, so the app was rendered at 60 Hz (framestats:
+     * a frame every 16.7 ms during auto scroll, 8.3 ms for a finger fling). Use the active mode's rate instead,
+     * which is 144 only when the system really runs 144.
      */
     private fun requestHighRefreshRate(enabled: Boolean) {
         val currentMode = display?.mode
         val modes = display?.supportedModes.orEmpty()
-        val fastest = modes
+        val fastest = currentMode ?: modes
             .filter {
                 it.physicalWidth == currentMode?.physicalWidth && it.physicalHeight == currentMode?.physicalHeight
             }
