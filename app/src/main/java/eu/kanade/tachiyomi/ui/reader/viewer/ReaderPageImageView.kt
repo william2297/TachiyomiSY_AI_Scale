@@ -750,15 +750,26 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private fun applyPreviewBitmap(previewBitmap: Bitmap?) {
         if (previewBitmap != null) {
+            enhancedOverlay.animate().cancel()
             enhancedOverlay.scaleType = ImageView.ScaleType.FIT_CENTER
             enhancedOverlay.bringToFront()
             enhancedOverlay.setImageBitmap(previewBitmap)
-            enhancedOverlay.alpha = 1f
             enhancedOverlay.isVisible = true
             bringEnhancementStatusToFront()
             enhancedBitmap = previewBitmap
             isSettingProcessedImage = true
-            pageView?.alpha = 0f
+            // Blend the sharp version in over the original instead of popping it in; the original stays fully
+            // visible underneath until the fade ends, so nothing goes dark in between. This also applies during
+            // smooth auto scroll (instantProcessedSwap was meant for the stepped mode that waits for enhancement),
+            // because that is exactly when a late page visibly pops from blurry to sharp.
+            enhancedOverlay.alpha = 0f
+            enhancedOverlay.animate()
+                .alpha(1f)
+                .setDuration(ENHANCED_FADE_MS)
+                .withEndAction {
+                    if (isSettingProcessedImage && enhancedBitmap === previewBitmap) pageView?.alpha = 0f
+                }
+                .start()
         } else {
             pageView?.alpha = 1f
             enhancedOverlay.animate().cancel()
@@ -825,6 +836,29 @@ open class ReaderPageImageView @JvmOverloads constructor(
             pageVariant = enhancementVariant(),
             dataProvider = dataProvider,
         )
+    }
+
+    /**
+     * "Enhance ahead" used to only prune requests beyond the window; nothing queued the pages inside it. A page was
+     * queued when it finished downloading (and pruned again if that was too far ahead) or when its view was built,
+     * so on the Oppo Pad Mini enhancement ran in step with the scroll and late pages switched from blurry to sharp
+     * while being read. Queue every already-downloaded page in the window at low priority; the queue de-duplicates
+     * and skips cached or skipped pages.
+     */
+    private fun queueDownloadedPagesAhead(pIdx: Int) {
+        if (preferences.automaticSplitsPage().get()) return
+        val pages = readerPage?.chapter?.pages ?: return
+        val last = minOf(pages.lastIndex, pIdx + enhanceAheadSize)
+        if (pIdx + 1 > last) return
+        val appContext = context.applicationContext
+        viewScope.launchIO {
+            for (index in pIdx + 1..last) {
+                val page = pages[index]
+                if (page.status == eu.kanade.tachiyomi.source.model.Page.State.Ready) {
+                    ImageEnhancer.enhance(appContext, page, false)
+                }
+            }
+        }
     }
 
     fun promoteEnhancementRequest(highPriority: Boolean = true) {
@@ -995,6 +1029,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
             // 2. Prune others
             ImageEnhancer.cancelRequestsLessThan(context.applicationContext, mId, cId, pIdx)
             ImageEnhancer.cancelRequestsGreaterThan(context.applicationContext, mId, cId, pIdx + enhanceAheadSize)
+
+            // 3. Fill the window ahead
+            if (realCuganEnabled) queueDownloadedPagesAhead(pIdx)
         }
 
         with(pageView as? SubsamplingScaleImageView) {
@@ -1654,3 +1691,4 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
 private const val MAX_ZOOM_SCALE = 5F
 private const val PROCESSED_SWAP_DURATION_MS = 280L
+private const val ENHANCED_FADE_MS = 300L
