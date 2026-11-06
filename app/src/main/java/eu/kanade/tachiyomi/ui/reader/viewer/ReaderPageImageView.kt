@@ -1455,7 +1455,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private fun setStripImage(data: BufferedSource, config: Config) {
         val view = pageView as? WebtoonStripImageView ?: return
-        view.onReload = { requestStrips(view, data, config, isReload = true) }
+        // A decode still running is left alone: asking again would cancel it and start over, so a slow decode
+        // would never finish
+        view.onReload = {
+            if (stripRequest?.isDisposed != false) requestStrips(view, data, config, isReload = true)
+        }
         requestStrips(view, data, config, isReload = false)
     }
 
@@ -1463,6 +1467,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
         // A recycled view is reused for another page, where a request still running for the old one must not land
         stripRequest?.dispose()
         stripRequest = ImageRequest.Builder(context)
+            // The strips of a page are light work that the user is waiting for, so they are decoded on normal
+            // priority threads and never queue behind the heavier upscaling, which runs a little lower
+            .decoderCoroutineContext(STRIP_DECODER_CONTEXT)
             // Peeking leaves the data whole for decoding again after the strips were freed off screen
             .data(data.peek())
             .memoryCachePolicy(CachePolicy.DISABLED)
@@ -1597,6 +1604,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
         /** While auto scroll runs, enhanced images replace the original at once instead of fading in. */
         @Volatile
         var instantProcessedSwap: Boolean = false
+
+        private val STRIP_DECODER_CONTEXT = kotlinx.coroutines.Dispatchers.IO.limitedParallelism(3)
 
         /**
          * Global semaphore to serialize image decoding.
