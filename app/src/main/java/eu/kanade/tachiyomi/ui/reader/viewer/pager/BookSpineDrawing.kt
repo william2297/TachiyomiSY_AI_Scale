@@ -18,7 +18,12 @@ import kotlin.math.min
  */
 internal class BookSpineDrawing {
     private val multiply = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
+        // The separable multiply keeps the page opaque when the effect is drawn at partial strength.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            blendMode = android.graphics.BlendMode.MULTIPLY
+        } else {
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
+        }
     }
     private val line = Paint(Paint.ANTI_ALIAS_FLAG)
 
@@ -84,7 +89,8 @@ internal class BookSpineDrawing {
             val source1 = spine + direction * u1
             if (abs(x1 - x0) < 0.05f) continue
             val rest = 1f - (u0 + u1) / 2f / band
-            val vertical = 1f - CURVE_SINK * rest * rest
+            // Ease-out: the dip of the top and bottom edges is concentrated next to the spine.
+            val vertical = 1f - CURVE_SINK * rest * rest * rest
             val save = canvas.save()
             canvas.clipRect(min(x0, x1) - 0.5f, 0f, max(x0, x1) + 0.5f, viewHeight)
             canvas.scale(1f, vertical, 0f, centerY)
@@ -129,7 +135,7 @@ internal class BookSpineDrawing {
     }
 
     private fun drawOuterEdge(canvas: Canvas, page: BookPageBounds, outerAtStart: Boolean) {
-        val reach = page.width * 0.02f
+        val reach = page.width * 0.015f
         val edge = if (outerAtStart) page.left else page.right
         val end = if (outerAtStart) edge + reach else edge - reach
         multiply.shader = LinearGradient(edge, 0f, end, 0f, OUTER_EDGE, Color.WHITE, Shader.TileMode.CLAMP)
@@ -154,16 +160,16 @@ internal class BookSpineDrawing {
         val DARK_STOPS = floatArrayOf(0f, 0.012f / 0.09f, 0.035f / 0.09f, 0.06f / 0.09f, 1f)
         val LIGHT_DIP = intArrayOf(0xFFC6C6C6.toInt(), 0xFFDCDCDC.toInt(), 0xFFF0F0F0.toInt(), Color.WHITE)
         val LIGHT_STOPS = floatArrayOf(0f, 0.012f / 0.09f, 0.035f / 0.09f, 1f)
-        val OUTER_EDGE = 0xFFEDEDED.toInt()
+        val OUTER_EDGE = 0xFFF0F0F0.toInt()
 
         /** Share of each page width that bends into the spine. */
-        const val CURVE_BAND = 0.10f
+        const val CURVE_BAND = 0.07f
 
-        /** How much the picture is squeezed at the spine (0.5 = half width). */
-        const val CURVE_SQUEEZE = 0.5f
+        /** How much the picture is squeezed at the spine (0.32 = 0.68 x width at the crease). */
+        const val CURVE_SQUEEZE = 0.32f
 
         /** How much shorter the page is at the spine, so its top and bottom edges dip. */
-        const val CURVE_SINK = 0.03f
+        const val CURVE_SINK = 0.02f
         const val CURVE_STRIPS = 14
     }
 }

@@ -165,8 +165,9 @@ internal class BookPageTurnDrawing {
                         Color.argb(31, 255, 255, 255),
                         Color.argb(20, 0, 0, 0),
                         Color.argb(97, 0, 0, 0),
+                        Color.TRANSPARENT,
                     ),
-                    floatArrayOf(0f, 0.35f, 0.70f, 1f),
+                    floatArrayOf(0f, 0.35f, 0.70f, 0.96f, 1f),
                 )
             }
             // The incoming spread lies on top and draws the crease.
@@ -188,9 +189,10 @@ internal class BookPageTurnDrawing {
             canvas.restoreToCount(save)
         }
         // Shadow the curl casts on that page.
-        if (wave > 0f && maxReach < 1.2f) {
-            val alpha = (0.12f + 0.22f * wave) * shadowScale
-            val width = leafWidth * (0.02f + 0.05f * wave)
+        val shadowVisible = progress > 0.02f && progress < 0.98f
+        if (shadowVisible && maxReach < 1.2f) {
+            val alpha = 0.34f * wave * shadowScale
+            val width = leafWidth * 0.07f * wave
             drawGradient(
                 canvas, under, reach, reach + direction * width,
                 intArrayOf(
@@ -211,7 +213,7 @@ internal class BookPageTurnDrawing {
         fun backSource(s: Float): Float = backSpine + backDirection * s * backWidth
 
         val flatBackStart = max(0f, backEnd)
-        if (flatBackStart < 1f && wave > 0f) {
+        if (flatBackStart < 1f && shadowVisible) {
             // Shadow of the folded part on the page below it.
             val edge = screenX(1f)
             val alpha = (0.10f * wave * shadowScale * 255).toInt()
@@ -235,20 +237,20 @@ internal class BookPageTurnDrawing {
             canvas.restoreToCount(save)
         }
         // One gradient over the back face, from the fold edge inwards.
-        if (backTo > backFrom || flatBackStart < 1f) {
+        if (backTo > backFrom) {
+            // The back of the bend: from the fold edge to where the leaf lies flat again.
             val foldEdge = spine + direction * (axis + radius) * leafWidth
-            val inner = if (flatBackStart < 1f) screenX(1f) else screenX(backTo)
-            val span = abs(foldEdge - inner)
-            if (span > 0.5f) {
-                val bend = (radius * leafWidth / span).coerceIn(0.05f, 1f)
+            val inner = screenX(backTo)
+            if (abs(foldEdge - inner) > 0.5f) {
                 drawGradient(
                     canvas, back, foldEdge, inner,
                     intArrayOf(
+                        Color.TRANSPARENT,
                         Color.argb((0.42f * shadowScale * 255).toInt(), 0, 0, 0),
                         Color.argb((0.15f * shadowScale * 255).toInt(), 0, 0, 0),
-                        Color.argb((0.04f * shadowScale * 255).toInt(), 0, 0, 0),
+                        Color.TRANSPARENT,
                     ),
-                    floatArrayOf(0f, 0.3f * bend, 1f),
+                    floatArrayOf(0f, 0.04f, 0.3f, 1f),
                 )
             }
         }
