@@ -30,8 +30,9 @@ internal data class BookPageTurn(
 ) {
     val elevation: Float
         get() = if (curl) {
-            // The incoming spread draws the back of the curling leaf, so it always lies on top.
-            if (current) 2f else 3f
+            // Until halfway the outgoing leaf faces the reader; after that its back, drawn by the
+            // incoming spread, lies on top.
+            if (current) 2f else if (progress >= 0.5f) 3f else 1f
         } else if (current) {
             2f
         } else if (progress >= 0.5f || (!spread && !layoutTransition && !forward)) {
