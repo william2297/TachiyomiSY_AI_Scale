@@ -163,11 +163,11 @@ internal class BookPageTurnDrawing {
                     intArrayOf(
                         Color.TRANSPARENT,
                         Color.argb(31, 255, 255, 255),
-                        Color.argb(20, 0, 0, 0),
-                        Color.argb(97, 0, 0, 0),
+                        Color.argb(12, 0, 0, 0),
+                        Color.argb(40, 0, 0, 0),
                         Color.TRANSPARENT,
                     ),
-                    floatArrayOf(0f, 0.35f, 0.70f, 0.96f, 1f),
+                    floatArrayOf(0f, 0.35f, 0.70f, 0.9f, 1f),
                 )
             }
             // The incoming spread lies on top and draws the crease.
@@ -246,11 +246,11 @@ internal class BookPageTurnDrawing {
                     canvas, back, foldEdge, inner,
                     intArrayOf(
                         Color.TRANSPARENT,
-                        Color.argb((0.42f * shadowScale * 255).toInt(), 0, 0, 0),
-                        Color.argb((0.15f * shadowScale * 255).toInt(), 0, 0, 0),
+                        Color.argb((0.16f * shadowScale * 255).toInt(), 0, 0, 0),
+                        Color.argb((0.06f * shadowScale * 255).toInt(), 0, 0, 0),
                         Color.TRANSPARENT,
                     ),
-                    floatArrayOf(0f, 0.04f, 0.3f, 1f),
+                    floatArrayOf(0f, 0.25f, 0.6f, 1f),
                 )
             }
         }
