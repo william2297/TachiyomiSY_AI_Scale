@@ -201,6 +201,16 @@ private fun ColumnScope.PagerViewerSettings(viewModel: ReaderSettingsViewModel) 
             }
     }
 
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_landscape_book_mode),
+        pref = viewModel.preferences.landscapeBookMode,
+    )
+
+    CheckboxItem(
+        label = stringResource(MR.strings.pref_paged_rebuild_slices),
+        pref = viewModel.preferences.rebuildSlicedPages,
+    )
+
     val splitWidePages by viewModel.preferences.automaticSplitsPage().collectAsState()
     CheckboxItem(
         label = stringResource(MR.strings.pref_dual_page_split),

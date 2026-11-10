@@ -1241,6 +1241,8 @@
     <string name="reader_status_enhancing_progress">ENHANCING... %1$d%%</string>
     <string name="pref_book_page_turn">Book page turn</string>
     <string name="pref_book_page_turn_summary">Turn pages around the spine with perspective and shadows</string>
+    <string name="pref_landscape_book_mode">Two pages in landscape (book mode)</string>
+    <string name="pref_paged_rebuild_slices">Rebuild whole pages from sliced chapters</string>
 
     <!-- Browse: Discover -->
     <string name="label_discover">Discover</string>

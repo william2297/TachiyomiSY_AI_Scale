@@ -23,6 +23,7 @@ import eu.kanade.tachiyomi.databinding.ReaderErrorBinding
 import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.model.RebuiltPage
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.updateEnhancementStatus
@@ -1131,7 +1132,12 @@ class PagerPageHolder(
             errorLayout = ReaderErrorBinding.inflate(LayoutInflater.from(context), this, true)
             errorLayout?.actionRetry?.viewer = viewer
             errorLayout?.actionRetry?.setOnClickListener {
-                page.chapter.pageLoader?.retryPage(page)
+                val target = page
+                if (target is RebuiltPage) {
+                    retryRebuiltPage(target)
+                } else {
+                    page.chapter.pageLoader?.retryPage(page)
+                }
             }
         }
 
@@ -1154,6 +1160,25 @@ class PagerPageHolder(
 
         errorLayout?.root?.isVisible = true
         return errorLayout!!
+    }
+
+    /** A rebuilt page has no download of its own: reload its slices, then draw it again. */
+    private fun retryRebuiltPage(target: RebuiltPage) {
+        val loader = target.chapter.pageLoader
+        val sources = target.pieces.map { it.source }.distinct()
+        scope.launch {
+            sources.forEach { source ->
+                if (source.status is Page.State.Error) {
+                    loader?.retryPage(source)
+                } else {
+                    launchIO { loader?.loadPage(source) }
+                }
+            }
+            sources.forEach { source -> source.statusFlow.first { it == Page.State.Ready } }
+            target.status = Page.State.Queue
+            delay(100)
+            target.status = Page.State.Ready
+        }
     }
 
     /**

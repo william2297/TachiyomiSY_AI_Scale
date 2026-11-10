@@ -7,10 +7,13 @@ import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderItem
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.model.RebuiltPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.calculateChapterGap
 import eu.kanade.tachiyomi.util.system.createReaderThemeContext
 import eu.kanade.tachiyomi.widget.ViewPagerAdapter
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
 import logcat.LogPriority
 import tachiyomi.core.common.util.system.logcat
 import java.util.Collections
@@ -86,6 +89,44 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
     private val displayReaderPages: List<ReaderPage>
         get() = subItems.filterIsInstance<ReaderPage>().filterNot { it is InsertPage }
 
+    /** Display pages of the current chapter only; the page slider indexes this list. */
+    private val chapterDisplayPages: List<ReaderPage>
+        get() {
+            val chapter = currentChapter ?: return emptyList()
+            return displayReaderPages.filter { it.chapter == chapter }
+        }
+
+    private val rebuildScope = MainScope()
+
+    private val sliceRebuilder = PagedSliceRebuilder(viewer.activity, rebuildScope) { chapter ->
+        viewer.onChapterRebuilt(chapter)
+    }
+
+    private fun usesRebuiltPages(): Boolean {
+        return viewer.config.rebuildSlicedPages && viewer !is VerticalPagerViewer
+    }
+
+    /** Pages shown for [chapter]: whole rebuilt pages once a sliced chapter is analysed. */
+    private fun pagesFor(chapter: ReaderChapter?): List<ReaderPage>? {
+        chapter ?: return null
+        if (!usesRebuiltPages()) return chapter.pages
+        sliceRebuilder.ensure(chapter)
+        return sliceRebuilder.displayPages(chapter)
+    }
+
+    /** Position and count shown in the page indicator when [page]'s chapter is rebuilt. */
+    fun chapterDisplayPosition(page: ReaderPage): Pair<Int, Int>? {
+        if (page is InsertPage || !usesRebuiltPages() || !sliceRebuilder.isRebuilt(page.chapter)) return null
+        val pages = sliceRebuilder.displayPages(page.chapter) ?: return null
+        val position = pages.indexOfFirst { it === page }
+        return if (position >= 0) (position + 1) to pages.size else null
+    }
+
+    fun destroy() {
+        sliceRebuilder.cancelAll()
+        rebuildScope.cancel()
+    }
+
     /**
      * Updates this adapter with the given [chapters]. It handles setting a few pages of the
      * next/previous chapter to allow seamless transitions and inverting the pages if the viewer
@@ -109,7 +150,7 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
         if (chapters.prevChapter != null) {
             // We only need to add the last few pages of the previous chapter, because it'll be
             // selected as the current chapter when one of those pages is selected.
-            val prevPages = chapters.prevChapter.pages
+            val prevPages = pagesFor(chapters.prevChapter)
             if (prevPages != null) {
                 newItems.addAll(prevPages)
             }
@@ -121,17 +162,17 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
         }
 
         // Add current chapter.
-        val currPages = chapters.currChapter.pages
+        val currPages = pagesFor(chapters.currChapter)
         if (currPages != null) {
             val pages = currPages.toMutableList()
 
-            // Insert preprocessed pages into current page list
-            preprocessed.filterValues {
+            // Insert preprocessed pages into current page list, right after their parent page
+            preprocessed.values.filter {
                 it.chapter.chapter.id == chapters.currChapter.chapter.id
-            }.keys.sortedDescending()
-                .forEach { key ->
-                    preprocessed[key]?.let { pages.add(key + 1, it) }
-                }
+            }.forEach { insertPage ->
+                val parentPosition = pages.indexOfFirst { it === insertPage.parent }
+                if (parentPosition >= 0) pages.add(parentPosition + 1, insertPage)
+            }
 
             newItems.addAll(pages)
         }
@@ -153,7 +194,7 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
         if (chapters.nextChapter != null) {
             // Add at most two pages, because this chapter will be selected before the user can
             // swap more pages.
-            val nextPages = chapters.nextChapter.pages
+            val nextPages = pagesFor(chapters.nextChapter)
             if (nextPages != null) {
                 newItems.addAll(nextPages.take(2))
             }
@@ -361,10 +402,25 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
         if (page is InsertPage) {
             return findCurrentInsertPage(subItems, page)
         }
-        return displayReaderPages.firstOrNull { candidate -> candidate.isFromSamePage(page) }
+        val pages = displayReaderPages
+        return pages.firstOrNull { candidate -> candidate.isFromSamePage(page) }
+            // A source page can sit entirely inside a rebuilt page that ends in a later source page,
+            // and a page from an older layout has no exact match.
+            ?: pages.firstOrNull { candidate ->
+                (candidate is RebuiltPage || page is RebuiltPage) &&
+                    candidate.chapter.chapter.id == page.chapter.chapter.id &&
+                    candidate.index >= page.index
+            }
     }
 
     fun getPositionForPage(page: ReaderPage, preferCurrentAsFirstPage: Boolean = false): Int {
+        if (page !is InsertPage && page !is RebuiltPage) {
+            // Map a source page to its rebuilt page in reading order (joinedItems is reversed in R2L).
+            val mapped = findReaderPage(page)
+            if (mapped is RebuiltPage) {
+                return joinedItems.indexOfFirst { pair -> pair.first === mapped || pair.second === mapped }
+            }
+        }
         if (page is InsertPage) {
             val currentInsertPage = findReaderPage(page) ?: return -1
             return joinedItems.indexOfFirst { pair ->
@@ -501,6 +557,8 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
 
     private fun pageSpreadKey(first: ReaderPage?, second: ReaderPage?): PageSpreadKey? {
         if (first == null || second == null) return null
+        // Rebuilt pages are already whole pages cut at gutters; never join them as a spread.
+        if (first is RebuiltPage || second is RebuiltPage) return null
         // The two halves of one source page are already a split image, not an auto-detected
         // spread. Only compare across adjacent source pages.
         if (first.isFromSamePage(second)) return null
@@ -616,7 +674,7 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
         splitPages.forEach { key ->
             val parentIndex = subItems.indexOfFirst { item ->
                 val page = item as? ReaderPage
-                page !is InsertPage && splitPageKey(page) == key
+                page !is InsertPage && page !is RebuiltPage && splitPageKey(page) == key
             }
             if (parentIndex == -1) return@forEach
 
@@ -656,11 +714,11 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
     }
 
     fun getDisplayPage(index: Int): ReaderPage? {
-        return displayReaderPages.getOrNull(index)
+        return chapterDisplayPages.getOrNull(index)
     }
 
     fun getDisplayPageCount(): Int {
-        return displayReaderPages.size
+        return chapterDisplayPages.size
     }
 
     fun getDisplayPageNumber(page: ReaderPage): Int {
@@ -683,6 +741,7 @@ internal fun findCurrentInsertPage(items: List<ReaderItem>, anchor: InsertPage):
 internal fun isSameDisplayedPage(first: ReaderPage?, second: ReaderPage?): Boolean {
     if (first == null || second == null) return false
     if ((first is InsertPage) != (second is InsertPage)) return false
+    if ((first is RebuiltPage) != (second is RebuiltPage)) return false
     return if (first is InsertPage && second is InsertPage) {
         first.parent.isFromSamePage(second.parent)
     } else {

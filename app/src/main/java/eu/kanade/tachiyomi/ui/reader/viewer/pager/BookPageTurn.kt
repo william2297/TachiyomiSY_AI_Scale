@@ -21,9 +21,16 @@ internal data class BookPageTurn(
     val hingeShift: Float = 0f,
     val crossShift: Float = 0f,
     val targetScale: Float = 1f,
+    /** Two-page spread turning into another spread: the leaf curls around a cylinder. */
+    val curl: Boolean = false,
+    /** Picture rectangles of the other spread in this turn, in the same view coordinates. */
+    val peerImageBounds: List<BookPageBounds>? = null,
 ) {
     val elevation: Float
-        get() = if (current) {
+        get() = if (curl) {
+            // The incoming spread draws the back of the curling leaf, so it always lies on top.
+            if (current) 2f else 3f
+        } else if (current) {
             2f
         } else if (progress >= 0.5f || (!spread && !layoutTransition && !forward)) {
             3f

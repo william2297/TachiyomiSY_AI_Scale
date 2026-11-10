@@ -847,6 +847,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
      */
     private fun queueDownloadedPagesAhead(pIdx: Int) {
         if (preferences.automaticSplitsPage().get()) return
+        val current = readerPage
+        if (current is eu.kanade.tachiyomi.ui.reader.model.RebuiltPage) {
+            queueRebuiltPagesAhead(current, pIdx)
+            return
+        }
         val pages = readerPage?.chapter?.pages ?: return
         val last = minOf(pages.lastIndex, pIdx + enhanceAheadSize)
         if (pIdx + 1 > last) return
@@ -860,6 +865,26 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 if (ready) ImageEnhancer.enhance(appContext, page, false)
             }
             android.util.Log.i("EnhanceTrace", "ahead from $pIdx: $states(R = downloaded, queued low)")
+        }
+    }
+
+    /**
+     * A rebuilt chapter enhances its rebuilt pages instead of the source slices. The window stays in
+     * source indices so the pruning in [onPageSelected] keeps these requests.
+     */
+    private fun queueRebuiltPagesAhead(current: eu.kanade.tachiyomi.ui.reader.model.RebuiltPage, pIdx: Int) {
+        val pages = current.chapterPages
+        val position = pages.indexOfFirst { it === current }
+        if (position < 0) return
+        val limit = pIdx + enhanceAheadSize
+        val appContext = context.applicationContext
+        viewScope.launchIO {
+            for (page in pages.subList(position + 1, pages.size)) {
+                if (page.index > limit) break
+                if (page.status == eu.kanade.tachiyomi.source.model.Page.State.Ready) {
+                    ImageEnhancer.enhance(appContext, page, false)
+                }
+            }
         }
     }
 

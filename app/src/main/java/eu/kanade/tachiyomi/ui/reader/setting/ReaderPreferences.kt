@@ -70,6 +70,12 @@ class ReaderPreferences(
 
     val bookPageTransitions = preferenceStore.getBoolean("pref_book_page_transitions", true)
 
+    /** Paged LTR/RTL: join a source's uneven slices and cut them again into whole pages. */
+    val rebuildSlicedPages: Preference<Boolean> = preferenceStore.getBoolean("pref_paged_rebuild_slices", true)
+
+    /** Paged LTR/RTL in landscape: show two pages side by side like an open book. */
+    val landscapeBookMode: Preference<Boolean> = preferenceStore.getBoolean("pref_landscape_book_mode", true)
+
     val pageTransitions: Preference<Boolean> = preferenceStore.getBoolean("pref_enable_transitions_key", true)
 
     fun setBookPageTransitions(enabled: Boolean) {

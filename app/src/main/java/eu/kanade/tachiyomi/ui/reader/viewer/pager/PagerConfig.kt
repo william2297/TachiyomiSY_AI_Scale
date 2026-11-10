@@ -28,6 +28,7 @@ class PagerConfig(
     readerPreferences,
     scope,
     isLandscape = { viewer.activity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE },
+    supportsLandscapeBook = { viewer !is VerticalPagerViewer },
 ) {
 
     var theme = readerPreferences.readerTheme.get()
@@ -54,6 +55,9 @@ class PagerConfig(
     var landscapeZoom = false
         private set
 
+    var rebuildSlicedPages = true
+        private set
+
     init {
         readerPreferences.readerTheme
             .register(
@@ -63,6 +67,9 @@ class PagerConfig(
                 },
                 { imagePropertyChangedListener?.invoke() },
             )
+
+        readerPreferences.rebuildSlicedPages
+            .register({ rebuildSlicedPages = it }, { reloadChapterListener?.invoke(doublePages) })
 
         readerPreferences.imageScaleType
             .register({ imageScaleType = it }, { imagePropertyChangedListener?.invoke() })

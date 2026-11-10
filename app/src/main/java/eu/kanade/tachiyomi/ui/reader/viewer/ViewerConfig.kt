@@ -15,6 +15,8 @@ abstract class ViewerConfig(
     readerPreferences: ReaderPreferences,
     private val scope: CoroutineScope,
     private val isLandscape: () -> Boolean = { false },
+    /** Whether this viewer may switch to two pages in landscape while the layout is "Single page". */
+    private val supportsLandscapeBook: () -> Boolean = { false },
 ) {
 
     var imagePropertyChangedListener: (() -> Unit)? = null
@@ -76,6 +78,16 @@ abstract class ViewerConfig(
 
     private var pageLayoutPreference = readerPreferences.pageLayout().get()
 
+    private var landscapeBookMode = readerPreferences.landscapeBookMode.get()
+
+    private fun computeDoublePages(): Boolean {
+        return when (pageLayoutPreference) {
+            PageLayout.DOUBLE_PAGES.value -> true
+            PageLayout.AUTOMATIC.value -> isLandscape()
+            else -> landscapeBookMode && supportsLandscapeBook() && isLandscape()
+        }
+    }
+
     abstract var navigator: ViewerNavigation
         protected set
 
@@ -125,11 +137,17 @@ abstract class ViewerConfig(
                     it
                 }
                 autoDoublePages = pageLayoutPreference == PageLayout.AUTOMATIC.value
-                doublePages = when (pageLayoutPreference) {
-                    PageLayout.DOUBLE_PAGES.value -> true
-                    PageLayout.AUTOMATIC.value -> isLandscape()
-                    else -> false
-                }
+                doublePages = computeDoublePages()
+            }, {
+                pageSpreadConfigurationChangedListener?.invoke()
+                reloadChapterListener?.invoke(doublePages)
+                imagePropertyChangedListener?.invoke()
+            })
+
+        readerPreferences.landscapeBookMode
+            .register({
+                landscapeBookMode = it
+                doublePages = computeDoublePages()
             }, {
                 pageSpreadConfigurationChangedListener?.invoke()
                 reloadChapterListener?.invoke(doublePages)
@@ -151,8 +169,7 @@ abstract class ViewerConfig(
     }
 
     fun refreshAutomaticPageLayout() {
-        if (pageLayoutPreference != PageLayout.AUTOMATIC.value) return
-        val newDoublePages = isLandscape()
+        val newDoublePages = computeDoublePages()
         if (doublePages != newDoublePages) {
             doublePages = newDoublePages
             reloadChapterListener?.invoke(doublePages)

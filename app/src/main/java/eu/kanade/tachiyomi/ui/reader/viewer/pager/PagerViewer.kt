@@ -15,6 +15,7 @@ import eu.kanade.tachiyomi.ui.reader.ReaderActivity
 import eu.kanade.tachiyomi.ui.reader.model.ChapterTransition
 import eu.kanade.tachiyomi.ui.reader.model.InsertPage
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
+import eu.kanade.tachiyomi.ui.reader.model.RebuiltPage
 import eu.kanade.tachiyomi.ui.reader.model.ViewerChapters
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
 import eu.kanade.tachiyomi.ui.reader.viewer.ViewerNavigation.NavigationRegion
@@ -222,7 +223,14 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             val currentSpread = config.doublePages && from.second != null
             val targetSpread = config.doublePages && to.second != null
             if (currentSpread == targetSpread || frame.vertical) {
-                return@let frame.copy(spread = currentSpread && !frame.vertical)
+                val spread = currentSpread && !frame.vertical
+                if (!spread) return@let frame.copy(spread = false)
+                val peerItem = if (frame.current) to else from
+                val peerBounds = pager.children.filterIsInstance<PagerPageHolder>()
+                    .firstOrNull { it.item == peerItem }
+                    ?.bookPageImageBounds()
+                    ?.takeIf { it.size == 2 }
+                return@let frame.copy(spread = true, curl = true, peerImageBounds = peerBounds)
             }
             val currentHolder = pager.children.filterIsInstance<PagerPageHolder>()
                 .firstOrNull { it.item == from }
@@ -267,6 +275,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
     override fun destroy() {
         super.destroy()
         eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer.cancelAll("pager viewer destroyed")
+        adapter.destroy()
         scope.cancel()
     }
 
@@ -328,8 +337,16 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             val allowPreload = checkAllowPreload(activeItem as? ReaderPage)
             val forward = when {
                 currentPage is ReaderPage && activeItem is ReaderPage -> {
-                    // if both pages have the same number, it's a split page with an InsertPage
-                    if (activeItem.number == (currentPage as ReaderPage).number) {
+                    val previousPage = currentPage as ReaderPage
+                    if (
+                        activeItem is RebuiltPage &&
+                        previousPage is RebuiltPage &&
+                        activeItem.chapter == previousPage.chapter
+                    ) {
+                        // Rebuilt pages can share a source index; their display order decides.
+                        activeItem.displayIndex > previousPage.displayIndex
+                    } else if (activeItem.number == previousPage.number) {
+                        // if both pages have the same number, it's a split page with an InsertPage
                         // the InsertPage is always the second in the reading direction
                         activeItem is InsertPage
                     } else {
@@ -375,8 +392,10 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
      */
     private fun onReaderPageSelected(page: ReaderPage, allowPreload: Boolean, hasExtraPage: Boolean, forward: Boolean) {
         val pages = page.chapter.pages ?: return
-        val currentPageNumber = page.number
-        val totalPageCount = pages.size
+        // A rebuilt chapter counts its rebuilt pages; saved progress still uses source indices.
+        val rebuiltPosition = adapter.chapterDisplayPosition(page)
+        val currentPageNumber = rebuiltPosition?.first ?: page.number
+        val totalPageCount = rebuiltPosition?.second ?: pages.size
         currentReaderPage = page
         // ViewPager can select the initial spread before its holder has been added.
         // Keep preloading anchored to the selected page even when that callback is missed.
@@ -485,6 +504,14 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
 
     internal fun setPendingSelectedPage(page: ReaderPage?) {
         pendingSelectedPage = page
+    }
+
+    /** A chapter's sliced pages were rebuilt into whole pages; show them, keeping the reading position. */
+    internal fun onChapterRebuilt(chapter: eu.kanade.tachiyomi.ui.reader.model.ReaderChapter) {
+        val chapters = activity.viewModel.state.value.viewerChapters ?: return
+        if (chapter != chapters.currChapter && chapter != chapters.prevChapter && chapter != chapters.nextChapter) return
+        logcat { "PagerViewer.onChapterRebuilt: ${chapter.chapter.id}" }
+        setChapters(chapters)
     }
 
     fun getCurrentReaderPage(): ReaderPage? {
