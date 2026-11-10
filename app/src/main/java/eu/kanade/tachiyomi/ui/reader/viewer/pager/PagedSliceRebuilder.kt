@@ -232,8 +232,8 @@ internal class PagedSliceRebuilder(
     private fun readSize(page: ReaderPage): Pair<Int, Int>? {
         return try {
             val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            val stream = page.stream?.invoke() ?: return null
-            stream.use { BitmapFactory.decodeStream(it, null, options) }
+            val bytes = readBytes(page) ?: return null
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
             if (options.outWidth > 0 && options.outHeight > 0) options.outWidth to options.outHeight else null
         } catch (e: CancellationException) {
             throw e
@@ -277,8 +277,8 @@ internal class PagedSliceRebuilder(
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
         val bitmap = try {
-            val stream = page.stream?.invoke() ?: return null
-            stream.use { BitmapFactory.decodeStream(it, null, options) }
+            val bytes = readBytes(page) ?: return null
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -624,19 +624,32 @@ internal class PagedSliceRebuilder(
         return file
     }
 
+    /**
+     * Reads a whole page through okio, the way the rest of the reader does. A downloaded chapter's
+     * archive stream can return more bytes than a read asked for; okio copes with that, but the
+     * platform decoders overflow a native buffer and the app dies with SIGSEGV.
+     */
+    private fun readBytes(page: ReaderPage): ByteArray? {
+        val open = page.stream ?: return null
+        return open().use { input -> Buffer().readFrom(input).readByteArray() }
+    }
+
     private fun decodeRegion(piece: RebuiltPage.Piece): Bitmap? {
-        val openSource = piece.source.stream ?: return null
+        val bytes = try {
+            readBytes(piece.source)
+        } catch (e: Exception) {
+            logcat(LogPriority.WARN, e) { "PagedRebuild: unable to read page ${piece.source.index}" }
+            null
+        } ?: return null
         val rect = Rect(0, piece.sourceTop, piece.sourceWidth, piece.sourceBottom)
         try {
-            openSource().use { input ->
-                @Suppress("DEPRECATION")
-                val decoder: BitmapRegionDecoder? = BitmapRegionDecoder.newInstance(input, false)
-                if (decoder != null) {
-                    try {
-                        decoder.decodeRegion(rect, null)?.let { return it }
-                    } finally {
-                        decoder.recycle()
-                    }
+            @Suppress("DEPRECATION")
+            val decoder: BitmapRegionDecoder? = BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false)
+            if (decoder != null) {
+                try {
+                    decoder.decodeRegion(rect, null)?.let { return it }
+                } finally {
+                    decoder.recycle()
                 }
             }
         } catch (e: Exception) {
@@ -645,8 +658,8 @@ internal class PagedSliceRebuilder(
 
         // Formats the region decoder cannot read: decode the whole slice and crop it.
         val full = try {
-            openSource().use { input -> BitmapFactory.decodeStream(input) }
-                ?: openSource().use { input -> ImageUtil.decodeBitmap(Buffer().readFrom(input)) }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                ?: ImageUtil.decodeBitmap(Buffer().write(bytes))
         } catch (e: Exception) {
             logcat(LogPriority.WARN, e) { "PagedRebuild: full decode failed for page ${piece.source.index}" }
             null
