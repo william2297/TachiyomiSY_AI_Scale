@@ -362,6 +362,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
     @CallSuper
     open fun onImageLoaded() {
         hasDisplayedImage = true
+        // The spine is drawn by this view, which is not redrawn when only the image child changes.
+        if (drawsBookSpine) invalidate()
         onImageLoaded?.invoke()
         background = pageBackground
         notifyVisibleImageDisplayed()
@@ -500,9 +502,13 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 object : SubsamplingScaleImageView.OnStateChangedListener {
                     override fun onScaleChanged(newScale: Float, origin: Int) {
                         this@ReaderPageImageView.onScaleChanged(newScale)
+                        if (drawsBookSpine) this@ReaderPageImageView.invalidate()
                     }
 
-                    override fun onCenterChanged(newCenter: PointF?, origin: Int) = Unit
+                    override fun onCenterChanged(newCenter: PointF?, origin: Int) {
+                        // The spine follows the pictures when a spread is zoomed or panned.
+                        if (drawsBookSpine) this@ReaderPageImageView.invalidate()
+                    }
                 },
             )
             if (!isWebtoon) setOnClickListener { this@ReaderPageImageView.onViewClicked() }
