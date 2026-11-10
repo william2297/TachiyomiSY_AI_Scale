@@ -126,6 +126,19 @@ open class ReaderPageImageView @JvmOverloads constructor(
             invalidate()
         }
     private val bookPageTurnDrawing = BookPageTurnDrawing()
+    private val bookSpineDrawing = eu.kanade.tachiyomi.ui.reader.viewer.pager.BookSpineDrawing()
+
+    /** Set by the pager for a two-page spread: draw the dip of an open book at the spine. */
+    internal var drawsBookSpine = false
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
+    /** The reader background is white, so the spine is drawn lighter. */
+    internal var bookSpineLight = false
     private val enhancementStatusViews = mutableListOf<View>()
     private val sourcePictureBounds = WeakHashMap<View, List<BookPageBounds>>()
 
@@ -158,11 +171,15 @@ open class ReaderPageImageView @JvmOverloads constructor(
         val turn = bookPageTurn
         if (turn == null) {
             super.draw(canvas)
+            if (drawsBookSpine) {
+                bookPageImageBounds().takeIf { it.size == 2 }?.let { bookSpineDrawing.drawSpread(canvas, it, bookSpineLight) }
+            }
         } else {
             val pictures = bookPageImageBounds()
             val pictureTurn = turn.copy(
                 bounds = turn.bounds ?: bookPageBounds(),
                 imageBounds = pictures.takeIf { it.isNotEmpty() && (!turn.spread || it.size == 2) },
+                lightBook = bookSpineLight,
             )
             // The pager paints one stationary background below both turning pages.
             bookPageTurnDrawing.draw(canvas, width, height, pictureTurn) { super.dispatchDraw(it) }

@@ -25,6 +25,8 @@ internal data class BookPageTurn(
     val curl: Boolean = false,
     /** Picture rectangles of the other spread in this turn, in the same view coordinates. */
     val peerImageBounds: List<BookPageBounds>? = null,
+    /** White reader background: lighter spine dip and shadows. */
+    val lightBook: Boolean = false,
 ) {
     val elevation: Float
         get() = if (curl) {

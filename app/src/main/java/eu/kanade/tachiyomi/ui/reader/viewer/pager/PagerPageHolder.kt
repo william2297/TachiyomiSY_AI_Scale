@@ -130,6 +130,12 @@ class PagerPageHolder(
         val pageInset = viewer.config.verticalPaddingDp.dpToPx
         setPadding(pageInset, pageInset, pageInset, pageInset)
         suppressDefaultStatus = extraPage != null
+        drawsBookSpine = extraPage != null
+        bookSpineLight = when (viewer.config.readerTheme) {
+            0 -> true
+            3 -> !context.isNightMode()
+            else -> false
+        }
         originalImageSourceFactory = { buildOriginalDisplaySource() }
         if (usesEnhancedDisplayTransform()) {
             enhancedImageSourceFactory = { buildEnhancedDisplaySource(it) }

@@ -10,9 +10,9 @@ import android.graphics.RectF
 import android.graphics.Shader
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 
 internal class BookPageTurnDrawing {
@@ -20,6 +20,7 @@ internal class BookPageTurnDrawing {
     private val matrix = Matrix()
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val bounds = RectF()
+    private val spineDrawing = BookSpineDrawing()
 
     fun draw(canvas: Canvas, width: Int, height: Int, turn: BookPageTurn, content: (Canvas) -> Unit) {
         if (turn.curl && turn.spread && !turn.vertical && drawCurl(canvas, turn, content)) return
@@ -103,8 +104,8 @@ internal class BookPageTurnDrawing {
      * lies on top and draws the part of its own page that the curl uncovers, the shadows, and the
      * back of the curling leaf, which is the incoming spread's other page.
      *
-     * The picture is drawn as vertical strips; each strip maps its slice of the page linearly, which
-     * approximates the cylinder closely enough at this strip count.
+     * The picture is drawn as vertical strips that each map their slice of the page linearly; the
+     * shading is one gradient over the whole bend, so the strips never show as stripes.
      */
     private fun drawCurl(canvas: Canvas, turn: BookPageTurn, content: (Canvas) -> Unit): Boolean {
         val own = turn.imageBounds?.takeIf { it.size == 2 } ?: return false
@@ -119,7 +120,9 @@ internal class BookPageTurnDrawing {
         if (leafWidth <= 1f) return false
 
         val progress = turn.progress.coerceIn(0f, 1f)
-        val radius = CURL_RADIUS * (1f - progress) + 0.002f
+        val wave = sin(PI * progress).toFloat().coerceAtLeast(0f)
+        // Designer spec: 0.10 W at the start, about 0.08 W midway, tapering so the leaf lands flat.
+        val radius = ((0.10f - 0.065f * progress) + 0.03f * wave) * (1f - progress.pow(6)) + 0.002f
         val axis = (1f - progress) - progress * (PI.toFloat() * radius / 2f)
         val frontEnd = axis + PI.toFloat() * radius / 2f
         val backEnd = axis + PI.toFloat() * radius
@@ -131,49 +134,72 @@ internal class BookPageTurnDrawing {
             return if (distance <= arc) axis + radius * sin(distance / radius) else axis - (distance - arc)
         }
         fun screenX(s: Float): Float = spine + direction * curlPosition(s) * leafWidth
-        fun angle(s: Float): Float = ((s - axis) / radius).coerceIn(0f, PI.toFloat())
+        val light = turn.lightBook
+        val creaseStrength = 1f - 0.4f * wave
 
-        val shade = sin(PI * progress).toFloat().coerceAtLeast(0f)
         if (turn.current) {
-            // Fixed leaf.
+            // Fixed leaf with its dip.
             val fixed = own[otherSide]
             drawSlice(canvas, fixed.left, fixed.right, fixed, content)
-            // Flat part of the turning leaf.
+            spineDrawing.drawDip(canvas, fixed, spineAtStart = otherSide == 1, light = light)
+            // Flat part of the turning leaf; its dip fades as it lifts.
             val flatEnd = axis.coerceIn(0f, 1f)
             if (flatEnd > 0f) {
                 val edge = spine + direction * flatEnd * leafWidth
-                drawSlice(canvas, min(spine, edge), max(spine, edge), leaf, content)
+                val save = canvas.save()
+                canvas.clipRect(min(spine, edge), leaf.top, max(spine, edge), leaf.bottom)
+                content(canvas)
+                spineDrawing.drawDip(canvas, leaf, spineAtStart = turningSide == 1, light = light, strength = 1f - progress)
+                canvas.restoreToCount(save)
             }
             // Front of the cylinder. Mostly hidden under the back face, but it fills the curl when
             // the incoming spread is not drawn yet.
-            val strips = drawStrips(
-                canvas = canvas,
-                clip = leaf,
-                from = max(0f, axis),
-                to = min(1f, frontEnd),
-                content = content,
-                screenX = ::screenX,
-                sourceX = { s -> spine + direction * s * leafWidth },
-            )
-            strips.forEach { strip ->
-                shadeStrip(canvas, strip.left, strip.right, leaf, 0.42f * (1f - cos(angle(strip.middle))))
+            val from = max(0f, axis)
+            val to = min(1f, frontEnd)
+            drawStrips(canvas, leaf, from, to, content, ::screenX) { s -> spine + direction * s * leafWidth }
+            if (to > from) {
+                drawGradient(
+                    canvas, leaf, screenX(from), screenX(to),
+                    intArrayOf(
+                        Color.TRANSPARENT,
+                        Color.argb(31, 255, 255, 255),
+                        Color.argb(20, 0, 0, 0),
+                        Color.argb(97, 0, 0, 0),
+                    ),
+                    floatArrayOf(0f, 0.35f, 0.70f, 1f),
+                )
             }
+            // The incoming spread lies on top and draws the crease.
             return true
         }
 
+        val shadowScale = if (light) 0.7f else 1f
         // Incoming spread: its page under the curling leaf, visible beyond the curl.
         val under = own[turningSide]
         val maxReach = if (frontEnd <= 1f) axis + radius else curlPosition(1f)
         val reach = spine + direction * maxReach * leafWidth
-        if (direction > 0f) {
-            drawSlice(canvas, max(under.left, reach), under.right, under, content)
-        } else {
-            drawSlice(canvas, under.left, min(under.right, reach), under, content)
+        val underLeft = if (direction > 0f) max(under.left, reach) else under.left
+        val underRight = if (direction > 0f) under.right else min(under.right, reach)
+        if (underRight - underLeft >= 0.5f) {
+            val save = canvas.save()
+            canvas.clipRect(underLeft, under.top, underRight, under.bottom)
+            content(canvas)
+            spineDrawing.drawDip(canvas, under, spineAtStart = turningSide == 1, light = light)
+            canvas.restoreToCount(save)
         }
         // Shadow the curl casts on that page.
-        if (shade > 0f && maxReach < 1.2f) {
-            val shadowEnd = reach + direction * leafWidth * 0.08f
-            drawShadow(canvas, reach, shadowEnd, under, (shade * 110).toInt())
+        if (wave > 0f && maxReach < 1.2f) {
+            val alpha = (0.12f + 0.22f * wave) * shadowScale
+            val width = leafWidth * (0.02f + 0.05f * wave)
+            drawGradient(
+                canvas, under, reach, reach + direction * width,
+                intArrayOf(
+                    Color.argb((alpha * 255).toInt(), 0, 0, 0),
+                    Color.argb((alpha * 0.45f * 255).toInt(), 0, 0, 0),
+                    Color.TRANSPARENT,
+                ),
+                floatArrayOf(0f, 0.4f, 1f),
+            )
         }
 
         // Back of the curling leaf: the incoming spread's other page, read from its spine outwards.
@@ -185,34 +211,48 @@ internal class BookPageTurnDrawing {
         fun backSource(s: Float): Float = backSpine + backDirection * s * backWidth
 
         val flatBackStart = max(0f, backEnd)
-        if (flatBackStart < 1f && shade > 0f) {
+        if (flatBackStart < 1f && wave > 0f) {
             // Shadow of the folded part on the page below it.
             val edge = screenX(1f)
-            drawShadow(canvas, edge, edge - direction * leafWidth * 0.05f, back, (shade * 70).toInt())
-        }
-        val backStrips = drawStrips(
-            canvas = canvas,
-            clip = back,
-            from = max(0f, frontEnd),
-            to = min(1f, backEnd),
-            content = content,
-            screenX = ::screenX,
-            sourceX = ::backSource,
-        )
-        backStrips.forEach { strip ->
-            shadeStrip(canvas, strip.left, strip.right, back, 0.42f * (1f - abs(cos(angle(strip.middle)))))
-        }
-        if (flatBackStart < 1f) {
-            drawMapped(
-                canvas,
-                back,
-                screenX(flatBackStart),
-                screenX(1f),
-                backSource(flatBackStart),
-                backSource(1f),
-                content,
+            val alpha = (0.10f * wave * shadowScale * 255).toInt()
+            drawGradient(
+                canvas, back, edge, edge - direction * leafWidth * 0.04f,
+                intArrayOf(Color.argb(alpha, 0, 0, 0), Color.TRANSPARENT),
+                floatArrayOf(0f, 1f),
             )
         }
+        val backFrom = max(0f, frontEnd)
+        val backTo = min(1f, backEnd)
+        drawStrips(canvas, back, backFrom, backTo, content, ::screenX, ::backSource)
+        if (flatBackStart < 1f) {
+            val x0 = screenX(flatBackStart)
+            val x1 = screenX(1f)
+            val save = canvas.save()
+            canvas.clipRect(min(x0, x1) - 1f, back.top, max(x0, x1) + 1f, back.bottom)
+            drawMapped(canvas, back, x0, x1, backSource(flatBackStart), backSource(1f), content)
+            // The back page's own spine dip grows as it settles.
+            spineDrawing.drawDip(canvas, back, spineAtStart = otherSide == 1, light = light, strength = progress)
+            canvas.restoreToCount(save)
+        }
+        // One gradient over the back face, from the fold edge inwards.
+        if (backTo > backFrom || flatBackStart < 1f) {
+            val foldEdge = spine + direction * (axis + radius) * leafWidth
+            val inner = if (flatBackStart < 1f) screenX(1f) else screenX(backTo)
+            val span = abs(foldEdge - inner)
+            if (span > 0.5f) {
+                val bend = (radius * leafWidth / span).coerceIn(0.05f, 1f)
+                drawGradient(
+                    canvas, back, foldEdge, inner,
+                    intArrayOf(
+                        Color.argb((0.42f * shadowScale * 255).toInt(), 0, 0, 0),
+                        Color.argb((0.15f * shadowScale * 255).toInt(), 0, 0, 0),
+                        Color.argb((0.04f * shadowScale * 255).toInt(), 0, 0, 0),
+                    ),
+                    floatArrayOf(0f, 0.3f * bend, 1f),
+                )
+            }
+        }
+        spineDrawing.drawCrease(canvas, spine, minOf(leaf.top, back.top), maxOf(leaf.bottom, back.bottom), light, creaseStrength)
         return true
     }
 
@@ -254,8 +294,8 @@ internal class BookPageTurnDrawing {
     ) {
         if (abs(source1 - source0) < 0.01f) return
         val save = canvas.save()
-        // Slight overlap hides hairline seams between neighbouring strips.
-        canvas.clipRect(min(x0, x1) - 0.75f, clip.top, max(x0, x1) + 0.75f, clip.bottom)
+        // A 1 px overlap hides hairline seams between neighbouring strips.
+        canvas.clipRect(min(x0, x1) - 1f, clip.top, max(x0, x1) + 1f, clip.bottom)
         canvas.translate(x0, 0f)
         canvas.scale((x1 - x0) / (source1 - source0), 1f)
         canvas.translate(-source0, 0f)
@@ -271,28 +311,24 @@ internal class BookPageTurnDrawing {
         canvas.restoreToCount(save)
     }
 
-    private fun shadeStrip(canvas: Canvas, left: Float, right: Float, clip: BookPageBounds, amount: Float) {
-        val alpha = (amount.coerceIn(0f, 1f) * 255).toInt()
-        if (alpha <= 0) return
-        paint.shader = null
-        paint.color = Color.argb(alpha, 0, 0, 0)
-        bounds.set(left - 0.75f, clip.top, right + 0.75f, clip.bottom)
-        canvas.drawRect(bounds, paint)
-    }
-
-    private fun drawShadow(canvas: Canvas, start: Float, end: Float, clip: BookPageBounds, alpha: Int) {
-        if (alpha <= 0 || abs(end - start) < 0.5f) return
-        val color = Color.argb(alpha.coerceIn(0, 255), 0, 0, 0)
+    /** A horizontal gradient from [start] to [end], limited to [clip] vertically. */
+    private fun drawGradient(
+        canvas: Canvas,
+        clip: BookPageBounds,
+        start: Float,
+        end: Float,
+        colors: IntArray,
+        stops: FloatArray,
+    ) {
+        if (abs(end - start) < 0.5f) return
         paint.color = Color.BLACK
-        paint.shader = LinearGradient(start, 0f, end, 0f, color, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        paint.shader = LinearGradient(start, 0f, end, 0f, colors, stops, Shader.TileMode.CLAMP)
         bounds.set(min(start, end), clip.top, max(start, end), clip.bottom)
         canvas.drawRect(bounds, paint)
         paint.shader = null
     }
 
     private companion object {
-        /** Curl radius at the start of a turn, as a fraction of the page width. */
-        const val CURL_RADIUS = 0.16f
-        const val CURL_STRIPS = 10
+        const val CURL_STRIPS = 16
     }
 }
