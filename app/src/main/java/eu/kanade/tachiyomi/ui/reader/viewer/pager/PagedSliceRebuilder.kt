@@ -49,6 +49,7 @@ internal class PagedSliceRebuilder(
     private val appContext = context.applicationContext
     private val cacheRoot = File(appContext.cacheDir, "paged_rebuild")
     private val renderLocks = ConcurrentHashMap<String, Any>()
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     private class Result(val sourcePages: List<ReaderPage>, val pages: List<ReaderPage>?)
     private class Running(val sourcePages: List<ReaderPage>, val job: Job)
@@ -84,6 +85,12 @@ internal class PagedSliceRebuilder(
         if (current != null && current.sourcePages === source && current.job.isActive) return
         current?.job?.cancel()
 
+        // A downloaded chapter reads its pages from a memory-mapped archive that is unmapped when
+        // the chapter is released. Reading it after that crashes natively, so hold the chapter
+        // until the analysis ends. Online pages are cache files and need no hold.
+        val holdsChapter = chapter.pageLoader?.isLocal == true
+        if (holdsChapter) chapter.ref()
+
         val job = scope.launch {
             val outcome = try {
                 withContext(Dispatchers.IO) { analyze(chapter, source) }
@@ -98,6 +105,10 @@ internal class PagedSliceRebuilder(
                 results[id] = Result(source, outcome.pages)
                 if (outcome.pages != null) onRebuilt(chapter)
             }
+        }
+        if (holdsChapter) {
+            // Runs even when the job is cancelled before it starts; ref counting is main-thread only.
+            job.invokeOnCompletion { mainHandler.post { chapter.unref() } }
         }
         running[id] = Running(source, job)
     }
