@@ -7,6 +7,9 @@ import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.Shader
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 /**
  * The dip of an open book: paper darkens towards the spine, a thin crease runs down the middle and
@@ -18,6 +21,80 @@ internal class BookSpineDrawing {
         xfermode = PorterDuffXfermode(PorterDuff.Mode.MULTIPLY)
     }
     private val line = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    /**
+     * Static two-page view with the paper bending into the spine: outside a band next to the spine
+     * the pages are drawn as they are; inside it the picture is drawn in strips that are squeezed
+     * towards the spine and shortened a little, so the top and bottom edges dip into the gutter.
+     */
+    fun drawCurvedSpread(
+        canvas: Canvas,
+        viewHeight: Float,
+        pictures: List<BookPageBounds>,
+        light: Boolean,
+        drawWhole: (Canvas) -> Unit,
+        drawBackground: (Canvas) -> Unit,
+        content: (Canvas) -> Unit,
+    ) {
+        val left = if (pictures[0].left <= pictures[1].left) pictures[0] else pictures[1]
+        val right = if (left === pictures[0]) pictures[1] else pictures[0]
+        val leftBand = left.width * CURVE_BAND
+        val rightBand = right.width * CURVE_BAND
+        val bandStart = left.right - leftBand
+        val bandEnd = right.left + rightBand
+
+        var save = canvas.save()
+        canvas.clipOutRect(bandStart, 0f, bandEnd, viewHeight)
+        drawWhole(canvas)
+        canvas.restoreToCount(save)
+
+        save = canvas.save()
+        canvas.clipRect(bandStart, 0f, bandEnd, viewHeight)
+        drawBackground(canvas)
+        canvas.restoreToCount(save)
+
+        drawCurvedBand(canvas, left, left.right, -1f, leftBand, viewHeight, content)
+        drawCurvedBand(canvas, right, right.left, 1f, rightBand, viewHeight, content)
+        drawSpread(canvas, pictures, light)
+    }
+
+    private fun drawCurvedBand(
+        canvas: Canvas,
+        page: BookPageBounds,
+        spine: Float,
+        direction: Float,
+        band: Float,
+        viewHeight: Float,
+        content: (Canvas) -> Unit,
+    ) {
+        if (band < 2f) return
+        val centerY = (page.top + page.bottom) / 2f
+        // Position across the band: squeezed at the spine, slightly stretched midway, unchanged at
+        // the band edge, so it joins the flat part of the page without a seam.
+        fun bent(u: Float): Float {
+            val rest = 1f - u / band
+            return u - CURVE_SQUEEZE * u * rest * rest
+        }
+        for (i in 0 until CURVE_STRIPS) {
+            val u0 = band * i / CURVE_STRIPS
+            val u1 = band * (i + 1) / CURVE_STRIPS
+            val x0 = spine + direction * bent(u0)
+            val x1 = spine + direction * bent(u1)
+            val source0 = spine + direction * u0
+            val source1 = spine + direction * u1
+            if (abs(x1 - x0) < 0.05f) continue
+            val rest = 1f - (u0 + u1) / 2f / band
+            val vertical = 1f - CURVE_SINK * rest * rest
+            val save = canvas.save()
+            canvas.clipRect(min(x0, x1) - 0.5f, 0f, max(x0, x1) + 0.5f, viewHeight)
+            canvas.scale(1f, vertical, 0f, centerY)
+            canvas.translate(x0, 0f)
+            canvas.scale((x1 - x0) / (source1 - source0), 1f)
+            canvas.translate(-source0, 0f)
+            content(canvas)
+            canvas.restoreToCount(save)
+        }
+    }
 
     /** Static two-page view: dips on both pages, crease, outer edge shade. */
     fun drawSpread(canvas: Canvas, pictures: List<BookPageBounds>, light: Boolean) {
@@ -78,5 +155,15 @@ internal class BookSpineDrawing {
         val LIGHT_DIP = intArrayOf(0xFFC6C6C6.toInt(), 0xFFDCDCDC.toInt(), 0xFFF0F0F0.toInt(), Color.WHITE)
         val LIGHT_STOPS = floatArrayOf(0f, 0.012f / 0.09f, 0.035f / 0.09f, 1f)
         val OUTER_EDGE = 0xFFEDEDED.toInt()
+
+        /** Share of each page width that bends into the spine. */
+        const val CURVE_BAND = 0.10f
+
+        /** How much the picture is squeezed at the spine (0.5 = half width). */
+        const val CURVE_SQUEEZE = 0.5f
+
+        /** How much shorter the page is at the spine, so its top and bottom edges dip. */
+        const val CURVE_SINK = 0.03f
+        const val CURVE_STRIPS = 14
     }
 }

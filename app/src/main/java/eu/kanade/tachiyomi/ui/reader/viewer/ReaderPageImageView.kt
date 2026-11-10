@@ -170,9 +170,19 @@ open class ReaderPageImageView @JvmOverloads constructor(
     override fun draw(canvas: Canvas) {
         val turn = bookPageTurn
         if (turn == null) {
-            super.draw(canvas)
-            if (drawsBookSpine) {
-                bookPageImageBounds().takeIf { it.size == 2 }?.let { bookSpineDrawing.drawSpread(canvas, it, bookSpineLight) }
+            val spread = if (drawsBookSpine) bookPageImageBounds().takeIf { it.size == 2 } else null
+            if (spread == null) {
+                super.draw(canvas)
+            } else {
+                bookSpineDrawing.drawCurvedSpread(
+                    canvas = canvas,
+                    viewHeight = height.toFloat(),
+                    pictures = spread,
+                    light = bookSpineLight,
+                    drawWhole = { super.draw(it) },
+                    drawBackground = { drawBookBackground(it) },
+                    content = { super.dispatchDraw(it) },
+                )
             }
         } else {
             val pictures = bookPageImageBounds()
