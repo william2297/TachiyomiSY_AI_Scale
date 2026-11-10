@@ -1099,18 +1099,22 @@ open class ReaderPageImageView @JvmOverloads constructor(
             scale == minScale
         ) {
             handler?.postDelayed(500) {
-                val point = when (config!!.zoomStartPosition) {
+                // The page can be recycled or get a new image within these 500 ms (for example when
+                // paged slices are replaced by rebuilt pages). Skip the zoom instead of crashing.
+                val currentConfig = config ?: return@postDelayed
+                if (!isReady || sHeight <= 0) return@postDelayed
+                val point = when (currentConfig.zoomStartPosition) {
                     ZoomStartPosition.LEFT -> if (forward) PointF(0F, 0F) else PointF(sWidth.toFloat(), 0F)
                     ZoomStartPosition.RIGHT -> if (forward) PointF(sWidth.toFloat(), 0F) else PointF(0F, 0F)
-                    ZoomStartPosition.CENTER -> center
+                    ZoomStartPosition.CENTER -> center ?: return@postDelayed
                 }
 
                 val targetScale = height.toFloat() / sHeight.toFloat()
-                animateScaleAndCenter(targetScale, point)!!
-                    .withDuration(500)
-                    .withEasing(EASE_IN_OUT_QUAD)
-                    .withInterruptible(true)
-                    .start()
+                animateScaleAndCenter(targetScale, point)
+                    ?.withDuration(500)
+                    ?.withEasing(EASE_IN_OUT_QUAD)
+                    ?.withInterruptible(true)
+                    ?.start()
             }
         }
     }
