@@ -14,10 +14,10 @@ import java.io.InputStream
  */
 class RebuiltPage(
     index: Int,
-    /** Position of this page in the chapter's display list, from 0. */
-    val displayIndex: Int,
-    /** Identifies the slice layout; part of the enhancement and file cache keys. */
-    val layoutKey: String,
+    /** Reading order among the chapter's pages; rebuilt pages can share [index]. */
+    val order: Int,
+    /** Identifies this page's slices and cut; part of the enhancement and file cache keys. */
+    val pageKey: String,
     val width: Int,
     val height: Int,
     val pieces: List<Piece>,
@@ -47,13 +47,13 @@ class RebuiltPage(
         status = State.Ready
         stream = { opener(this) }
         // A separate cache variant keeps rebuilt pages away from the long strip's per-slice cache.
-        enhancementKeySuffix = "rebuilt_${layoutKey}_$displayIndex"
+        enhancementKeySuffix = "rebuilt_$pageKey"
     }
 
     override fun isFromSamePage(other: ReaderPage): Boolean {
         if (other.chapter.chapter.id != chapter.chapter.id) return false
         return if (other is RebuiltPage) {
-            other.layoutKey == layoutKey && other.displayIndex == displayIndex
+            other.pageKey == pageKey
         } else {
             // A source page maps to the first rebuilt page that ends in it.
             other.index == index

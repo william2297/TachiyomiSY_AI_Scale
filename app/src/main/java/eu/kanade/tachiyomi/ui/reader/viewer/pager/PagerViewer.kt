@@ -344,7 +344,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
                         activeItem.chapter == previousPage.chapter
                     ) {
                         // Rebuilt pages can share a source index; their display order decides.
-                        activeItem.displayIndex > previousPage.displayIndex
+                        activeItem.order > previousPage.order
                     } else if (activeItem.number == previousPage.number) {
                         // if both pages have the same number, it's a split page with an InsertPage
                         // the InsertPage is always the second in the reading direction

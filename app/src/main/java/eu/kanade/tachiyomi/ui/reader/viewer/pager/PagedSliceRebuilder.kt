@@ -16,7 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
@@ -35,10 +35,10 @@ import kotlin.math.roundToInt
 /**
  * Rebuilds whole pages for the paged viewers when a source cuts a chapter into uneven slices.
  *
- * A chapter is analysed once all of its pages are downloaded. Runs of consecutive pages that share a
- * width and contain slices (much shorter or much taller than a page) are joined into one virtual
- * strip, which is cut again at blank rows into pages of about [TARGET_RATIO] x width. Pages outside
- * such runs are kept as they are. The long strip never uses this class.
+ * Pages are looked at as they finish downloading. Slices are joined across seams where the picture
+ * runs on; a joined group up to [MAX_GROUP_RATIO] x width is one page, a taller one is cut at blank
+ * rows into pages of about [TARGET_RATIO] x width. Pages that join nothing stay as they are. The long
+ * strip never uses this class.
  */
 internal class PagedSliceRebuilder(
     context: Context,
@@ -51,7 +51,13 @@ internal class PagedSliceRebuilder(
     private val renderLocks = ConcurrentHashMap<String, Any>()
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
-    private class Result(val sourcePages: List<ReaderPage>, val pages: List<ReaderPage>?)
+    private class Result(
+        val sourcePages: List<ReaderPage>,
+        /** Display list, or null while nothing is rebuilt. */
+        val pages: List<ReaderPage>?,
+        /** Every page was looked at; nothing left to do for this page list. */
+        val complete: Boolean,
+    )
     private class Running(val sourcePages: List<ReaderPage>, val job: Job)
 
     // Main thread only.
@@ -80,9 +86,10 @@ internal class PagedSliceRebuilder(
     fun ensure(chapter: ReaderChapter) {
         val source = chapter.pages ?: return
         val id = chapter.chapter.id ?: return
-        if (results[id]?.sourcePages === source) return
         val current = running[id]
         if (current != null && current.sourcePages === source && current.job.isActive) return
+        val result = results[id]
+        if (result != null && result.sourcePages === source && result.complete) return
         current?.job?.cancel()
 
         // A downloaded chapter reads its pages from a memory-mapped archive that is unmapped when
@@ -92,37 +99,46 @@ internal class PagedSliceRebuilder(
         if (holdsChapter) chapter.ref()
 
         val job = scope.launch {
-            val outcome = try {
-                withContext(Dispatchers.IO) { analyze(chapter, source) }
+            try {
+                withContext(Dispatchers.IO) {
+                    analyze(chapter, source) { pages, complete ->
+                        withContext(Dispatchers.Main) { publish(chapter, id, source, pages, complete) }
+                    }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 logcat(LogPriority.ERROR, e) { "PagedRebuild: analysis failed for ${chapter.chapter.id}" }
-                Outcome.Done(null)
-            }
-            if (running[id]?.sourcePages === source) running.remove(id)
-            if (outcome is Outcome.Done) {
-                results[id] = Result(source, outcome.pages)
-                if (outcome.pages != null) onRebuilt(chapter)
             }
         }
-        if (holdsChapter) {
-            // Runs even when the job is cancelled before it starts; ref counting is main-thread only.
-            job.invokeOnCompletion { mainHandler.post { chapter.unref() } }
+        job.invokeOnCompletion {
+            mainHandler.post {
+                if (running[id]?.job === job) running.remove(id)
+                // Ref counting is main-thread only; this also runs when the job never started.
+                if (holdsChapter) chapter.unref()
+            }
         }
         running[id] = Running(source, job)
+    }
+
+    private fun publish(
+        chapter: ReaderChapter,
+        id: Long,
+        source: List<ReaderPage>,
+        pages: List<ReaderPage>?,
+        complete: Boolean,
+    ) {
+        if (running[id]?.sourcePages !== source) return
+        val previous = results[id]?.takeIf { it.sourcePages === source }?.pages
+        results[id] = Result(source, pages, complete)
+        val unchanged = previous == pages ||
+            (previous != null && pages != null && previous.size == pages.size && previous.indices.all { previous[it] === pages[it] })
+        if (!unchanged) onRebuilt(chapter)
     }
 
     fun cancelAll() {
         running.values.forEach { it.job.cancel() }
         running.clear()
-    }
-
-    private sealed interface Outcome {
-        /** [pages] is null when the chapter is kept as it is. */
-        class Done(val pages: List<ReaderPage>?) : Outcome
-        /** A page failed to load; try again on the next chapter update. */
-        data object Retry : Outcome
     }
 
     private class Profile(
@@ -142,91 +158,143 @@ internal class PagedSliceRebuilder(
             get() = height.toFloat() / width < SLICE_RATIO_MIN || height.toFloat() / width > SLICE_RATIO_MAX
     }
 
-    private sealed interface Entry {
-        /** Source page shown as it is. */
-        class Keep(val index: Int) : Entry
-        class Build(val spec: PageSpec) : Entry
-    }
-
     private class Cut(val position: Float, val strength: Float, val forced: Boolean)
 
     private class PageSpec(val sourceIndex: Int, val width: Int, val height: Int, val pieces: List<RebuiltPage.Piece>)
 
-    private suspend fun analyze(chapter: ReaderChapter, pages: List<ReaderPage>): Outcome {
-        if (pages.size < 2) return Outcome.Done(null)
-        for (page in pages) {
-            val state = page.statusFlow.first { it == Page.State.Ready || it is Page.State.Error }
-            if (state is Page.State.Error) return Outcome.Retry
-        }
+    private class Assembly(val pages: List<ReaderPage>, val groupKeys: List<String>)
 
-        val sizes = pages.map { readSize(it) ?: return Outcome.Done(null) }
-        val runs = findSlicedRuns(sizes)
-        logcat(LogPriority.INFO) {
-            "PagedRebuild: chapter ${chapter.chapter.id} sizes=" +
-                sizes.joinToString(" ") { "${it.first}x${it.second}" } + " runs=$runs"
+    /**
+     * Looks at pages as they finish downloading and publishes the display list as groups become
+     * final, so a chapter opened in the middle rebuilds the pages around the reader first.
+     */
+    private suspend fun analyze(
+        chapter: ReaderChapter,
+        pages: List<ReaderPage>,
+        publish: suspend (List<ReaderPage>?, Boolean) -> Unit,
+    ) {
+        val count = pages.size
+        if (count < 2) {
+            publish(null, true)
+            return
         }
-        if (runs.isEmpty()) return Outcome.Done(null)
-
-        val entriesByRunStart = mutableMapOf<Int, List<Entry>>()
-        val keyBuilder = StringBuilder("v2:${chapter.chapter.id}")
-        for (run in runs) {
-            val profiles = run.map { index ->
-                profile(pages[index], sizes[index].first, sizes[index].second) ?: return Outcome.Done(null)
+        val profiles = arrayOfNulls<Profile>(count)
+        val looked = BooleanArray(count)
+        val built = mutableMapOf<String, List<RebuiltPage>>()
+        var latest: Assembly? = null
+        var publishedKeys: List<String> = emptyList()
+        var lastPublish = 0L
+        while (true) {
+            var changed = false
+            for (i in 0 until count) {
+                if (looked[i] || pages[i].status != Page.State.Ready) continue
+                // An unreadable page stays as it is and splits the chapter there.
+                profiles[i] = readSize(pages[i])?.let { (width, height) -> profile(pages[i], width, height) }
+                looked[i] = true
+                changed = true
             }
-            val entries = layoutRunBySeams(pages, run, profiles)
-            entriesByRunStart[run.first] = entries
-            keyBuilder.append('|').append(run.first).append(':')
-            entries.forEach { entry ->
-                when (entry) {
-                    is Entry.Keep -> keyBuilder.append('k').append(entry.index).append(',')
-                    is Entry.Build -> keyBuilder.append(entry.spec.height).append(',')
+            if (changed) latest = assemble(chapter, pages, profiles, looked, built)
+            val complete = looked.all { it }
+            val assembly = latest
+            if (complete) {
+                val rebuilt = assembly != null && assembly.groupKeys.isNotEmpty()
+                logcat(LogPriority.INFO) {
+                    "PagedRebuild: chapter ${chapter.chapter.id} $count source pages -> " +
+                        "${assembly?.pages?.size ?: count} pages (${assembly?.groupKeys?.size ?: 0} joined groups)"
                 }
+                publish(if (rebuilt) assembly!!.pages else null, true)
+                return
             }
+            val now = System.currentTimeMillis()
+            if (
+                assembly != null &&
+                assembly.groupKeys != publishedKeys &&
+                (publishedKeys.isEmpty() || now - lastPublish >= PUBLISH_INTERVAL_MILLIS)
+            ) {
+                publish(if (assembly.groupKeys.isEmpty()) null else assembly.pages, false)
+                publishedKeys = assembly.groupKeys
+                lastPublish = now
+            }
+            delay(POLL_MILLIS)
         }
-        if (entriesByRunStart.values.none { entries -> entries.any { it is Entry.Build } }) {
-            logcat(LogPriority.INFO) { "PagedRebuild: chapter ${chapter.chapter.id} has no joined slices" }
-            return Outcome.Done(null)
-        }
-        sizes.forEach { keyBuilder.append(';').append(it.first).append('x').append(it.second) }
-        val layoutKey = keyBuilder.toString().hashCode().toUInt().toString(16)
+    }
 
-        val display = mutableListOf<ReaderPage>()
-        val rebuilt = mutableListOf<RebuiltPage>()
-        var index = 0
-        while (index < pages.size) {
-            val run = runs.firstOrNull { it.first == index }
-            if (run == null) {
-                display += pages[index]
-                index++
+    /**
+     * Joins slices across continuous seams. Some sources cut each page into a tall image and a thin
+     * sliver: the picture runs on across that seam but jumps at the next page. A joined group is final
+     * once the seams on both of its ends are known. A group with a slice in it becomes one page, or is
+     * cut at gutters when it is taller than [MAX_GROUP_RATIO] x width. Built groups are kept, so their
+     * pages stay the same objects from one update to the next.
+     */
+    private fun assemble(
+        chapter: ReaderChapter,
+        pages: List<ReaderPage>,
+        profiles: Array<Profile?>,
+        looked: BooleanArray,
+        built: MutableMap<String, List<RebuiltPage>>,
+    ): Assembly {
+        val display = ArrayList<ReaderPage>(pages.size)
+        val keys = mutableListOf<String>()
+        var start = 0
+        while (start < pages.size) {
+            val first = profiles[start]
+            if (first == null) {
+                display += pages[start]
+                start++
                 continue
             }
-            entriesByRunStart.getValue(run.first).forEach { entry ->
-                if (entry is Entry.Keep) {
-                    display += pages[entry.index]
-                    return@forEach
-                }
-                val spec = (entry as Entry.Build).spec
-                val page = RebuiltPage(
-                    index = spec.sourceIndex,
-                    displayIndex = display.size,
-                    layoutKey = layoutKey,
-                    width = spec.width,
-                    height = spec.height,
-                    pieces = spec.pieces,
-                    sourceChapter = chapter,
-                    opener = ::openRendered,
-                )
-                display += page
-                rebuilt += page
+            var end = start
+            while (end + 1 < pages.size) {
+                val next = profiles[end + 1] ?: break
+                if (!seamContinuous(profiles[end]!!, next)) break
+                end++
             }
-            index = run.last + 1
+            val leftKnown = start == 0 || looked[start - 1]
+            val rightKnown = end == pages.size - 1 || looked[end + 1]
+            val indices = (start..end).toList()
+            val groupProfiles = indices.map { profiles[it]!! }
+            val width = groupProfiles.first().width
+            val ratio = groupProfiles.sumOf { it.height.toDouble() * width / it.width }.toFloat() / width
+            val joined = indices.size >= 2 && groupProfiles.any { it.isSlice }
+            val tallSingle = indices.size == 1 && ratio > MAX_GROUP_RATIO
+            if (leftKnown && rightKnown && (joined || tallSingle)) {
+                val key = "${pages[start].index}-${pages[end].index}"
+                display += built.getOrPut(key) { buildGroup(chapter, pages, indices, groupProfiles, key, ratio) }
+                keys += key
+            } else {
+                for (index in indices) display += pages[index]
+            }
+            start = end + 1
         }
-        rebuilt.forEach { it.chapterPages = display }
-        logcat(LogPriority.INFO) {
-            "PagedRebuild: chapter ${chapter.chapter.id} ${pages.size} source pages -> ${display.size} pages " +
-                "(${rebuilt.size} rebuilt, key=$layoutKey)"
+        display.forEach { page -> (page as? RebuiltPage)?.chapterPages = display }
+        return Assembly(display, keys)
+    }
+
+    private fun buildGroup(
+        chapter: ReaderChapter,
+        pages: List<ReaderPage>,
+        indices: List<Int>,
+        profiles: List<Profile>,
+        key: String,
+        ratio: Float,
+    ): List<RebuiltPage> {
+        val specs = if (ratio <= MAX_GROUP_RATIO) {
+            listOf(stackedSpec(pages, indices, profiles))
+        } else {
+            layoutRun(pages, indices, profiles)
         }
-        return Outcome.Done(display)
+        return specs.mapIndexed { part, spec ->
+            RebuiltPage(
+                index = spec.sourceIndex,
+                order = pages[indices.first()].index * 1000 + part,
+                pageKey = "v3_${key}_${part}_${spec.height}",
+                width = spec.width,
+                height = spec.height,
+                pieces = spec.pieces,
+                sourceChapter = chapter,
+                opener = ::openRendered,
+            )
+        }
     }
 
     private fun readSize(page: ReaderPage): Pair<Int, Int>? {
@@ -241,32 +309,6 @@ internal class PagedSliceRebuilder(
             logcat(LogPriority.WARN, e) { "PagedRebuild: unable to read size of page ${page.index}" }
             null
         }
-    }
-
-    /** Runs of same-width pages that hold enough slices to be rebuilt. */
-    private fun findSlicedRuns(sizes: List<Pair<Int, Int>>): List<IntRange> {
-        val runs = mutableListOf<IntRange>()
-        var start = 0
-        for (index in 1..sizes.size) {
-            val ends = index == sizes.size || !similarWidth(sizes[start].first, sizes[index].first)
-            if (ends) {
-                runs += start until index
-                start = index
-            }
-        }
-        return runs.filter { run ->
-            val count = run.count()
-            val slices = run.count { index ->
-                val ratio = sizes[index].second.toFloat() / sizes[index].first
-                ratio < SLICE_RATIO_MIN || ratio > SLICE_RATIO_MAX
-            }
-            // Seams decide what is joined, so one slice is enough to look at the run.
-            count >= 2 && slices >= 1
-        }
-    }
-
-    private fun similarWidth(first: Int, second: Int): Boolean {
-        return abs(first - second) <= max(first, second) * WIDTH_TOLERANCE
     }
 
     private fun profile(page: ReaderPage, width: Int, height: Int): Profile? {
@@ -332,32 +374,6 @@ internal class PagedSliceRebuilder(
         } finally {
             bitmap.recycle()
         }
-    }
-
-    /**
-     * Joins slices across continuous seams. Some sources cut each page into a tall image and a thin
-     * sliver: the picture runs on across that seam but jumps at the next page. A joined group short
-     * enough to be a page becomes one page; a longer group (a continuous strip) is cut at gutters.
-     */
-    private fun layoutRunBySeams(pages: List<ReaderPage>, run: IntRange, profiles: List<Profile>): List<Entry> {
-        val groups = mutableListOf(mutableListOf(0))
-        for (i in 1 until profiles.size) {
-            if (seamContinuous(profiles[i - 1], profiles[i])) groups.last() += i else groups += mutableListOf(i)
-        }
-        val entries = mutableListOf<Entry>()
-        for (group in groups) {
-            val indices = group.map { run.first + it }
-            val groupProfiles = group.map { profiles[it] }
-            val width = groupProfiles.first().width
-            val height = groupProfiles.sumOf { it.height.toDouble() * width / it.width }.toFloat()
-            val ratio = height / width
-            when {
-                group.size == 1 && ratio <= MAX_GROUP_RATIO -> entries += Entry.Keep(indices.first())
-                ratio <= MAX_GROUP_RATIO -> entries += Entry.Build(stackedSpec(pages, indices, groupProfiles))
-                else -> layoutRun(pages, indices, groupProfiles).forEach { entries += Entry.Build(it) }
-            }
-        }
-        return entries
     }
 
     private fun seamContinuous(upper: Profile, lower: Profile): Boolean {
@@ -589,7 +605,7 @@ internal class PagedSliceRebuilder(
 
     private fun renderedFile(page: RebuiltPage): File {
         val directory = File(cacheRoot, (page.chapter.chapter.id ?: -1L).toString())
-        val file = File(directory, "${page.layoutKey}_${page.displayIndex}.jpg")
+        val file = File(directory, "${page.pageKey}.jpg")
         if (file.length() > 0L) return file
         val lock = renderLocks.getOrPut(file.path) { Any() }
         synchronized(lock) {
@@ -687,7 +703,6 @@ internal class PagedSliceRebuilder(
         const val TARGET_RATIO = 1.42f
         private const val SLICE_RATIO_MIN = 1.0f
         private const val SLICE_RATIO_MAX = 2.0f
-        private const val WIDTH_TOLERANCE = 0.04f
         private const val PROFILE_MIN_WIDTH = 200
         private const val BLANK_RANGE = 24
         private const val MIN_BAND = 0.006f
@@ -706,6 +721,8 @@ internal class PagedSliceRebuilder(
         private const val SEAM_RATIO = 2.0f
         private const val SEAM_CORRELATION = 0.5f
         private const val BLANK_SEAM_DIFFERENCE = 8f
+        private const val POLL_MILLIS = 750L
+        private const val PUBLISH_INTERVAL_MILLIS = 3000L
         private const val CACHE_MAX_AGE_MILLIS = 3L * 24 * 60 * 60 * 1000
     }
 }
