@@ -121,7 +121,21 @@ internal class PagedSliceRebuilder(
         val rowHeight: Float,
         /** Luminance range (max - min) of each profiled row. */
         val ranges: IntArray,
-    )
+        /** Luminance of the first two and last two profiled rows, used to test seams. */
+        val head0: IntArray,
+        val head1: IntArray,
+        val tail0: IntArray,
+        val tail1: IntArray,
+    ) {
+        val isSlice: Boolean
+            get() = height.toFloat() / width < SLICE_RATIO_MIN || height.toFloat() / width > SLICE_RATIO_MAX
+    }
+
+    private sealed interface Entry {
+        /** Source page shown as it is. */
+        class Keep(val index: Int) : Entry
+        class Build(val spec: PageSpec) : Entry
+    }
 
     private class Cut(val position: Float, val strength: Float, val forced: Boolean)
 
@@ -142,16 +156,25 @@ internal class PagedSliceRebuilder(
         }
         if (runs.isEmpty()) return Outcome.Done(null)
 
-        val specsByRunStart = mutableMapOf<Int, List<PageSpec>>()
-        val keyBuilder = StringBuilder("v1:${chapter.chapter.id}")
+        val entriesByRunStart = mutableMapOf<Int, List<Entry>>()
+        val keyBuilder = StringBuilder("v2:${chapter.chapter.id}")
         for (run in runs) {
             val profiles = run.map { index ->
                 profile(pages[index], sizes[index].first, sizes[index].second) ?: return Outcome.Done(null)
             }
-            val specs = layoutRun(pages, run, profiles)
-            specsByRunStart[run.first] = specs
+            val entries = layoutRunBySeams(pages, run, profiles)
+            entriesByRunStart[run.first] = entries
             keyBuilder.append('|').append(run.first).append(':')
-            specs.forEach { keyBuilder.append(it.height).append(',') }
+            entries.forEach { entry ->
+                when (entry) {
+                    is Entry.Keep -> keyBuilder.append('k').append(entry.index).append(',')
+                    is Entry.Build -> keyBuilder.append(entry.spec.height).append(',')
+                }
+            }
+        }
+        if (entriesByRunStart.values.none { entries -> entries.any { it is Entry.Build } }) {
+            logcat(LogPriority.INFO) { "PagedRebuild: chapter ${chapter.chapter.id} has no joined slices" }
+            return Outcome.Done(null)
         }
         sizes.forEach { keyBuilder.append(';').append(it.first).append('x').append(it.second) }
         val layoutKey = keyBuilder.toString().hashCode().toUInt().toString(16)
@@ -166,7 +189,12 @@ internal class PagedSliceRebuilder(
                 index++
                 continue
             }
-            specsByRunStart.getValue(run.first).forEach { spec ->
+            entriesByRunStart.getValue(run.first).forEach { entry ->
+                if (entry is Entry.Keep) {
+                    display += pages[entry.index]
+                    return@forEach
+                }
+                val spec = (entry as Entry.Build).spec
                 val page = RebuiltPage(
                     index = spec.sourceIndex,
                     displayIndex = display.size,
@@ -221,7 +249,8 @@ internal class PagedSliceRebuilder(
                 val ratio = sizes[index].second.toFloat() / sizes[index].first
                 ratio < SLICE_RATIO_MIN || ratio > SLICE_RATIO_MAX
             }
-            count >= 2 && slices >= 2 && slices * 5 >= count
+            // Seams decide what is joined, so one slice is enough to look at the run.
+            count >= 2 && slices >= 1
         }
     }
 
@@ -253,31 +282,129 @@ internal class PagedSliceRebuilder(
             // Scans and JPEG edges often leave a thin dark border; ignore the outer columns.
             val margin = (bitmapWidth * 0.03f).toInt()
             val row = IntArray(bitmapWidth)
+            val lumaRow = IntArray(bitmapWidth)
             val ranges = IntArray(bitmapHeight)
+            val edges = arrayOfNulls<IntArray>(4)
             for (y in 0 until bitmapHeight) {
                 bitmap.getPixels(row, 0, bitmapWidth, 0, y, bitmapWidth, 1)
-                var low = 255
-                var high = 0
-                for (x in margin until bitmapWidth - margin) {
+                for (x in 0 until bitmapWidth) {
                     val color = row[x]
-                    val luma = (
+                    lumaRow[x] = (
                         299 * ((color shr 16) and 0xFF) +
                             587 * ((color shr 8) and 0xFF) +
                             114 * (color and 0xFF)
                         ) / 1000
+                }
+                var low = 255
+                var high = 0
+                for (x in margin until bitmapWidth - margin) {
+                    val luma = lumaRow[x]
                     if (luma < low) low = luma
                     if (luma > high) high = luma
                 }
                 ranges[y] = if (high >= low) high - low else 0
+                if (y == 0) edges[0] = lumaRow.copyOf()
+                if (y == min(1, bitmapHeight - 1)) edges[1] = lumaRow.copyOf()
+                if (y == max(0, bitmapHeight - 2)) edges[2] = lumaRow.copyOf()
+                if (y == bitmapHeight - 1) edges[3] = lumaRow.copyOf()
             }
-            return Profile(width, height, height.toFloat() / bitmapHeight, ranges)
+            return Profile(
+                width = width,
+                height = height,
+                rowHeight = height.toFloat() / bitmapHeight,
+                ranges = ranges,
+                head0 = edges[0]!!,
+                head1 = edges[1]!!,
+                tail0 = edges[2]!!,
+                tail1 = edges[3]!!,
+            )
         } finally {
             bitmap.recycle()
         }
     }
 
-    /** Cuts one run into pages. Coordinates are in pixels of the run's first page width. */
-    private fun layoutRun(pages: List<ReaderPage>, run: IntRange, profiles: List<Profile>): List<PageSpec> {
+    /**
+     * Joins slices across continuous seams. Some sources cut each page into a tall image and a thin
+     * sliver: the picture runs on across that seam but jumps at the next page. A joined group short
+     * enough to be a page becomes one page; a longer group (a continuous strip) is cut at gutters.
+     */
+    private fun layoutRunBySeams(pages: List<ReaderPage>, run: IntRange, profiles: List<Profile>): List<Entry> {
+        val groups = mutableListOf(mutableListOf(0))
+        for (i in 1 until profiles.size) {
+            if (seamContinuous(profiles[i - 1], profiles[i])) groups.last() += i else groups += mutableListOf(i)
+        }
+        val entries = mutableListOf<Entry>()
+        for (group in groups) {
+            val indices = group.map { run.first + it }
+            val groupProfiles = group.map { profiles[it] }
+            val width = groupProfiles.first().width
+            val height = groupProfiles.sumOf { it.height.toDouble() * width / it.width }.toFloat()
+            val ratio = height / width
+            when {
+                group.size == 1 && ratio <= MAX_GROUP_RATIO -> entries += Entry.Keep(indices.first())
+                ratio <= MAX_GROUP_RATIO -> entries += Entry.Build(stackedSpec(pages, indices, groupProfiles))
+                else -> layoutRun(pages, indices, groupProfiles).forEach { entries += Entry.Build(it) }
+            }
+        }
+        return entries
+    }
+
+    private fun seamContinuous(upper: Profile, lower: Profile): Boolean {
+        val last = upper.tail1
+        val first = lower.head0
+        if (last.size != first.size || last.isEmpty()) return false
+        val joint = meanDifference(last, first)
+        val local = (meanDifference(last, upper.tail0) + meanDifference(first, lower.head1)) / 2f
+        if (luminanceRange(last) <= BLANK_RANGE && luminanceRange(first) <= BLANK_RANGE) {
+            // White against white says nothing; join only when one side is a sliver, so two
+            // normal pages with white margins stay apart.
+            return joint <= BLANK_SEAM_DIFFERENCE && (upper.isSlice || lower.isSlice)
+        }
+        return joint < SEAM_RATIO * (local + 2f) || correlation(last, first) >= SEAM_CORRELATION
+    }
+
+    private fun meanDifference(first: IntArray, second: IntArray): Float {
+        var sum = 0L
+        for (i in first.indices) sum += abs(first[i] - second[i])
+        return sum.toFloat() / first.size
+    }
+
+    private fun luminanceRange(row: IntArray): Int = (row.maxOrNull() ?: 0) - (row.minOrNull() ?: 0)
+
+    private fun correlation(first: IntArray, second: IntArray): Float {
+        val meanFirst = first.average()
+        val meanSecond = second.average()
+        var product = 0.0
+        var squareFirst = 0.0
+        var squareSecond = 0.0
+        for (i in first.indices) {
+            val a = first[i] - meanFirst
+            val b = second[i] - meanSecond
+            product += a * b
+            squareFirst += a * a
+            squareSecond += b * b
+        }
+        return (product / (kotlin.math.sqrt(squareFirst * squareSecond) + 1e-6)).toFloat()
+    }
+
+    /** One page made of whole slices stacked at the width of the first. */
+    private fun stackedSpec(pages: List<ReaderPage>, indices: List<Int>, profiles: List<Profile>): PageSpec {
+        val width = profiles.first().width
+        val pieces = mutableListOf<RebuiltPage.Piece>()
+        var y = 0f
+        profiles.forEachIndexed { k, profile ->
+            val height = profile.height * width.toFloat() / profile.width
+            val top = y.roundToInt()
+            val bottom = max(top + 1, (y + height).roundToInt())
+            pieces += RebuiltPage.Piece(pages[indices[k]], profile.width, 0, profile.height, top, bottom)
+            y += height
+        }
+        val pageHeight = max(pieces.last().bottom, y.roundToInt())
+        return PageSpec(pages[indices.last()].index, width, pageHeight, pieces)
+    }
+
+    /** Cuts a continuous strip into pages. Coordinates are in pixels of the first slice's width. */
+    private fun layoutRun(pages: List<ReaderPage>, indices: List<Int>, profiles: List<Profile>): List<PageSpec> {
         val width = profiles.first().width
         val target = width * TARGET_RATIO
         val scales = FloatArray(profiles.size) { width.toFloat() / profiles[it].width }
@@ -362,7 +489,7 @@ internal class PagedSliceRebuilder(
             at = previousCut[at]
             if (at == -1) {
                 // Should not happen: the previous cut is always considered.
-                return fallbackSpecs(pages, run, profiles)
+                return fallbackSpecs(pages, indices, profiles)
             }
         }
         chosen += 0
@@ -373,7 +500,7 @@ internal class PagedSliceRebuilder(
             val bottom = cuts[endCut].position
             val pageHeight = max(1, (bottom - top).roundToInt())
             val pieces = mutableListOf<RebuiltPage.Piece>()
-            var lastSource = run.first
+            var lastSource = indices.first()
             profiles.forEachIndexed { i, profile ->
                 val overlapTop = max(top, sliceTops[i])
                 val overlapBottom = min(bottom, sliceTops[i + 1])
@@ -384,25 +511,25 @@ internal class PagedSliceRebuilder(
                 val pieceTop = (overlapTop - top).roundToInt().coerceIn(0, pageHeight - 1)
                 val pieceBottom = (overlapBottom - top).roundToInt().coerceIn(pieceTop + 1, pageHeight)
                 pieces += RebuiltPage.Piece(
-                    source = pages[run.first + i],
+                    source = pages[indices[i]],
                     sourceWidth = profile.width,
                     sourceTop = sourceTop,
                     sourceBottom = sourceBottom,
                     top = pieceTop,
                     bottom = pieceBottom,
                 )
-                lastSource = run.first + i
+                lastSource = indices[i]
             }
             PageSpec(pages[lastSource].index, width, pageHeight, pieces)
         }
     }
 
     /** One page per slice, used only if the cut search fails. */
-    private fun fallbackSpecs(pages: List<ReaderPage>, run: IntRange, profiles: List<Profile>): List<PageSpec> {
+    private fun fallbackSpecs(pages: List<ReaderPage>, indices: List<Int>, profiles: List<Profile>): List<PageSpec> {
         val width = profiles.first().width
         return profiles.mapIndexed { i, profile ->
             val height = max(1, (profile.height * width.toFloat() / profile.width).roundToInt())
-            val source = pages[run.first + i]
+            val source = pages[indices[i]]
             PageSpec(
                 source.index,
                 width,
@@ -549,6 +676,12 @@ internal class PagedSliceRebuilder(
         private const val GUTTER_BONUS = 1.2
         private const val FORCED_CUT_COST = 2.0
         private const val JPEG_QUALITY = 95
+
+        /** A joined group up to this height / width ratio is one page. */
+        private const val MAX_GROUP_RATIO = 2.0f
+        private const val SEAM_RATIO = 2.0f
+        private const val SEAM_CORRELATION = 0.5f
+        private const val BLANK_SEAM_DIFFERENCE = 8f
         private const val CACHE_MAX_AGE_MILLIS = 3L * 24 * 60 * 60 * 1000
     }
 }
