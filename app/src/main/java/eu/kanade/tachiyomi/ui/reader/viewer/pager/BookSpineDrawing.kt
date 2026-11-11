@@ -10,6 +10,7 @@ import android.graphics.Shader
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * The dip of an open book: paper darkens towards the spine, a thin crease runs down the middle and
@@ -40,6 +41,7 @@ internal class BookSpineDrawing {
         drawWhole: (Canvas) -> Unit,
         drawBackground: (Canvas) -> Unit,
         content: (Canvas) -> Unit,
+        stackLeft: Float? = null,
     ) {
         val left = if (pictures[0].left <= pictures[1].left) pictures[0] else pictures[1]
         val right = if (left === pictures[0]) pictures[1] else pictures[0]
@@ -61,6 +63,50 @@ internal class BookSpineDrawing {
         drawCurvedBand(canvas, left, left.right, -1f, leftBand, viewHeight, content)
         drawCurvedBand(canvas, right, right.left, 1f, rightBand, viewHeight, content)
         drawSpread(canvas, pictures, light)
+        if (stackLeft != null) drawPaperStack(canvas, left, right, stackLeft, light)
+    }
+
+    /**
+     * One page with its bend into the spine, for the pages lying flat while a leaf turns, so the gutter does not
+     * flatten for the length of the turn.
+     */
+    fun drawPageCurved(canvas: Canvas, page: BookPageBounds, spineAtStart: Boolean, content: (Canvas) -> Unit) {
+        if (page.width <= 1f) return
+        val band = page.width * CURVE_BAND
+        val spine = if (spineAtStart) page.left else page.right
+        val bandEdge = if (spineAtStart) spine + band else spine - band
+        val save = canvas.save()
+        if (spineAtStart) {
+            canvas.clipRect(bandEdge, page.top, page.right, page.bottom)
+        } else {
+            canvas.clipRect(page.left, page.top, bandEdge, page.bottom)
+        }
+        content(canvas)
+        canvas.restoreToCount(save)
+        drawCurvedBand(canvas, page, spine, if (spineAtStart) 1f else -1f, band, page.bottom + 1f, content)
+    }
+
+    /**
+     * Edges of the pages under each side, outside the outer page edges: more lines on the side that holds more
+     * of the chapter, so the stack moves as the chapter is read. [leftShare] is the part of the chapter on the
+     * left side (0 to 1).
+     */
+    fun drawPaperStack(canvas: Canvas, left: BookPageBounds, right: BookPageBounds, leftShare: Float, light: Boolean) {
+        val colors = if (light) LIGHT_STACK else DARK_STACK
+        val share = leftShare.coerceIn(0f, 1f)
+        fun lines(page: BookPageBounds, count: Int, outward: Float) {
+            val edge = if (outward < 0f) page.left else page.right
+            for (k in 0 until count) {
+                val x = edge + outward * STACK_PITCH * (k + 1)
+                // Lower pages show a little less, like a stack seen from above.
+                val inset = STACK_PITCH * (k + 1) * 0.5f
+                line.color = colors[k.coerceAtMost(colors.lastIndex)]
+                line.strokeWidth = 1f
+                canvas.drawLine(x, page.top + inset, x, page.bottom - inset, line)
+            }
+        }
+        lines(left, (1 + 4 * share).roundToInt(), -1f)
+        lines(right, (1 + 4 * (1f - share)).roundToInt(), 1f)
     }
 
     private fun drawCurvedBand(
@@ -161,6 +207,15 @@ internal class BookSpineDrawing {
         val LIGHT_DIP = intArrayOf(0xFFC6C6C6.toInt(), 0xFFDCDCDC.toInt(), 0xFFF0F0F0.toInt(), Color.WHITE)
         val LIGHT_STOPS = floatArrayOf(0f, 0.012f / 0.09f, 0.035f / 0.09f, 1f)
         val OUTER_EDGE = 0xFFF0F0F0.toInt()
+        val DARK_STACK = intArrayOf(
+            0xFFD8D8D8.toInt(), 0xFFBDBDBD.toInt(), 0xFF9E9E9E.toInt(), 0xFF868686.toInt(), 0xFF707070.toInt(),
+        )
+        val LIGHT_STACK = intArrayOf(
+            0xFFE4E4E4.toInt(), 0xFFCFCFCF.toInt(), 0xFFB8B8B8.toInt(), 0xFFA4A4A4.toInt(), 0xFF909090.toInt(),
+        )
+
+        /** Distance between the lines of the paper stack, in pixels. */
+        const val STACK_PITCH = 2f
 
         /** Share of each page width that bends into the spine. */
         const val CURVE_BAND = 0.07f

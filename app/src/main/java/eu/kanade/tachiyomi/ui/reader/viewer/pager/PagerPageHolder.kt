@@ -131,6 +131,7 @@ class PagerPageHolder(
         setPadding(pageInset, pageInset, pageInset, pageInset)
         suppressDefaultStatus = extraPage != null
         drawsBookSpine = extraPage != null
+        bookStackLeft = if (extraPage != null) bookStackShare() else null
         bookSpineLight = when (viewer.config.readerTheme) {
             0 -> true
             3 -> !context.isNightMode()
@@ -1166,6 +1167,16 @@ class PagerPageHolder(
 
         errorLayout?.root?.isVisible = true
         return errorLayout!!
+    }
+
+    /** How far into its chapter this spread is (0 to 1), as the share of the chapter on the left side. */
+    private fun bookStackShare(): Float? {
+        val pages = (page as? RebuiltPage)?.chapterPages?.takeIf { it.isNotEmpty() } ?: page.chapter.pages ?: return null
+        if (pages.size < 2) return null
+        val position = pages.indexOfFirst { it === page }.takeIf { it >= 0 } ?: page.index
+        val read = (position.toFloat() / (pages.size - 1)).coerceIn(0f, 1f)
+        // Left to right: what was read lies on the left; right to left it lies on the right.
+        return if (viewer is R2LPagerViewer) 1f - read else read
     }
 
     /** A rebuilt page has no download of its own: reload its slices, then draw it again. */

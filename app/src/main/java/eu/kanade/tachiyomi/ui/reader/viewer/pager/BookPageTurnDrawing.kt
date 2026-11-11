@@ -206,7 +206,7 @@ internal class BookPageTurnDrawing {
         if (turn.current) {
             // Fixed page with its dip, and the shadow of the leaf once it lies over this page.
             val fixed = own[otherSide]
-            drawSlice(canvas, fixed.left, fixed.right, fixed, content)
+            spineDrawing.drawPageCurved(canvas, fixed, spineAtStart = otherSide == 1, content = content)
             spineDrawing.drawDip(canvas, fixed, spineAtStart = otherSide == 1, light = light)
             if (progress > 0.5f && progress < 0.98f) {
                 drawLeafShadow(canvas, fixed, outerX, -direction, leafWidth, wave, shadowScale)
@@ -218,7 +218,7 @@ internal class BookPageTurnDrawing {
 
         // Incoming spread: the page being uncovered, its shadow, then the back of the leaf.
         val under = own[turningSide]
-        drawSlice(canvas, under.left, under.right, under, content)
+        spineDrawing.drawPageCurved(canvas, under, spineAtStart = turningSide == 1, content = content)
         spineDrawing.drawDip(canvas, under, spineAtStart = turningSide == 1, light = light)
         if (progress > 0.02f && progress < 0.5f) {
             drawLeafShadow(canvas, under, outerX, direction, leafWidth, wave, shadowScale)

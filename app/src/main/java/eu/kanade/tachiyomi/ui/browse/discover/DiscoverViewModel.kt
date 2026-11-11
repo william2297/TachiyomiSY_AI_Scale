@@ -251,6 +251,35 @@ class DiscoverViewModel(
     }
 
     private fun toExtraRows(cache: DiscoverCache, hidden: Set<String>, notInterested: Set<Long>): List<DiscoverRow> {
+        return mergeSmallBecauseRows(filterExtraRows(cache, hidden, notInterested))
+    }
+
+    /**
+     * "Because you read X" rows with only a few titles found in the sources are folded into one row, so the page
+     * does not fill up with stubs. Rows with enough titles stay as they are.
+     */
+    private fun mergeSmallBecauseRows(rows: List<DiscoverRow>): List<DiscoverRow> {
+        val small = rows.filter { it.key.startsWith(BECAUSE_PREFIX) && it.entries.size < SMALL_ROW }
+        if (small.size < 2) return rows
+        val names = small.map { it.title.removePrefix(BECAUSE_TITLE) }
+        val title = BECAUSE_TITLE + when {
+            names.size <= 3 -> names.dropLast(1).joinToString(", ") + " and " + names.last()
+            else -> names.take(2).joinToString(", ") + " and ${names.size - 2} more"
+        }
+        val merged = DiscoverRow(
+            BECAUSE_PREFIX + "merged",
+            title,
+            "What readers who liked them went on to read",
+            small.flatMap { it.entries }.distinctBy { it.id }.take(MERGED_LIMIT),
+        )
+        val smallKeys = small.map { it.key }.toSet()
+        val position = rows.indexOfFirst { it.key in smallKeys }
+        return rows.filterNot { it.key in smallKeys }.toMutableList().apply {
+            add(position.coerceIn(0, size), merged)
+        }
+    }
+
+    private fun filterExtraRows(cache: DiscoverCache, hidden: Set<String>, notInterested: Set<Long>): List<DiscoverRow> {
         return cache.extras.mapNotNull { row ->
             val entries = row.entries
                 .filterNot { it.anilistId in notInterested }
@@ -279,5 +308,13 @@ class DiscoverViewModel(
         const val WAITING_TO_START = "Waiting to start. It needs Wi-Fi and a battery that is not low."
         const val STALE_AFTER_MILLIS = 26 * 60 * 60 * 1000L
         const val PROGRESS_POLL_MILLIS = 4_000L
+        const val BECAUSE_PREFIX = "because-"
+        const val BECAUSE_TITLE = "Because you read "
+
+        /** A "Because you read" row with fewer titles than this is merged with the other small ones. */
+        const val SMALL_ROW = 5
+
+        /** The merged row stays within one screen row, without a "See all" tile. */
+        const val MERGED_LIMIT = 12
     }
 }

@@ -139,6 +139,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     /** The reader background is white, so the spine is drawn lighter. */
     internal var bookSpineLight = false
+
+    /** Share of the chapter on the left side of the spread, for the paper stack; null draws none. */
+    internal var bookStackLeft: Float? = null
     private val enhancementStatusViews = mutableListOf<View>()
     private val sourcePictureBounds = WeakHashMap<View, List<BookPageBounds>>()
 
@@ -182,6 +185,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     drawWhole = { super.draw(it) },
                     drawBackground = { drawBookBackground(it) },
                     content = { super.dispatchDraw(it) },
+                    stackLeft = bookStackLeft,
                 )
             }
         } else {
