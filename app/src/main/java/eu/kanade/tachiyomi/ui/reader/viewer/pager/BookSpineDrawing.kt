@@ -189,6 +189,16 @@ internal class BookSpineDrawing {
         multiply.shader = null
     }
 
+    /** Darkens a turning leaf next to its hinge, so it matches the gutter of the pages beside it. */
+    fun drawHingeShade(canvas: Canvas, spine: Float, end: Float, top: Float, bottom: Float, strength: Float) {
+        if (strength <= 0.01f || abs(end - spine) < 0.5f) return
+        multiply.shader = LinearGradient(spine, 0f, end, 0f, HINGE_SHADE, Color.WHITE, Shader.TileMode.CLAMP)
+        multiply.alpha = (strength.coerceIn(0f, 1f) * 255).toInt()
+        canvas.drawRect(min(spine, end), top, max(spine, end), bottom, multiply)
+        multiply.shader = null
+        multiply.alpha = 255
+    }
+
     /** The fold line at [spine]; [strength] dips while a leaf stands up during a turn. */
     fun drawCrease(canvas: Canvas, spine: Float, top: Float, bottom: Float, light: Boolean, strength: Float) {
         val creaseAlpha = (if (light) 0.20f else 0.30f) * strength
@@ -207,6 +217,7 @@ internal class BookSpineDrawing {
         val LIGHT_DIP = intArrayOf(0xFFC6C6C6.toInt(), 0xFFDCDCDC.toInt(), 0xFFF0F0F0.toInt(), Color.WHITE)
         val LIGHT_STOPS = floatArrayOf(0f, 0.012f / 0.09f, 0.035f / 0.09f, 1f)
         val OUTER_EDGE = 0xFFF0F0F0.toInt()
+        val HINGE_SHADE = 0xFFD2D2D2.toInt()
         val DARK_STACK = intArrayOf(
             0xFFD8D8D8.toInt(), 0xFFBDBDBD.toInt(), 0xFF9E9E9E.toInt(), 0xFF868686.toInt(), 0xFF707070.toInt(),
         )

@@ -183,6 +183,17 @@ internal class BookPageTurnDrawing {
                 val pad = abs(source1 - source0) * 0.08f + 0.5f
                 canvas.clipRect(min(source0, source1) - pad, picture.top, max(source0, source1) + pad, picture.bottom)
                 content(canvas)
+                if (i == 0) {
+                    // The hinge of the leaf stays as dark as the gutter of the pages beside it.
+                    spineDrawing.drawHingeShade(
+                        canvas,
+                        pictureSpine,
+                        pictureSpine + pictureDirection * HINGE_SHADE_WIDTH * picture.width,
+                        picture.top,
+                        picture.bottom,
+                        1f - abs(cos(facing)) * 0.5f,
+                    )
+                }
                 // Shading follows the angle continuously across strips, so strips never show.
                 val shade0 = leafShade(angles[i], back) * shadowScale
                 val shade1 = leafShade(angles[i + 1], back) * shadowScale
@@ -203,6 +214,17 @@ internal class BookPageTurnDrawing {
         }
 
         val creaseStrength = 1f - 0.4f * wave
+
+        /** A thin line along the leaf's outer edge, so it does not vanish over white paper below it. */
+        fun drawLeafEdge() {
+            if (progress < 0.02f || progress > 0.98f) return
+            val k = scaleAt(count)
+            paint.shader = null
+            paint.color = Color.argb(56, 0, 0, 0)
+            paint.strokeWidth = 1.5f
+            canvas.drawLine(outerX, centerY + (leaf.top - centerY) * k, outerX, centerY + (leaf.bottom - centerY) * k, paint)
+        }
+
         if (turn.current) {
             // Fixed page with its dip, and the shadow of the leaf once it lies over this page.
             val fixed = own[otherSide]
@@ -212,6 +234,7 @@ internal class BookPageTurnDrawing {
                 drawLeafShadow(canvas, fixed, outerX, -direction, leafWidth, wave, shadowScale)
             }
             drawLeafStrips(back = false)
+            if (progress < 0.5f) drawLeafEdge()
             if (progress < 0.5f) spineDrawing.drawCrease(canvas, spine, leaf.top, leaf.bottom, light, creaseStrength)
             return true
         }
@@ -224,6 +247,7 @@ internal class BookPageTurnDrawing {
             drawLeafShadow(canvas, under, outerX, direction, leafWidth, wave, shadowScale)
         }
         drawLeafStrips(back = true)
+        if (progress >= 0.5f) drawLeafEdge()
         if (progress >= 0.5f) spineDrawing.drawCrease(canvas, spine, leaf.top, leaf.bottom, light, creaseStrength)
         return true
     }
@@ -337,6 +361,9 @@ internal class BookPageTurnDrawing {
 
         /** Strips the turning leaf is drawn in. */
         const val FLIP_STRIPS = 24
+
+        /** Share of the leaf width shaded at its hinge. */
+        const val HINGE_SHADE_WIDTH = 0.04f
 
         /** Extra turn of the outer edge mid-turn, in radians. */
         const val FLIP_BEND = 0.6f
