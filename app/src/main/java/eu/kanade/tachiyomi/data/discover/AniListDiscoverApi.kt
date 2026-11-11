@@ -158,14 +158,15 @@ class AniListDiscoverApi(
         return parseRecommendations(json, body)
     }
 
-    /**
-     * Several names in one request, one aliased Media search each. A name AniList does not know makes the whole
-     * response an error status with the other results still in it, so the status is not checked here.
-     */
+    /** Several names in one request, one aliased search each. */
     override suspend fun lookup(names: List<String>): Map<String, AniListTitle> {
         if (names.isEmpty()) return emptyMap()
         val declarations = names.indices.joinToString(",") { "\$s$it:String" }
-        val fields = names.indices.joinToString(" ") { "m$it: Media(search:\$s$it, type:MANGA){ $FIELDS }" }
+        // A paged search per name: a name AniList does not know comes back as an empty page. A plain Media(search)
+        // for an unknown name nulls every result of the request (checked on AniList 2026-11-11).
+        val fields = names.indices.joinToString(" ") {
+            "m$it: Page(perPage:1){ media(search:\$s$it, type:MANGA, format_not:NOVEL){ $FIELDS } }"
+        }
         val payload = buildJsonObject {
             put("query", "query($declarations){ $fields }")
             put("variables", buildJsonObject { names.forEachIndexed { index, name -> put("s$index", name) } })
@@ -176,7 +177,8 @@ class AniListDiscoverApi(
         val data = (json.parseToJsonElement(text) as? JsonObject)?.get("data") as? JsonObject ?: return emptyMap()
         val found = mutableMapOf<String, AniListTitle>()
         names.forEachIndexed { index, name ->
-            val media = data["m$index"] as? JsonObject ?: return@forEachIndexed
+            val page = data["m$index"] as? JsonObject ?: return@forEachIndexed
+            val media = (page["media"] as? kotlinx.serialization.json.JsonArray)?.firstOrNull() ?: return@forEachIndexed
             val title = json.decodeFromJsonElement(MediaDto.serializer(), media)
             if (title.format == "NOVEL") return@forEachIndexed
             val converted = title.toTitle()
