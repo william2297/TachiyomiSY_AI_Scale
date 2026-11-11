@@ -7,6 +7,8 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import logcat.LogPriority
+import tachiyomi.core.common.util.system.logcat
 import java.io.IOException
 import kotlin.random.Random
 
@@ -126,6 +128,10 @@ class DiscoverRefresher(
         }
 
         val finalExtras = extrasFor(matches)
+        extraPlans.firstOrNull { it.key == PICKED_SEED_KEY }?.let { plan ->
+            val found = finalExtras.firstOrNull { it.key == PICKED_SEED_KEY }?.entries?.size ?: 0
+            logcat(LogPriority.INFO) { "Discover picked row: ${plan.titles.size} titles, $found found in sources" }
+        }
         val tasteMissing = extraPlans.any { it.key == TASTE_KEY } && finalExtras.none { it.key == TASTE_KEY }
         val note = tasteNote?.let { if (tasteMissing) "$it None found in your sources yet." else it }
         return DiscoverCache(
@@ -445,6 +451,10 @@ class DiscoverRefresher(
             .filterNot(isExcluded)
             .filter { it.names.isNotEmpty() }
             .take(PICKED_SEED_SIZE)
+        logcat(LogPriority.INFO) {
+            "Discover picked '$seed': AniList ${aniList.size}, MangaUpdates ${picks.size} " +
+                "(new ${newPicks.size}, on AniList ${looked.size}), tags $tags -> ${byTags.size}, kept ${titles.size}"
+        }
         if (titles.isEmpty()) return null
         return ExtraPlan(
             key = PICKED_SEED_KEY,

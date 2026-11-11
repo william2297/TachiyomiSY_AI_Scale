@@ -24,6 +24,8 @@ internal object DiscoverDedupe {
         fun claimOrder(row: DiscoverRow): Int {
             val index = PERSONAL_ORDER.indexOf(row.key)
             return when {
+                // The row built from the title the user picked keeps everything it found
+                row.key == "picked-seed" -> -1
                 row.key == "my-genres" -> 0
                 row.key.startsWith(BECAUSE_PREFIX) -> 1
                 index >= 0 -> 1 + index
