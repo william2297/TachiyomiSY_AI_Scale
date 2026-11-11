@@ -147,7 +147,7 @@ internal fun SeedInvite(onChoose: () -> Unit) {
         color = MaterialTheme.colorScheme.surfaceContainer,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 24.dp),
     ) {
         Row(
             modifier = Modifier.padding(20.dp),

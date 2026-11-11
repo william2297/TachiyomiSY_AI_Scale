@@ -111,12 +111,6 @@ fun DiscoverScreen(
                     if (state.error != null) {
                         item(key = "offline") { OfflineBanner() }
                     }
-                    pickedSeedRow(
-                        state = state,
-                        onOpen = onOpen,
-                        onSeeAllRow = onSeeAllRow,
-                        onChoose = { seedSheetOpen = true },
-                    )
                     if (wide) {
                         val (rising, rest) = visible.partition { it.first == DiscoverSection.RISING }
                         rising.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
@@ -126,6 +120,13 @@ fun DiscoverScreen(
                     }
                     state.extraRows.filterNot { it.key == MY_GENRES_KEY || it.key == PICKED_SEED_KEY }
                         .forEach { row -> extraRow(row, onOpen, onSeeAllRow) }
+                    // The two rows the user sets up sit together at the bottom: the picked title, then My genres
+                    pickedSeedRow(
+                        state = state,
+                        onOpen = onOpen,
+                        onSeeAllRow = onSeeAllRow,
+                        onChoose = { seedSheetOpen = true },
+                    )
                     if (genres.isNotEmpty()) {
                         myGenres(
                             state = state,
@@ -194,7 +195,7 @@ private const val MY_GENRES_KEY = "my-genres"
 private const val PICKED_SEED_KEY = "picked-seed"
 
 /**
- * The "Because you like" slot near the top: an invitation while no title is picked, otherwise a header with the
+ * The "Because you like" slot above My genres: an invitation while no title is picked, otherwise a header with the
  * title and a Change button, then the row or its placeholders.
  */
 private fun LazyListScope.pickedSeedRow(
