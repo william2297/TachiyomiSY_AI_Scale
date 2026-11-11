@@ -19,6 +19,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.yield
 import logcat.LogPriority
 import okio.Buffer
 import tachiyomi.core.common.util.system.ImageUtil
@@ -186,8 +187,14 @@ internal class PagedSliceRebuilder(
         var lastPublish = 0L
         while (true) {
             var changed = false
-            for (i in 0 until count) {
-                if (looked[i] || pages[i].status != Page.State.Ready) continue
+            // The pages around where the reader is come first, a few at a time, so the page on screen is
+            // rebuilt within a moment instead of after the whole chapter was looked at.
+            val around = chapter.requestedPage.coerceIn(0, count - 1)
+            val batch = (0 until count)
+                .filter { !looked[it] && pages[it].status == Page.State.Ready }
+                .sortedBy { abs(it - around) }
+                .take(PROFILE_BATCH)
+            for (i in batch) {
                 // An unreadable page stays as it is and splits the chapter there.
                 profiles[i] = readSize(pages[i])?.let { (width, height) -> profile(pages[i], width, height) }
                 looked[i] = true
@@ -215,7 +222,8 @@ internal class PagedSliceRebuilder(
                 publishedKeys = assembly.groupKeys
                 lastPublish = now
             }
-            delay(POLL_MILLIS)
+            // More pages are ready to look at: go on at once; otherwise wait for downloads
+            if (changed) yield() else delay(POLL_MILLIS)
         }
     }
 
@@ -722,7 +730,8 @@ internal class PagedSliceRebuilder(
         private const val SEAM_CORRELATION = 0.5f
         private const val BLANK_SEAM_DIFFERENCE = 8f
         private const val POLL_MILLIS = 750L
-        private const val PUBLISH_INTERVAL_MILLIS = 3000L
+        private const val PUBLISH_INTERVAL_MILLIS = 1500L
+        private const val PROFILE_BATCH = 6
         private const val CACHE_MAX_AGE_MILLIS = 3L * 24 * 60 * 60 * 1000
     }
 }
