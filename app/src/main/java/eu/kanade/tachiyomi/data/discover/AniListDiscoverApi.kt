@@ -2,6 +2,7 @@ package eu.kanade.tachiyomi.data.discover
 
 import eu.kanade.presentation.browse.discover.DiscoverSection
 import eu.kanade.tachiyomi.network.POST
+import eu.kanade.tachiyomi.network.await
 import eu.kanade.tachiyomi.network.awaitSuccess
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -21,6 +22,12 @@ fun interface DiscoverListApi {
 
     /** The series AniList readers recommend after [title], or null when AniList has no such series. */
     suspend fun recommendationsFor(title: String): SeedRecommendations? = null
+
+    /** Like [recommendationsFor], but up to 50 recommendations (two pages of 25, AniList's page limit). */
+    suspend fun recommendationsWide(title: String): SeedRecommendations? = recommendationsFor(title)
+
+    /** Each name looked up on AniList; names AniList does not know are left out of the map. */
+    suspend fun lookup(names: List<String>): Map<String, AniListTitle> = emptyMap()
 
     /** Trending series of one genre in one country. */
     suspend fun byGenre(genre: String, country: String): List<AniListTitle> = emptyList()
@@ -141,6 +148,44 @@ class AniListDiscoverApi(
         return parseRecommendations(json, body)
     }
 
+    override suspend fun recommendationsWide(title: String): SeedRecommendations? {
+        val body = post(
+            buildJsonObject {
+                put("query", RECOMMENDATIONS_WIDE_QUERY)
+                put("variables", buildJsonObject { put("s", title) })
+            },
+        )
+        return parseRecommendations(json, body)
+    }
+
+    /**
+     * Several names in one request, one aliased Media search each. A name AniList does not know makes the whole
+     * response an error status with the other results still in it, so the status is not checked here.
+     */
+    override suspend fun lookup(names: List<String>): Map<String, AniListTitle> {
+        if (names.isEmpty()) return emptyMap()
+        val declarations = names.indices.joinToString(",") { "\$s$it:String" }
+        val fields = names.indices.joinToString(" ") { "m$it: Media(search:\$s$it, type:MANGA){ $FIELDS }" }
+        val payload = buildJsonObject {
+            put("query", "query($declarations){ $fields }")
+            put("variables", buildJsonObject { names.forEachIndexed { index, name -> put("s$index", name) } })
+        }
+        val requestBody = json.encodeToString(JsonObject.serializer(), payload)
+            .toRequestBody("application/json".toMediaType())
+        val text = client.newCall(POST(URL, body = requestBody)).await().use { it.body.string() }
+        val data = (json.parseToJsonElement(text) as? JsonObject)?.get("data") as? JsonObject ?: return emptyMap()
+        val found = mutableMapOf<String, AniListTitle>()
+        names.forEachIndexed { index, name ->
+            val media = data["m$index"] as? JsonObject ?: return@forEachIndexed
+            val title = json.decodeFromJsonElement(MediaDto.serializer(), media)
+            if (title.format == "NOVEL") return@forEachIndexed
+            val converted = title.toTitle()
+            // AniList searches loosely; keep only a series that really carries the name
+            if (TitleMatcher.match(converted.names, name) != TitleMatcher.Quality.NONE) found[name] = converted
+        }
+        return found
+    }
+
     private suspend fun post(payload: JsonObject): String {
         val body = json.encodeToString(JsonObject.serializer(), payload).toRequestBody("application/json".toMediaType())
         val response = client.newCall(POST(URL, body = body)).awaitSuccess()
@@ -171,6 +216,10 @@ class AniListDiscoverApi(
         private val RECOMMENDATIONS_QUERY = "query(\$s:String){ Media(search:\$s, type:MANGA){ $FIELDS " +
             "recommendations(sort:RATING_DESC, perPage:20){ nodes{ rating mediaRecommendation{ $FIELDS } } } } }"
 
+        private val RECOMMENDATIONS_WIDE_QUERY = "query(\$s:String){ Media(search:\$s, type:MANGA){ $FIELDS " +
+            "recommendations(sort:RATING_DESC, page:1, perPage:25){ nodes{ rating mediaRecommendation{ $FIELDS } } } " +
+            "more: recommendations(sort:RATING_DESC, page:2, perPage:25){ nodes{ rating mediaRecommendation{ $FIELDS } } } } }"
+
         fun genreQuery(genre: String, country: String): String {
             return "{ Page(perPage:$PER_PAGE){ media(type:MANGA, countryOfOrigin:$country, genre:\"$genre\", " +
                 "format_not:NOVEL, sort:TRENDING_DESC, popularity_greater:8000){ $FIELDS } } }"
@@ -191,10 +240,11 @@ class AniListDiscoverApi(
         fun parseRecommendations(json: Json, body: String): SeedRecommendations? {
             val media = json.decodeFromString(RecommendationsResponse.serializer(), body).data?.media ?: return null
             val seed = media.toTitle()
-            val recommended = media.recommendations?.nodes.orEmpty()
+            val recommended = (media.recommendations?.nodes.orEmpty() + media.more?.nodes.orEmpty())
                 .mapNotNull { it.mediaRecommendation }
                 .filter { it.format != "NOVEL" }
                 .map { it.toTitle() }
+                .distinctBy { it.id }
             return SeedRecommendations(
                 seedNames = seed.names,
                 recommendations = recommended,
@@ -290,6 +340,8 @@ class AniListDiscoverApi(
         val startDate: DateDto? = null,
         val endDate: DateDto? = null,
         val recommendations: RecommendationsDto? = null,
+        /** The second page of recommendations, under the alias "more". */
+        val more: RecommendationsDto? = null,
         val isAdult: Boolean? = null,
         val countryOfOrigin: String? = null,
     )

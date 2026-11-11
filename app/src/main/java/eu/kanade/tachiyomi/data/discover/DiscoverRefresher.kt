@@ -32,6 +32,8 @@ class DiscoverRefresher(
     private val onStatus: suspend (String) -> Unit = {},
     /** Called with the tags found for a title the user read, so they are kept for the next refresh. */
     private val onTitleTags: suspend (String, List<TitleTag>) -> Unit = { _, _ -> },
+    /** A second opinion for the "Because you like" row (MangaUpdates); null leaves it out. */
+    private val recommendationSource: RecommendationSource? = null,
 ) {
 
     private var tasteNote: String? = null
@@ -350,10 +352,15 @@ class DiscoverRefresher(
         return plans
     }
 
-    /** What AniList readers of the title the user picked went on to read. */
+    /**
+     * The "Because you like" row, up to [PICKED_SEED_SIZE] titles: AniList readers' recommendations (two pages), then
+     * what MangaUpdates readers recommend, then series similar by MangaUpdates category or by the picked title's
+     * AniList tags, taken in turns. Titles from MangaUpdates are looked up on AniList for their details; one AniList
+     * does not know keeps its MangaUpdates name and cover.
+     */
     private suspend fun pickedSeedPlan(seed: String): ExtraPlan? {
         val result = try {
-            api.recommendationsFor(seed)
+            api.recommendationsWide(seed)
         } catch (e: CancellationException) {
             currentCoroutineContext().ensureActive()
             null
@@ -365,15 +372,105 @@ class DiscoverRefresher(
             tasteNote = "Could not find $seed on AniList."
             return null
         }
-        val titles = result.recommendations.filterNot(isExcluded).filter { it.names.isNotEmpty() }
+        val seedKeys = (result.seedNames + seed).map(TitleMatcher::normalize).toSet()
+        val reasons = mutableMapOf<Long, String>()
+        val aniList = result.recommendations
+        aniList.forEach { reasons[it.id] = "Recommended by readers of $seed" }
+
+        // MangaUpdates: what its readers recommend, and what it lists as similar by category
+        val picks = try {
+            recommendationSource?.recommendationsFor(seed).orEmpty()
+        } catch (e: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+        val knownNames = aniList.flatMap { it.names }.map(TitleMatcher::normalize).toSet() + seedKeys
+        val newPicks = picks.filter { TitleMatcher.normalize(it.name) !in knownNames }.take(MANGAUPDATES_LOOKUPS)
+        var looked: Map<String, AniListTitle> = emptyMap()
+        if (newPicks.isNotEmpty()) {
+            looked = try {
+                api.lookup(newPicks.map { it.name })
+            } catch (e: CancellationException) {
+                currentCoroutineContext().ensureActive()
+                emptyMap()
+            } catch (e: Exception) {
+                emptyMap()
+            }
+            pause(API_PAUSE_MILLIS)
+        }
+        val voted = mutableListOf<AniListTitle>()
+        val similar = mutableListOf<AniListTitle>()
+        for (pick in newPicks) {
+            val title = looked[pick.name] ?: mangaUpdatesTitle(pick)
+            reasons.putIfAbsent(
+                title.id,
+                if (pick.byReaders) "Recommended by MangaUpdates readers of $seed" else "Similar to $seed on MangaUpdates",
+            )
+            if (pick.byReaders) voted += title else similar += title
+        }
+
+        // Series that carry the most of the picked title's strongest AniList tags
+        val tags = result.seedTags.take(SEED_TAG_COUNT).map { it.name }
+        val tagged = linkedMapOf<Long, AniListTitle>()
+        for (tag in tags) {
+            try {
+                acrossCountries({ api.byTagAll(tag, it) }, { api.byTag(tag, it) })
+                    .forEach { tagged.putIfAbsent(it.id, it) }
+            } catch (e: Exception) {
+                if (e is CancellationException) currentCoroutineContext().ensureActive()
+                // This tag is left out today
+            }
+        }
+        val byTags = tagged.values
+            .filter { title -> title.names.none { TitleMatcher.normalize(it) in seedKeys } }
+            .sortedWith(
+                compareByDescending<AniListTitle> { title -> title.tags.count { it.name in tags } }
+                    .thenByDescending { it.score ?: 0 },
+            )
+        byTags.forEach { title ->
+            val shared = title.tags.map { it.name }.filter { it in tags }
+            reasons.putIfAbsent(title.id, "Shares ${shared.joinToString(", ")} with $seed")
+        }
+
+        val mixed = mutableListOf<AniListTitle>()
+        for (index in 0 until maxOf(similar.size, byTags.size)) {
+            similar.getOrNull(index)?.let { mixed += it }
+            byTags.getOrNull(index)?.let { mixed += it }
+        }
+        val titles = (aniList + voted + mixed)
+            .distinctBy { it.id }
+            .distinctBy { TitleMatcher.normalize(it.title) }
+            .filterNot(isExcluded)
+            .filter { it.names.isNotEmpty() }
+            .take(PICKED_SEED_SIZE)
         if (titles.isEmpty()) return null
         return ExtraPlan(
             key = PICKED_SEED_KEY,
             title = "Because you like $seed",
-            hint = "What readers of it went on to read",
+            hint = "What readers of it went on to read, and series like it",
             titles = titles,
-            reason = { "Recommended by readers of $seed" },
+            reason = { title -> reasons[title.id] ?: "Recommended for readers of $seed" },
             limit = titles.size,
+        )
+    }
+
+    /** A MangaUpdates pick AniList does not know, with a stable id that cannot clash with AniList's. */
+    private fun mangaUpdatesTitle(pick: MangaUpdatesPick): AniListTitle {
+        val id = -1L - (TitleMatcher.normalize(pick.name).hashCode().toLong() and 0xFFFFFFFFL)
+        return AniListTitle(
+            id = id,
+            names = listOf(pick.name),
+            title = pick.name,
+            coverUrl = pick.coverUrl,
+            trending = 0,
+            popularity = 0,
+            score = null,
+            finished = false,
+            chapters = null,
+            startYear = null,
+            endYear = null,
         )
     }
 
@@ -751,6 +848,15 @@ class DiscoverRefresher(
 
         /** Same key as in DiscoverScreen; that row is drawn with its own header and Change button. */
         const val PICKED_SEED_KEY = "picked-seed"
+
+        /** Most titles in the "Because you like" row. */
+        const val PICKED_SEED_SIZE = 50
+
+        /** MangaUpdates picks looked up on AniList in one request. */
+        const val MANGAUPDATES_LOOKUPS = 25
+
+        /** How many of the picked title's tags the similar-series search uses. */
+        const val SEED_TAG_COUNT = 3
         private const val GENRE_SEED = 97L
         private const val PROGRESS_EVERY = 4
         private const val NEW_IN_TOP_RANKS = 50

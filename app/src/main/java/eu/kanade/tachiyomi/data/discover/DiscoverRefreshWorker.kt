@@ -64,6 +64,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 onProgress = { partial -> store.save(partial) },
                 onStatus = { text -> setProgress(workDataOf(KEY_STATUS to text)) },
                 onTitleTags = { key, tags -> tasteStore.putTitle(key, tags) },
+                recommendationSource = MangaUpdatesApi(graph.networkHelper.client, graph.json),
             )
             val picked = DiscoverGenreStore(genresFile(context), graph.json).load()
             val taste = tasteStore.load()
