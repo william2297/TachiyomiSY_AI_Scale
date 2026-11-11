@@ -110,6 +110,8 @@ data class TasteProfile(
     val genres: List<String> = emptyList(),
     /** Genres the user chose for the "My genres" row, any of them. Empty means the row is not built. */
     val pickedGenres: List<String> = emptyList(),
+    /** The library title the user picked for the "Because you like" row, or null. */
+    val pickedSeed: String? = null,
     /** Titles the user read, newest first, whose tags build the taste profile. */
     val recentTitles: List<String> = emptyList(),
     /** Tags already known for titles (normalized title to tags), so AniList is asked once per title. */

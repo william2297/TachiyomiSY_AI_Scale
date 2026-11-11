@@ -61,8 +61,10 @@ class DiscoverRefresher(
         // The 12 shown in each row are searched first; the rest of the 50 fill in over the next days
         // "My genres" goes first and whole: the user just chose it, and it must not wait behind the other rows
         // for the search budget
-        val myTitles = myGenres.plan?.titles.orEmpty()
-        val allPicks = picks.values.toList() + extraPlans.filter { it.key != MY_GENRES_KEY }.map { it.titles }
+        // The rows the user set up themselves ("Because you like" and "My genres") are searched first and whole
+        val priorityKeys = setOf(PICKED_SEED_KEY, MY_GENRES_KEY)
+        val myTitles = extraPlans.filter { it.key in priorityKeys }.flatMap { it.titles }
+        val allPicks = picks.values.toList() + extraPlans.filter { it.key !in priorityKeys }.map { it.titles }
         // The shown 12 of every row are taken in turns (first of each row, then second of each...), so no row waits
         // behind the others for the search budget
         val shown = (0 until DISPLAY_SIZE).flatMap { index -> allPicks.mapNotNull { it.getOrNull(index) } }
@@ -245,6 +247,9 @@ class DiscoverRefresher(
         val plans = mutableListOf<ExtraPlan>()
         val known = profile.knownTags.toMutableMap()
 
+        // "Because you like X": the library title the user picked, first of the rows built from taste
+        profile.pickedSeed?.let { seed -> pickedSeedPlan(seed)?.let { plans += it } }
+
         // "Because you read X": what AniList readers of X went on to read
         for (seed in profile.seeds) {
             val result = try {
@@ -343,6 +348,33 @@ class DiscoverRefresher(
             )
         }
         return plans
+    }
+
+    /** What AniList readers of the title the user picked went on to read. */
+    private suspend fun pickedSeedPlan(seed: String): ExtraPlan? {
+        val result = try {
+            api.recommendationsFor(seed)
+        } catch (e: CancellationException) {
+            currentCoroutineContext().ensureActive()
+            null
+        } catch (e: Exception) {
+            null
+        }
+        pause(API_PAUSE_MILLIS)
+        if (result == null || TitleMatcher.match(result.seedNames, seed) == TitleMatcher.Quality.NONE) {
+            tasteNote = "Could not find $seed on AniList."
+            return null
+        }
+        val titles = result.recommendations.filterNot(isExcluded).filter { it.names.isNotEmpty() }
+        if (titles.isEmpty()) return null
+        return ExtraPlan(
+            key = PICKED_SEED_KEY,
+            title = "Because you like $seed",
+            hint = "What readers of it went on to read",
+            titles = titles,
+            reason = { "Recommended by readers of $seed" },
+            limit = titles.size,
+        )
     }
 
     /**
@@ -716,6 +748,9 @@ class DiscoverRefresher(
         /** Bumped when the "My genres" ranking changes, so a list built earlier today is rebuilt. */
         private const val MY_GENRES_RANKING = 2
         const val MY_GENRES_KEY = "my-genres"
+
+        /** Same key as in DiscoverScreen; that row is drawn with its own header and Change button. */
+        const val PICKED_SEED_KEY = "picked-seed"
         private const val GENRE_SEED = 97L
         private const val PROGRESS_EVERY = 4
         private const val NEW_IN_TOP_RANKS = 50

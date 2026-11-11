@@ -69,6 +69,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
             val taste = tasteStore.load()
             val profile = tasteProfile(graph).copy(
                 pickedGenres = picked.sorted(),
+                pickedSeed = DiscoverSeedStore(seedFile(context)).load(),
                 knownTags = taste.titles,
                 negatives = taste.negatives,
             )
@@ -119,6 +120,8 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         fun tasteFile(context: Context) = File(context.filesDir, "discover_taste.json")
 
         fun genresFile(context: Context) = File(context.filesDir, "discover_genres.json")
+
+        fun seedFile(context: Context) = File(context.filesDir, "discover_seed.txt")
 
         /**
          * The pinned sources that can be searched, at most [MAX_SOURCES], the ones the library reads from most first.

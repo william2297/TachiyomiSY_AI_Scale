@@ -37,10 +37,14 @@ import eu.kanade.presentation.browse.discover.components.DiscoverGenreSheet
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingCard
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingCardSkeleton
 import eu.kanade.presentation.browse.discover.components.DiscoverRisingSeeAllCard
+import eu.kanade.presentation.browse.discover.components.DiscoverSeedSheet
 import eu.kanade.presentation.browse.discover.components.DiscoverSeeAllCard
 import eu.kanade.presentation.browse.discover.components.MyGenresHeader
 import eu.kanade.presentation.browse.discover.components.MyGenresInvite
 import eu.kanade.presentation.browse.discover.components.MyGenresPending
+import eu.kanade.presentation.browse.discover.components.SeedHeader
+import eu.kanade.presentation.browse.discover.components.SeedInvite
+import eu.kanade.presentation.browse.discover.components.SeedPending
 import eu.kanade.presentation.browse.discover.components.SkeletonLine
 import eu.kanade.presentation.browse.discover.components.rememberGenreSheetOpen
 import mihon.icons.phosphor.Phosphor
@@ -69,8 +73,11 @@ fun DiscoverScreen(
     onSeeAllRow: (DiscoverRow) -> Unit = {},
     genres: List<String> = emptyList(),
     onPickGenres: (Set<String>) -> Unit = {},
+    seedTitles: List<String> = emptyList(),
+    onPickSeed: (String?) -> Unit = {},
 ) {
     var genreSheetOpen by rememberGenreSheetOpen()
+    var seedSheetOpen by rememberGenreSheetOpen()
     val visible = DiscoverSection.entries.mapNotNull { section ->
         state.sections[section]?.takeIf { it.isNotEmpty() }?.let { section to it }
     }
@@ -104,6 +111,12 @@ fun DiscoverScreen(
                     if (state.error != null) {
                         item(key = "offline") { OfflineBanner() }
                     }
+                    pickedSeedRow(
+                        state = state,
+                        onOpen = onOpen,
+                        onSeeAllRow = onSeeAllRow,
+                        onChoose = { seedSheetOpen = true },
+                    )
                     if (wide) {
                         val (rising, rest) = visible.partition { it.first == DiscoverSection.RISING }
                         rising.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
@@ -111,7 +124,7 @@ fun DiscoverScreen(
                     } else {
                         visible.forEach { (section, entries) -> section(section, entries, onOpen, onSeeAll) }
                     }
-                    state.extraRows.filterNot { it.key == MY_GENRES_KEY }
+                    state.extraRows.filterNot { it.key == MY_GENRES_KEY || it.key == PICKED_SEED_KEY }
                         .forEach { row -> extraRow(row, onOpen, onSeeAllRow) }
                     if (genres.isNotEmpty()) {
                         myGenres(
@@ -147,6 +160,18 @@ fun DiscoverScreen(
         }
     }
 
+    if (seedSheetOpen) {
+        DiscoverSeedSheet(
+            titles = seedTitles,
+            picked = state.pickedSeed,
+            onPick = { title ->
+                seedSheetOpen = false
+                onPickSeed(title)
+            },
+            onDismiss = { seedSheetOpen = false },
+        )
+    }
+
     if (genreSheetOpen) {
         DiscoverGenreSheet(
             genres = genres,
@@ -164,6 +189,38 @@ private const val WIDE_LAYOUT_MIN_WIDTH_DP = 960
 
 /** Same key as DiscoverRefresher.MY_GENRES_KEY; the row is drawn by [myGenres], not as a plain extra row. */
 private const val MY_GENRES_KEY = "my-genres"
+
+/** Same key as DiscoverRefresher.PICKED_SEED_KEY; the row is drawn by [pickedSeedRow]. */
+private const val PICKED_SEED_KEY = "picked-seed"
+
+/**
+ * The "Because you like" slot near the top: an invitation while no title is picked, otherwise a header with the
+ * title and a Change button, then the row or its placeholders.
+ */
+private fun LazyListScope.pickedSeedRow(
+    state: DiscoverState,
+    onOpen: (DiscoverEntry) -> Unit,
+    onSeeAllRow: (DiscoverRow) -> Unit,
+    onChoose: () -> Unit,
+) {
+    val seed = state.pickedSeed
+    if (seed == null) {
+        item(key = "seed-invite") { SeedInvite(onChoose = onChoose) }
+        return
+    }
+    // A row built for an earlier pick stays in the cache until the refresh for the new pick ends
+    val row = state.extraRows.firstOrNull { it.key == PICKED_SEED_KEY && it.title.endsWith(seed) }
+    item(key = "extra-header-$PICKED_SEED_KEY") {
+        SeedHeader(title = seed, updating = state.loading, onChange = onChoose)
+    }
+    item(key = "extra-row-$PICKED_SEED_KEY") {
+        if (row != null) {
+            ExtraRowCards(row, onOpen, onSeeAllRow)
+        } else {
+            SeedPending(loading = state.loading)
+        }
+    }
+}
 
 /**
  * The "My genres" slot, after the other rows built from taste (the refresher puts it last as well). No genres picked:

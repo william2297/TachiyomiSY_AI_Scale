@@ -21,6 +21,7 @@ import tachiyomi.i18n.MR
 fun Screen.discoverTab(): TabContent {
     val viewModel = metroViewModel<DiscoverViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val seedTitles by viewModel.seedTitles.collectAsStateWithLifecycle()
     val navigator = LocalNavigator.currentOrThrow
     val scope = rememberCoroutineScope()
 
@@ -40,6 +41,8 @@ fun Screen.discoverTab(): TabContent {
                     onSeeAllRow = { row -> navigator.push(DiscoverRowScreen(row.key)) },
                     genres = GENRES,
                     onPickGenres = viewModel::setGenres,
+                    seedTitles = seedTitles,
+                    onPickSeed = viewModel::setSeed,
                 )
             }
         },

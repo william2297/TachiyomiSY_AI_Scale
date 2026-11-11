@@ -18,6 +18,7 @@ import eu.kanade.tachiyomi.data.discover.DiscoverCache
 import eu.kanade.tachiyomi.data.discover.DiscoverGenreStore
 import eu.kanade.tachiyomi.data.discover.DiscoverHiddenStore
 import eu.kanade.tachiyomi.data.discover.DiscoverRefreshWorker
+import eu.kanade.tachiyomi.data.discover.DiscoverSeedStore
 import eu.kanade.tachiyomi.data.discover.DiscoverStore
 import eu.kanade.tachiyomi.data.discover.DiscoverTasteStore
 import eu.kanade.tachiyomi.data.discover.StoredEntry
@@ -72,6 +73,11 @@ class DiscoverViewModel(
         DiscoverGenreStore(DiscoverRefreshWorker.genresFile(context), context.appGraph.json)
     }
     private val pickedGenres = MutableStateFlow<Set<String>>(emptySet())
+    private val seedStore by lazy { DiscoverSeedStore(DiscoverRefreshWorker.seedFile(context)) }
+    private val pickedSeed = MutableStateFlow<String?>(null)
+
+    /** Library titles as shown, for the "Because you like" picker. */
+    val seedTitles = MutableStateFlow<List<String>>(emptyList())
 
     /** Normalized titles of everything in the library, and of everything read that is not in it. */
     private val libraryTitles = MutableStateFlow<Set<String>>(emptySet())
@@ -86,6 +92,7 @@ class DiscoverViewModel(
         status,
         hidden,
         pickedGenres,
+        pickedSeed,
     ) { values ->
         val cache = values[0] as DiscoverCache
         val loading = values[1] as Boolean
@@ -103,6 +110,7 @@ class DiscoverViewModel(
 
         @Suppress("UNCHECKED_CAST")
         val picked = values[7] as Set<String>
+        val seed = values[8] as String?
         val (sections, extraRows) = DiscoverDedupe.apply(
             toSections(cache, inLibrary + read, notInterested),
             toExtraRows(cache, inLibrary + read, notInterested),
@@ -112,6 +120,7 @@ class DiscoverViewModel(
             sections = sections,
             extraRows = extraRows,
             pickedGenres = picked,
+            pickedSeed = seed,
             tasteNote = cache.tasteNote,
             loading = loading,
             updatedAtMillis = cache.updatedAtMillis.takeIf { it > 0 },
@@ -123,10 +132,15 @@ class DiscoverViewModel(
         DiscoverRefreshWorker.setupTask(context)
         viewModelScope.launch { hidden.value = withContext(Dispatchers.IO) { hiddenStore.load() } }
         viewModelScope.launch { pickedGenres.value = withContext(Dispatchers.IO) { genreStore.load() } }
+        viewModelScope.launch { pickedSeed.value = withContext(Dispatchers.IO) { seedStore.load() } }
         viewModelScope.launch {
             // Follows the library live, so marking chapters read shows up here without a refresh
             getLibraryManga.subscribe().collect { library ->
                 libraryTitles.value = library.map { TitleMatcher.normalize(it.manga.title) }.toSet()
+                seedTitles.value = library.map { it.manga.title.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct()
+                    .sortedBy { it.lowercase() }
             }
         }
         viewModelScope.launch {
@@ -188,6 +202,19 @@ class DiscoverViewModel(
             if (saved == pickedGenres.value) return@launch
             pickedGenres.value = saved
             DiscoverRefreshWorker.startNow(context, replaceRunning = true)
+        }
+    }
+
+    /**
+     * The library title for the "Because you like" row, or null to remove the row. A real change builds the row again
+     * at once; picking the same title again does nothing.
+     */
+    fun setSeed(title: String?) {
+        viewModelScope.launch {
+            val saved = withContext(Dispatchers.IO) { seedStore.save(title) }
+            if (saved == pickedSeed.value) return@launch
+            pickedSeed.value = saved
+            if (saved != null) DiscoverRefreshWorker.startNow(context, replaceRunning = true)
         }
     }
 
