@@ -27,6 +27,7 @@ internal class BookSpineDrawing {
         }
     }
     private val line = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val shadow = Paint(Paint.ANTI_ALIAS_FLAG)
 
     /**
      * Static two-page view with the paper bending into the spine: outside a band next to the spine
@@ -63,7 +64,44 @@ internal class BookSpineDrawing {
         drawCurvedBand(canvas, left, left.right, -1f, leftBand, viewHeight, content)
         drawCurvedBand(canvas, right, right.left, 1f, rightBand, viewHeight, content)
         drawSpread(canvas, pictures, light)
+        if (light) {
+            drawLightEdges(canvas, left, outerAtStart = true)
+            drawLightEdges(canvas, right, outerAtStart = false)
+        }
         if (stackLeft != null) drawPaperStack(canvas, left, right, stackLeft, light)
+    }
+
+    /**
+     * White paper on a white background has nothing to stand out against: a hairline and a soft shadow around the
+     * outer, top and bottom edges of [page] give the book its outline back. The spine side is left alone, and the
+     * top and bottom stop where the page starts to bend into the gutter.
+     */
+    private fun drawLightEdges(canvas: Canvas, page: BookPageBounds, outerAtStart: Boolean) {
+        if (page.width <= 1f) return
+        val reach = max(4f, page.width * LIGHT_EDGE_REACH)
+        val band = page.width * CURVE_BAND
+        val outer = if (outerAtStart) page.left else page.right
+        val inner = if (outerAtStart) page.right - band else page.left + band
+        val start = min(outer, inner)
+        val end = max(outer, inner)
+        val shade = Color.argb((LIGHT_EDGE_SHADOW * 255).toInt(), 0, 0, 0)
+
+        val beyond = if (outerAtStart) outer - reach else outer + reach
+        shadow.shader = LinearGradient(outer, 0f, beyond, 0f, shade, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        canvas.drawRect(min(outer, beyond), page.top, max(outer, beyond), page.bottom, shadow)
+        shadow.shader =
+            LinearGradient(0f, page.top, 0f, page.top - reach, shade, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        canvas.drawRect(start, page.top - reach, end, page.top, shadow)
+        shadow.shader =
+            LinearGradient(0f, page.bottom, 0f, page.bottom + reach, shade, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        canvas.drawRect(start, page.bottom, end, page.bottom + reach, shadow)
+        shadow.shader = null
+
+        line.color = Color.argb((LIGHT_EDGE_LINE * 255).toInt(), 0, 0, 0)
+        line.strokeWidth = 1f
+        canvas.drawLine(outer, page.top, outer, page.bottom, line)
+        canvas.drawLine(start, page.top, end, page.top, line)
+        canvas.drawLine(start, page.bottom, end, page.bottom, line)
     }
 
     /**
@@ -222,8 +260,15 @@ internal class BookSpineDrawing {
             0xFFD8D8D8.toInt(), 0xFFBDBDBD.toInt(), 0xFF9E9E9E.toInt(), 0xFF868686.toInt(), 0xFF707070.toInt(),
         )
         val LIGHT_STACK = intArrayOf(
-            0xFFE4E4E4.toInt(), 0xFFCFCFCF.toInt(), 0xFFB8B8B8.toInt(), 0xFFA4A4A4.toInt(), 0xFF909090.toInt(),
+            0xFFCECECE.toInt(), 0xFFBEBEBE.toInt(), 0xFFAEAEAE.toInt(), 0xFF9E9E9E.toInt(), 0xFF8E8E8E.toInt(),
         )
+
+        /** Shadow around a page on a light background: width as a share of the page width, and black alpha. */
+        const val LIGHT_EDGE_REACH = 0.012f
+        const val LIGHT_EDGE_SHADOW = 0.12f
+
+        /** Black alpha of the hairline along a page's edges on a light background. */
+        const val LIGHT_EDGE_LINE = 0.16f
 
         /** Distance between the lines of the paper stack, in pixels. */
         const val STACK_PITCH = 2f
