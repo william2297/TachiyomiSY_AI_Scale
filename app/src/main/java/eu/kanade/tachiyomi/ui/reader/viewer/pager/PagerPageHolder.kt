@@ -897,30 +897,45 @@ class PagerPageHolder(
             result.applyCanvas {
                 drawColor(background)
 
-                fun drawFitted(bitmap: Bitmap, content: Rect, cellLeft: Int, alignToCenter: Boolean) {
-                    // Crop while drawing instead of allocating another page-sized bitmap.
+                // Crop while drawing instead of allocating another page-sized bitmap.
+                fun sourceOf(content: Rect): Rect {
                     val horizontalInset = if (content.width() > 8) 1 else 0
-                    val sourceRect = Rect(content).apply { inset(horizontalInset, 0) }
+                    return Rect(content).apply { inset(horizontalInset, 0) }
+                }
+
+                fun fittedSize(source: Rect): Pair<Int, Int> {
                     val scale = min(
-                        cellWidth / sourceRect.width().toFloat(),
-                        viewportHeight / sourceRect.height().toFloat(),
+                        cellWidth / source.width().toFloat(),
+                        viewportHeight / source.height().toFloat(),
                     )
-                    val destWidth = (sourceRect.width() * scale).toInt().coerceAtLeast(1)
-                    val destHeight = (sourceRect.height() * scale).toInt().coerceAtLeast(1)
-                    val left =
-                        if (alignToCenter) {
-                            cellLeft + (cellWidth - destWidth)
-                        } else {
-                            cellLeft
-                        }
-                    val top = (viewportHeight - destHeight) / 2
+                    return (source.width() * scale).toInt().coerceAtLeast(1) to
+                        (source.height() * scale).toInt().coerceAtLeast(1)
+                }
+
+                // Both leaves of a book are the same size: pages whose shapes differ (crop borders trims each
+                // page's margin on its own) sit whole and centred on equal sheets of paper, nothing is cut off.
+                val firstSize = fittedSize(sourceOf(firstContentRect))
+                val secondSize = fittedSize(sourceOf(secondContentRect))
+                val sheetWidth = max(firstSize.first, secondSize.first)
+                val sheetHeight = max(firstSize.second, secondSize.second)
+                val paper = Paint().apply { color = Color.WHITE }
+
+                fun drawFitted(bitmap: Bitmap, content: Rect, cellLeft: Int, alignToCenter: Boolean) {
+                    val sourceRect = sourceOf(content)
+                    val (destWidth, destHeight) = fittedSize(sourceRect)
+                    val sheetLeft = if (alignToCenter) cellLeft + (cellWidth - sheetWidth) else cellLeft
+                    val sheetTop = (viewportHeight - sheetHeight) / 2
+                    val sheet = Rect(sheetLeft, sheetTop, sheetLeft + sheetWidth, sheetTop + sheetHeight)
+                    if (destWidth < sheetWidth || destHeight < sheetHeight) drawRect(sheet, paper)
+                    val left = sheetLeft + (sheetWidth - destWidth) / 2
+                    val top = sheetTop + (sheetHeight - destHeight) / 2
                     val dest = Rect(left, top, left + destWidth, top + destHeight)
                     drawBitmap(bitmap, sourceRect, dest, bitmapPaint)
                     imageBounds += BookPageBounds(
-                        dest.left.toFloat(),
-                        dest.top.toFloat(),
-                        dest.right.toFloat(),
-                        dest.bottom.toFloat(),
+                        sheet.left.toFloat(),
+                        sheet.top.toFloat(),
+                        sheet.right.toFloat(),
+                        sheet.bottom.toFloat(),
                     )
                 }
 
