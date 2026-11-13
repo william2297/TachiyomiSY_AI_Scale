@@ -1129,6 +1129,8 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
     private fun SubsamplingScaleImageView.landscapeZoom(forward: Boolean) {
         if (
+            // A two-page spread is wide by design; zooming into it cuts off the second page
+            !drawsBookSpine &&
             config != null &&
             config!!.landscapeZoom &&
             config!!.minimumScaleType == SCALE_TYPE_CENTER_INSIDE &&
