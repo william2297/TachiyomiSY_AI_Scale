@@ -310,6 +310,7 @@ internal class HttpPageLoader(
                 page.status = Page.State.Queue
                 throw e
             }
+            recordFailure(page, attempt, e)
             if (attempt < MAX_AUTO_RETRIES && e.isTransient()) {
                 // Dropped connections, timeouts and busy servers usually succeed a moment later. Without this the
                 // page shows an error until the user taps retry.
@@ -326,6 +327,36 @@ internal class HttpPageLoader(
         }
     }
 
+    /**
+     * Appends one line per failed page to Android/data/<app>/files/page-errors.txt: time, network (Wi-Fi or
+     * mobile, metered or not), image host, error. The logcat buffer rolls over within hours, and failures that
+     * only happen on some networks (a phone hotspot) need a record that survives until the tablet is plugged in.
+     */
+    private fun recordFailure(page: ReaderPage, attempt: Int, e: Throwable) {
+        try {
+            val context = Injekt.get<android.app.Application>()
+            val dir = context.getExternalFilesDir(null) ?: return
+            val file = java.io.File(dir, "page-errors.txt")
+            if (file.length() > PAGE_ERROR_LOG_MAX_BYTES) {
+                file.writeText(file.readLines().takeLast(200).joinToString("\n", postfix = "\n"))
+            }
+            val cm = context.getSystemService(android.net.ConnectivityManager::class.java)
+            val caps = cm?.getNetworkCapabilities(cm.activeNetwork)
+            val net = when {
+                caps == null -> "none"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+                caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "cell"
+                else -> "other"
+            } + if (cm?.isActiveNetworkMetered == true) "/metered" else "/unmetered"
+            val host = page.imageUrl?.let { runCatching { java.net.URI(it).host }.getOrNull() } ?: "?"
+            val time = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
+            val error = "${e.javaClass.simpleName}: ${e.message}"
+            file.appendText("$time $net $host page=${page.index} attempt=${attempt + 1} $error\n")
+        } catch (_: Exception) {
+            // Diagnostics only; never let the record break page loading.
+        }
+    }
+
     private fun Throwable.isTransient(): Boolean {
         return this is IOException ||
             (this is HttpException && code in TRANSIENT_HTTP_CODES) ||
@@ -335,6 +366,7 @@ internal class HttpPageLoader(
     }
 }
 
+private const val PAGE_ERROR_LOG_MAX_BYTES = 200_000L
 private const val LIMITED_PAGES_AHEAD = 4
 private const val NEARBY_PAGES = 3
 private const val MAX_AUTO_RETRIES = 4
