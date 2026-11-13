@@ -385,7 +385,7 @@ class DiscoverRefresher(
 
         // MangaUpdates: what its readers recommend, and what it lists as similar by category
         val picks = try {
-            recommendationSource?.recommendationsFor(seed).orEmpty()
+            recommendationSource?.recommendationsFor(seed, result.seedNames).orEmpty()
         } catch (e: CancellationException) {
             currentCoroutineContext().ensureActive()
             emptyList()

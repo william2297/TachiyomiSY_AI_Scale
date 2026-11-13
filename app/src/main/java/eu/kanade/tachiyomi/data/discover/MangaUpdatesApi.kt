@@ -19,6 +19,10 @@ data class MangaUpdatesPick(val name: String, val coverUrl: String?, val weight:
 /** Reads recommendations from MangaUpdates (api.mangaupdates.com). Public data; no account or key is needed. */
 interface RecommendationSource {
     suspend fun recommendationsFor(title: String): List<MangaUpdatesPick>
+
+    /** Like [recommendationsFor], also accepting a series known under one of [otherNames] (AniList's names). */
+    suspend fun recommendationsFor(title: String, otherNames: List<String>): List<MangaUpdatesPick> =
+        recommendationsFor(title)
 }
 
 class MangaUpdatesApi(
@@ -30,17 +34,25 @@ class MangaUpdatesApi(
      * Finds [title] on MangaUpdates and returns what its readers recommend (voted) and what it lists as similar by
      * category. Empty when the series is not found under that name.
      */
-    override suspend fun recommendationsFor(title: String): List<MangaUpdatesPick> {
+    override suspend fun recommendationsFor(title: String): List<MangaUpdatesPick> =
+        recommendationsFor(title, emptyList())
+
+    override suspend fun recommendationsFor(title: String, otherNames: List<String>): List<MangaUpdatesPick> {
         val payload = buildJsonObject {
             put("search", title)
             put("perpage", SEARCH_SIZE)
         }
         val body = json.encodeToString(JsonObject.serializer(), payload).toRequestBody("application/json".toMediaType())
         val search = client.newCall(POST("$URL/series/search", body = body)).awaitSuccess().use { it.body.string() }
-        val records = json.decodeFromString(SearchResponse.serializer(), search).results.mapNotNull { it.record }
-        // MangaUpdates searches loosely; only a series that really carries the title is accepted
-        val record = records.firstOrNull { TitleMatcher.match(listOf(it.title), title) != TitleMatcher.Quality.NONE }
-            ?: return emptyList()
+        val results = json.decodeFromString(SearchResponse.serializer(), search).results
+        // MangaUpdates searches loosely; only a series that really carries the title is accepted. Its main title is
+        // often a romanisation spelled differently from AniList's, so the name the search hit on counts as well.
+        val wanted = (listOf(title) + otherNames).filter { it.isNotBlank() }.distinct()
+        val record = results.firstNotNullOfOrNull { result ->
+            val record = result.record ?: return@firstNotNullOfOrNull null
+            val carried = listOfNotNull(record.title, result.hitTitle).filter { it.isNotBlank() }
+            record.takeIf { wanted.any { name -> TitleMatcher.match(carried, name) != TitleMatcher.Quality.NONE } }
+        } ?: return emptyList()
         val series = client.newCall(GET("$URL/series/${record.seriesId}")).awaitSuccess().use { it.body.string() }
         val detail = json.decodeFromString(SeriesResponse.serializer(), series)
         val voted = detail.recommendations.map { it.toPick(byReaders = true) }
@@ -60,7 +72,10 @@ class MangaUpdatesApi(
     private data class SearchResponse(val results: List<SearchResult> = emptyList())
 
     @Serializable
-    private data class SearchResult(val record: SearchRecord? = null)
+    private data class SearchResult(
+        val record: SearchRecord? = null,
+        @SerialName("hit_title") val hitTitle: String? = null,
+    )
 
     @Serializable
     private data class SearchRecord(
