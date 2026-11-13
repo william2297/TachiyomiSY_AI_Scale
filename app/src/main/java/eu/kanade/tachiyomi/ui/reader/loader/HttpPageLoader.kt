@@ -262,6 +262,13 @@ internal class HttpPageLoader(
                 page.status = Page.State.DownloadImage
                 try {
                     val imageResponse = source.getImage(page)
+                    val type = imageResponse.body.contentType()
+                    if (type?.type == "text") {
+                        // A busy image server answers with a text page ("Server busy, try again later") in place
+                        // of the image. Caching it would leave a page that never decodes, so retry instead.
+                        imageResponse.close()
+                        throw IOException("Image server sent $type instead of an image")
+                    }
                     chapterCache.putImageToCache(imageUrl, imageResponse, live)
                     live?.finish()
                 } catch (e: Throwable) {
@@ -310,7 +317,8 @@ internal class HttpPageLoader(
                     "HttpPageLoader: Page ${page.index} failed (attempt ${attempt + 1}), retrying"
                 }
                 page.status = Page.State.Queue
-                delay(AUTO_RETRY_DELAY_MS * (attempt + 1))
+                // Back off 2, 4, 8, 16 s so a busy server gets room instead of a burst of retries.
+                delay(AUTO_RETRY_DELAY_MS shl attempt)
                 internalLoadPage(page, force, attempt + 1)
                 return
             }
@@ -319,12 +327,16 @@ internal class HttpPageLoader(
     }
 
     private fun Throwable.isTransient(): Boolean {
-        return this is IOException || (this is HttpException && code in TRANSIENT_HTTP_CODES)
+        return this is IOException ||
+            (this is HttpException && code in TRANSIENT_HTTP_CODES) ||
+            // Okio's "closed": the response body was shut while it was still being read, which a busy
+            // server's cut-off answer causes. The next request normally goes through.
+            (this is IllegalStateException && message == "closed")
     }
 }
 
 private const val LIMITED_PAGES_AHEAD = 4
 private const val NEARBY_PAGES = 3
-private const val MAX_AUTO_RETRIES = 2
-private const val AUTO_RETRY_DELAY_MS = 1500L
+private const val MAX_AUTO_RETRIES = 4
+private const val AUTO_RETRY_DELAY_MS = 2000L
 private val TRANSIENT_HTTP_CODES = setOf(408, 429, 500, 502, 503, 504)
