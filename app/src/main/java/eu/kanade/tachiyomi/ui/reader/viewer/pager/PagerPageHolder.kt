@@ -903,21 +903,21 @@ class PagerPageHolder(
                     return Rect(content).apply { inset(horizontalInset, 0) }
                 }
 
+                // Every leaf is one fixed sheet, a standard manga page (height = SHEET_RATIO x width) as large
+                // as the cell allows, so the book keeps its size from spread to spread. Pages of another shape
+                // (crop borders trims each margin on its own) sit whole and centred on it, nothing is cut off.
+                val sheetHeight = min(viewportHeight, (cellWidth * SHEET_RATIO).toInt()).coerceAtLeast(1)
+                val sheetWidth = min(cellWidth, (sheetHeight / SHEET_RATIO).toInt()).coerceAtLeast(1)
+
                 fun fittedSize(source: Rect): Pair<Int, Int> {
                     val scale = min(
-                        cellWidth / source.width().toFloat(),
-                        viewportHeight / source.height().toFloat(),
+                        sheetWidth / source.width().toFloat(),
+                        sheetHeight / source.height().toFloat(),
                     )
-                    return (source.width() * scale).toInt().coerceAtLeast(1) to
-                        (source.height() * scale).toInt().coerceAtLeast(1)
+                    return (source.width() * scale).toInt().coerceIn(1, sheetWidth) to
+                        (source.height() * scale).toInt().coerceIn(1, sheetHeight)
                 }
 
-                // Both leaves of a book are the same size: pages whose shapes differ (crop borders trims each
-                // page's margin on its own) sit whole and centred on equal sheets of paper, nothing is cut off.
-                val firstSize = fittedSize(sourceOf(firstContentRect))
-                val secondSize = fittedSize(sourceOf(secondContentRect))
-                val sheetWidth = max(firstSize.first, secondSize.first)
-                val sheetHeight = max(firstSize.second, secondSize.second)
                 val paper = Paint().apply { color = Color.WHITE }
 
                 fun drawFitted(bitmap: Bitmap, content: Rect, cellLeft: Int, alignToCenter: Boolean) {
@@ -1272,3 +1272,6 @@ class PagerPageHolder(
         }
     }
 }
+
+/** Height / width of one leaf in a two-page spread: a standard manga page (B6 paper, 182 / 128 mm). */
+private const val SHEET_RATIO = 1.42f
