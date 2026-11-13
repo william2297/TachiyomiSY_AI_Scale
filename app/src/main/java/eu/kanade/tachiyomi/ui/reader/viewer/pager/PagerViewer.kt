@@ -478,6 +478,23 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         pager.addOnPageChangeListener(pagerListener)
         // Manually call onPageChange to update the UI
         onPageChange(pager.currentItem)
+        refreshPageIndicator()
+    }
+
+    /**
+     * A rebuild that finishes later changes the chapter's page count, and the position of the page on screen in
+     * it, while that page stays the same object, so [onPageChange] reports nothing.
+     */
+    private fun refreshPageIndicator() {
+        val page = currentPage as? ReaderPage ?: return
+        if (page is InsertPage) return
+        if (page.chapter != activity.viewModel.state.value.currentChapter) return
+        val (number, total) = adapter.chapterDisplayPosition(page)
+            ?: (page.number to (page.chapter.pages?.size ?: return))
+        val state = activity.viewModel.state.value
+        if (state.currentPage == number && state.totalPages == total) return
+        logcat { "PagerViewer.refreshPageIndicator: $number/$total" }
+        activity.viewModel.onDisplayedPositionChanged(number, total)
     }
 
     /**

@@ -669,6 +669,19 @@ class ReaderViewModel(
     }
 
     /**
+     * Updates the page indicator alone. The viewer calls this when the page on screen stayed the same but its
+     * position or the chapter's page count changed, as when sliced pages are rebuilt into whole ones.
+     */
+    fun onDisplayedPositionChanged(displayCurrentPage: Int, displayTotalPages: Int) {
+        mutableState.update {
+            it.copy(
+                currentPage = displayCurrentPage,
+                displayTotalPages = displayTotalPages,
+            )
+        }
+    }
+
+    /**
      * Saves the chapter progress (last read page and whether it's read)
      * if incognito mode isn't on.
      *

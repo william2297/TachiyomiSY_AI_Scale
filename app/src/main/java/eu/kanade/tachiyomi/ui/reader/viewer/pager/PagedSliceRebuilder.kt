@@ -157,6 +157,10 @@ internal class PagedSliceRebuilder(
     ) {
         val isSlice: Boolean
             get() = height.toFloat() / width < SLICE_RATIO_MIN || height.toFloat() / width > SLICE_RATIO_MAX
+
+        /** Too short to be a page of its own: the cut-off end of one. */
+        val isSliver: Boolean
+            get() = height.toFloat() / width < SLIVER_RATIO_MAX
     }
 
     private class Cut(val position: Float, val strength: Float, val forced: Boolean)
@@ -252,9 +256,23 @@ internal class PagedSliceRebuilder(
                 continue
             }
             var end = start
+            var heightSoFar = first.height.toFloat() / first.width
             while (end + 1 < pages.size) {
+                val upper = profiles[end]!!
                 val next = profiles[end + 1] ?: break
-                if (!seamContinuous(profiles[end]!!, next)) break
+                // Sources that cut each page into a tall image and a sliver: once the slices so far
+                // make up a page, the next tall image is most likely the next page, and two full-bleed
+                // pages can look alike along their edges. A sliver after a tall image is its ending.
+                val pageSoFar = heightSoFar in PAGE_RATIO_MIN..PAGE_RATIO_MAX
+                val nextHeight = next.height.toFloat() / next.width
+                val evidence = when {
+                    pageSoFar && upper.isSliver && !next.isSliver -> Evidence.STRONG
+                    !upper.isSliver && next.isSliver && heightSoFar + nextHeight in PAGE_RATIO_MIN..PAGE_RATIO_MAX ->
+                        Evidence.WEAK
+                    else -> Evidence.NORMAL
+                }
+                if (!seamContinuous(upper, next, evidence)) break
+                heightSoFar += nextHeight
                 end++
             }
             val leftKnown = start == 0 || looked[start - 1]
@@ -384,7 +402,10 @@ internal class PagedSliceRebuilder(
         }
     }
 
-    private fun seamContinuous(upper: Profile, lower: Profile): Boolean {
+    /** How much the picture has to run on across a seam before the two slices are joined. */
+    private enum class Evidence { WEAK, NORMAL, STRONG }
+
+    private fun seamContinuous(upper: Profile, lower: Profile, evidence: Evidence): Boolean {
         val last = upper.tail1
         val first = lower.head0
         if (last.size != first.size || last.isEmpty()) return false
@@ -393,9 +414,18 @@ internal class PagedSliceRebuilder(
         if (luminanceRange(last) <= BLANK_RANGE && luminanceRange(first) <= BLANK_RANGE) {
             // White against white says nothing; join only when one side is a sliver, so two
             // normal pages with white margins stay apart.
-            return joint <= BLANK_SEAM_DIFFERENCE && (upper.isSlice || lower.isSlice)
+            return evidence != Evidence.STRONG &&
+                joint <= BLANK_SEAM_DIFFERENCE && (upper.isSlice || lower.isSlice)
         }
-        return joint < SEAM_RATIO * (local + 2f) || correlation(last, first) >= SEAM_CORRELATION
+        val likeness = correlation(last, first)
+        if (likeness >= SEAM_CORRELATION) return true
+        return when (evidence) {
+            // Busy artwork on both sides passes the difference test by chance; the rows must also match
+            Evidence.STRONG -> false
+            Evidence.NORMAL -> joint < SEAM_RATIO * (local + 2f)
+            Evidence.WEAK -> joint < SEAM_RATIO * (local + 2f) ||
+                (joint < WEAK_SEAM_RATIO * (local + 2f) && likeness >= WEAK_SEAM_CORRELATION)
+        }
     }
 
     private fun meanDifference(first: IntArray, second: IntArray): Float {
@@ -729,6 +759,11 @@ internal class PagedSliceRebuilder(
         private const val SEAM_RATIO = 2.0f
         private const val SEAM_CORRELATION = 0.5f
         private const val BLANK_SEAM_DIFFERENCE = 8f
+        private const val WEAK_SEAM_RATIO = 3.0f
+        private const val WEAK_SEAM_CORRELATION = 0.3f
+        private const val SLIVER_RATIO_MAX = 0.6f
+        private const val PAGE_RATIO_MIN = 1.2f
+        private const val PAGE_RATIO_MAX = 1.7f
         private const val POLL_MILLIS = 750L
         private const val PUBLISH_INTERVAL_MILLIS = 1500L
         private const val PROFILE_BATCH = 6

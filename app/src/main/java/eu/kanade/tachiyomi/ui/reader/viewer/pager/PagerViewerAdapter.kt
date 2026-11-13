@@ -299,11 +299,19 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
                     }
                 }
 
+                // A book opens on its cover alone, so the pages after it pair up the way they were printed.
+                // "Shift double page" still moves the pairing by hand.
+                val cover = items.firstOrNull()?.takeIf { first ->
+                    viewer.config.isLandscapeBook && !viewer.config.shiftDoublePage &&
+                        first !is InsertPage && pagesFor(first.chapter)?.firstOrNull() === first
+                }
+
                 // Step 4: Add blanks for chunking
                 var itemIndex = 0
                 while (itemIndex < items.size) {
                     items[itemIndex]?.isolatedPage = false
                     if (
+                        (itemIndex == 0 && cover != null) ||
                         items[itemIndex]?.fullPage == true ||
                         items[itemIndex]?.shiftedPage == true ||
                         items[itemIndex] is InsertPage

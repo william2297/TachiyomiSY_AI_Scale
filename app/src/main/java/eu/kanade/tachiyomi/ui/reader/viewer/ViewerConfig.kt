@@ -88,6 +88,12 @@ abstract class ViewerConfig(
         }
     }
 
+    /** Two pages side by side because the device is in landscape, not because the page layout asks for it. */
+    val isLandscapeBook: Boolean
+        get() = doublePages &&
+            pageLayoutPreference != PageLayout.DOUBLE_PAGES.value &&
+            pageLayoutPreference != PageLayout.AUTOMATIC.value
+
     abstract var navigator: ViewerNavigation
         protected set
 
