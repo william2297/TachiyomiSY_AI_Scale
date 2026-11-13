@@ -125,9 +125,10 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         fun seedFile(context: Context) = File(context.filesDir, "discover_seed.txt")
 
         /**
-         * The pinned sources that can be searched, at most [MAX_SOURCES], the ones the library reads from most first.
-         * The first source with a match wins, so the order decides where a title opens. Name order put "AsmHentai"
-         * before "Asura Scans" and linked mainstream series to doujin with the same title.
+         * The pinned sources that can be searched: the [MAX_SOURCES] the library reads from most, tried with better
+         * images first (see [qualityRank]). The first source with a match wins, so the order decides where a title
+         * opens. Name order put "AsmHentai" before "Asura Scans" and linked mainstream series to doujin with the same
+         * title.
          */
         suspend fun pinnedSearchSources(context: Context): List<SearchSource> {
             val graph = context.appGraph
@@ -140,10 +141,29 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                         .thenBy { it.name.lowercase() },
                 )
                 .take(MAX_SOURCES)
+                .sortedBy { qualityRank(it.name) }
                 .map { SearchSource(it.id, it.name, adultOnly = ADULT_SOURCE_NAME.containsMatchIn(it.name)) }
         }
 
-        private val ADULT_SOURCE_NAME = Regex("hentai|doujin|\\bh-?manga\\b|18\\+", RegexOption.IGNORE_CASE)
+        /**
+         * Lower is tried first. Scanlation groups publishing their own releases come first, MangaDex (group uploads)
+         * next, other sources after that, and aggregators that reupload sliced chapters last, so they only catch
+         * titles the others do not have. Ties keep the library order (the sort is stable).
+         */
+        internal fun qualityRank(name: String): Int {
+            val n = name.lowercase()
+            val preferred = QUALITY_ORDER.indexOfFirst { it in n }
+            return when {
+                preferred >= 0 -> preferred
+                AGGREGATORS.any { it in n } -> QUALITY_ORDER.size + 1
+                else -> QUALITY_ORDER.size
+            }
+        }
+
+        private val QUALITY_ORDER = listOf("asura", "temple", "mangadex")
+        private val AGGREGATORS = listOf("mangakakalot", "manganato", "comick")
+
+        private val ADULT_SOURCE_NAME =Regex("hentai|doujin|\\bh-?manga\\b|18\\+", RegexOption.IGNORE_CASE)
 
         private fun wifiConstraints(): Constraints {
             // Any Wi-Fi counts, including one the system calls metered (a phone hotspot, some routers)
