@@ -97,6 +97,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         }
 
         override fun onPageSelected(position: Int) {
+            lastPageChangeAt = android.os.SystemClock.uptimeMillis()
             if (!activity.isScrollingThroughPages) {
                 activity.hideMenu()
             }
@@ -108,6 +109,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             if (isIdle) {
                 bookTurnState.restore(pager.currentItem)
                 resetBookPageTransforms()
+                if (rebuildPending) scheduleRebuiltApply()
             }
         }
     }
@@ -528,7 +530,30 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         val chapters = activity.viewModel.state.value.viewerChapters ?: return
         if (chapter != chapters.currChapter && chapter != chapters.prevChapter && chapter != chapters.nextChapter) return
         logcat { "PagerViewer.onChapterRebuilt: ${chapter.chapter.id}" }
-        setChapters(chapters)
+        // Swapping the page list redraws the spread on screen. Doing it mid-swipe or right after a turn shows up
+        // as a blink, and the rebuilder publishes every 1.5 s while pages download. Hold it until the reader has
+        // sat still for a moment, and apply several rebuilds as one.
+        rebuildPending = true
+        scheduleRebuiltApply()
+    }
+
+    private var rebuildPending = false
+    private var lastPageChangeAt = 0L
+    private val applyRebuilt = Runnable {
+        if (!rebuildPending) return@Runnable
+        val quietFor = android.os.SystemClock.uptimeMillis() - lastPageChangeAt
+        if (!isIdle || quietFor < REBUILD_QUIET_MILLIS) {
+            scheduleRebuiltApply()
+            return@Runnable
+        }
+        rebuildPending = false
+        activity.viewModel.state.value.viewerChapters?.let(::setChapters)
+    }
+
+    private fun scheduleRebuiltApply() {
+        pager.removeCallbacks(applyRebuilt)
+        val quietFor = android.os.SystemClock.uptimeMillis() - lastPageChangeAt
+        pager.postDelayed(applyRebuilt, (REBUILD_QUIET_MILLIS - quietFor).coerceAtLeast(REBUILD_POLL_MILLIS))
     }
 
     fun getCurrentReaderPage(): ReaderPage? {
@@ -727,3 +752,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         adapter.cleanupPageSplit()
     }
 }
+
+/** How long the reader has to sit still on a page before a rebuilt chapter replaces the page list. */
+private const val REBUILD_QUIET_MILLIS = 1200L
+private const val REBUILD_POLL_MILLIS = 300L
