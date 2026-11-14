@@ -90,7 +90,7 @@ class DiscoverRefresher(
                     }
                 }
                 if (entries.isNotEmpty()) {
-                    sections[section.name] = entries.take(MAX_PER_SECTION)
+                    sections[section.name] = entries.preferBetterSources().take(MAX_PER_SECTION)
                 } else {
                     // Keep what was shown before when this row could not be rebuilt (for example the list failed)
                     previous.sections[section.name]?.let { sections[section.name] = it }
@@ -110,7 +110,7 @@ class DiscoverRefresher(
                         completed = title.finished, reason = plan.reason(title), names = title.names,
                         isNew = isNew(title.id, knownIds), tags = title.tags.take(STORED_TAGS).map { it.name },
                     )
-                }.take(plan.limit)
+                }.preferBetterSources().take(plan.limit)
                 entries.takeIf { it.isNotEmpty() }?.let { StoredRow(plan.key, plan.title, plan.hint, it) }
             }
         }
@@ -818,7 +818,26 @@ class DiscoverRefresher(
         )
     }
 
+    /** Keeps the row's interest order, but moves aggregator-only titles [AGGREGATOR_PUSH] places back. */
+    private fun List<StoredEntry>.preferBetterSources(): List<StoredEntry> =
+        withIndex()
+            .sortedBy { (index, entry) -> index + if (isAggregator(entry.sourceName)) AGGREGATOR_PUSH else 0 }
+            .map { it.value }
+
     companion object {
+        /**
+         * Sites that reupload other groups' releases, sliced and recompressed. They have nearly every title, so
+         * they are searched last and their cards move [AGGREGATOR_PUSH] places back in a row: a title on a
+         * scanlation site comes before an equally interesting one only an aggregator has, and a much more
+         * interesting aggregator title still comes first.
+         */
+        val AGGREGATOR_NAMES = listOf("mangahub", "mangakakalot", "manganato", "comick")
+        const val AGGREGATOR_PUSH = 5
+
+        fun isAggregator(sourceName: String): Boolean = sourceName.lowercase().let { n ->
+            AGGREGATOR_NAMES.any { it in n }
+        }
+
         /** Cards shown in a row before "See all". */
         const val DISPLAY_SIZE = 12
 

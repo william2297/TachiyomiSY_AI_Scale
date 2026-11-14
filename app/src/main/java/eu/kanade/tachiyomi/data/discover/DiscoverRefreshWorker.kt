@@ -155,13 +155,12 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
             val preferred = QUALITY_ORDER.indexOfFirst { it in n }
             return when {
                 preferred >= 0 -> preferred
-                AGGREGATORS.any { it in n } -> QUALITY_ORDER.size + 1
+                DiscoverRefresher.isAggregator(n) -> QUALITY_ORDER.size + 1
                 else -> QUALITY_ORDER.size
             }
         }
 
         private val QUALITY_ORDER = listOf("asura", "flame", "temple", "mangadex")
-        private val AGGREGATORS = listOf("mangahub", "mangakakalot", "manganato", "comick")
 
         private val ADULT_SOURCE_NAME =Regex("hentai|doujin|\\bh-?manga\\b|18\\+", RegexOption.IGNORE_CASE)
 
