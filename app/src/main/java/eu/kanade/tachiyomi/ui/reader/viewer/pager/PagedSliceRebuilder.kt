@@ -77,6 +77,31 @@ internal class PagedSliceRebuilder(
         return result.pages ?: source
     }
 
+    /**
+     * Per chapter: the source list and which of its pages are final as shown in the published list (looked at, with
+     * both neighbours looked at, so no later join can take them). Written by the analysis, read by page holders.
+     */
+    private val settled = ConcurrentHashMap<Long, Pair<List<ReaderPage>, BooleanArray>>()
+
+    /**
+     * True while [page] may still be replaced by a rebuilt page: showing it would put a slice on screen and swap it
+     * for the whole page a moment later, which reads as a blink. The holder shows its spinner instead.
+     */
+    fun awaitsRebuild(page: ReaderPage): Boolean {
+        val chapter = page.chapter
+        val source = chapter.pages ?: return false
+        val id = chapter.chapter.id ?: return false
+        val result = results[id]?.takeIf { it.sourcePages === source }
+        if (result?.complete == true) return false
+        // Already replaced in the newest list: the pager is about to swap it out.
+        val shown = result?.pages
+        if (shown != null && shown.none { it === page }) return true
+        val index = source.indexOfFirst { it === page }
+        if (index < 0) return false // a rebuilt page, final when published
+        val (maskSource, mask) = settled[id] ?: return true
+        return maskSource !== source || !mask.getOrElse(index) { false }
+    }
+
     fun isRebuilt(chapter: ReaderChapter): Boolean {
         val source = chapter.pages ?: return false
         val id = chapter.chapter.id ?: return false
@@ -225,6 +250,15 @@ internal class PagedSliceRebuilder(
                 publish(if (assembly.groupKeys.isEmpty()) null else assembly.pages, false)
                 publishedKeys = assembly.groupKeys
                 lastPublish = now
+            }
+            // Only pages the published list already shows in their final form count as settled, otherwise a holder
+            // would show a slice that the next publish replaces.
+            if (assembly != null && assembly.groupKeys == publishedKeys && lastPublish > 0L) {
+                chapter.chapter.id?.let { id ->
+                    settled[id] = pages to BooleanArray(count) { i ->
+                        looked[i] && (i == 0 || looked[i - 1]) && (i == count - 1 || looked[i + 1])
+                    }
+                }
             }
             // More pages are ready to look at: go on at once; otherwise wait for downloads
             if (changed) yield() else delay(POLL_MILLIS)

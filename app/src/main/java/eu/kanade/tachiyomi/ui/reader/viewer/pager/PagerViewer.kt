@@ -537,12 +537,17 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
         scheduleRebuiltApply()
     }
 
+    /** See [PagerViewerAdapter.awaitsRebuild]. */
+    internal fun awaitsRebuild(page: ReaderPage): Boolean = adapter.awaitsRebuild(page)
+
     private var rebuildPending = false
     private var lastPageChangeAt = 0L
     private val applyRebuilt = Runnable {
         if (!rebuildPending) return@Runnable
         val quietFor = android.os.SystemClock.uptimeMillis() - lastPageChangeAt
-        if (!isIdle || quietFor < REBUILD_QUIET_MILLIS) {
+        // A page on screen that waits for this rebuild shows a spinner, so swapping it now costs nothing.
+        val visibleWaits = getCurrentReaderPage()?.let(::awaitsRebuild) == true
+        if (!isIdle || (quietFor < REBUILD_QUIET_MILLIS && !visibleWaits)) {
             scheduleRebuiltApply()
             return@Runnable
         }

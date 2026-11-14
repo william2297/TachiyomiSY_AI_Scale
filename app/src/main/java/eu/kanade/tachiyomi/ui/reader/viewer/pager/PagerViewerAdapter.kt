@@ -114,6 +114,10 @@ class PagerViewerAdapter(private val viewer: PagerViewer) : ViewPagerAdapter() {
         return sliceRebuilder.displayPages(chapter)
     }
 
+    /** True while [page] may still be swapped for a rebuilt page; its holder waits instead of showing a slice. */
+    fun awaitsRebuild(page: ReaderPage): Boolean =
+        page !is InsertPage && usesRebuiltPages() && sliceRebuilder.awaitsRebuild(page)
+
     /** Position and count shown in the page indicator when [page]'s chapter is rebuilt. */
     fun chapterDisplayPosition(page: ReaderPage): Pair<Int, Int>? {
         if (page is InsertPage || !usesRebuiltPages() || !sliceRebuilder.isRebuilt(page.chapter)) return null

@@ -231,7 +231,23 @@ class PagerPageHolder(
                         setDownloading()
                         // TODO: Implement progress combining if needed
                     }
-                    s1 == Page.State.Ready && s2 == Page.State.Ready -> setImage()
+                    s1 == Page.State.Ready && s2 == Page.State.Ready -> {
+                        // A slice the rebuild is about to join would show and then be swapped for the whole page,
+                        // which reads as a blink. Keep the spinner until it is final (the pager replaces this holder
+                        // when the rebuilt page arrives), with a cap so a stalled analysis never hides a page.
+                        var waited = 0L
+                        while (waited < REBUILD_WAIT_MAX_MILLIS &&
+                            (viewer.awaitsRebuild(page) || extraPage?.let(viewer::awaitsRebuild) == true)
+                        ) {
+                            if (waited == 0L) {
+                                android.util.Log.i("BlinkTrace", "page ${page.index} waits for the rebuild")
+                                setLoading()
+                            }
+                            delay(REBUILD_WAIT_STEP_MILLIS)
+                            waited += REBUILD_WAIT_STEP_MILLIS
+                        }
+                        setImage()
+                    }
                 }
             }
         }
@@ -1275,3 +1291,7 @@ class PagerPageHolder(
 
 /** Height / width of one leaf in a two-page spread: a standard manga page (B6 paper, 182 / 128 mm). */
 private const val SHEET_RATIO = 1.42f
+
+/** How long a page holder waits for the slice rebuild before showing its page anyway, and how often it checks. */
+private const val REBUILD_WAIT_MAX_MILLIS = 15_000L
+private const val REBUILD_WAIT_STEP_MILLIS = 150L
