@@ -547,6 +547,7 @@ abstract class PagerViewer(val activity: ReaderActivity) : Viewer {
             return@Runnable
         }
         rebuildPending = false
+        android.util.Log.i("BlinkTrace", "rebuilt chapter applied to the pager")
         activity.viewModel.state.value.viewerChapters?.let(::setChapters)
     }
 

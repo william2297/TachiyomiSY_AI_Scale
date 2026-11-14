@@ -91,7 +91,7 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         private const val WORK_NAME_NOW = "DiscoverRefreshNow"
         private const val MAX_ATTEMPTS = 3
         const val KEY_STATUS = "status"
-        private const val MAX_SOURCES = 6
+        private const val MAX_SOURCES = 8
         private const val SEED_POOL = 20
         private const val SEEDS_PER_DAY = 3
 
@@ -160,8 +160,8 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
             }
         }
 
-        private val QUALITY_ORDER = listOf("asura", "temple", "mangadex")
-        private val AGGREGATORS = listOf("mangakakalot", "manganato", "comick")
+        private val QUALITY_ORDER = listOf("asura", "flame", "temple", "mangadex")
+        private val AGGREGATORS = listOf("mangahub", "mangakakalot", "manganato", "comick")
 
         private val ADULT_SOURCE_NAME =Regex("hentai|doujin|\\bh-?manga\\b|18\\+", RegexOption.IGNORE_CASE)
 

@@ -389,6 +389,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
             enhancedOverlay.animate().cancel()
             enhancedOverlay.alpha = 0f
             enhancedOverlay.isVisible = false
+            android.util.Log.i("BlinkTrace", "overlay cleared L392 page=$pageIndex")
             enhancedOverlay.setImageBitmap(null)
             enhancedBitmap?.recycle()
             enhancedBitmap = null
@@ -424,6 +425,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         // Hide overlay and recycle temporary bitmap if enhanced image load failed
         if (isSettingProcessedImage) {
             pageView?.alpha = 1f
+            android.util.Log.i("BlinkTrace", "overlay cleared L427 page=$pageIndex")
             enhancedOverlay.setImageBitmap(null)
             enhancedOverlay.isVisible = false
             enhancedBitmap?.recycle()
@@ -447,6 +449,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         processingJob?.cancel()
         clearProcessedSwapView()
         pageView?.alpha = 1f
+        android.util.Log.i("BlinkTrace", "overlay cleared L450 page=$pageIndex")
         enhancedOverlay.setImageBitmap(null)
         enhancedOverlay.isVisible = false
         enhancedBitmap?.recycle()
@@ -486,6 +489,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         if (newScale != 1f && isSettingProcessedImage) {
             enhancedOverlay.animate().cancel()
             enhancedOverlay.isVisible = false
+            android.util.Log.i("BlinkTrace", "overlay cleared L489 page=$pageIndex")
             enhancedOverlay.setImageBitmap(null)
             enhancedBitmap?.recycle()
             enhancedBitmap = null
@@ -726,6 +730,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         file: java.io.File,
         transformedSource: BufferedSource,
     ) {
+        android.util.Log.i("BlinkTrace", "setProcessedSource page=$pageIndex")
         val cachedConfig = file.name.substringAfter('_').removeSuffix(".webp")
         val currentConfig = currentEnhancementConfigHash()
         if (!realCuganEnabled || (cachedConfig != currentConfig && !cachedConfig.startsWith("${currentConfig}_"))) {
@@ -810,6 +815,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         } else {
             pageView?.alpha = 1f
             enhancedOverlay.animate().cancel()
+            android.util.Log.i("BlinkTrace", "overlay cleared L813 page=$pageIndex")
             enhancedOverlay.setImageBitmap(null)
             enhancedOverlay.isVisible = false
             enhancedBitmap?.recycle()
@@ -993,6 +999,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
         withUIContext {
             pageView?.alpha = 1f
+            android.util.Log.i("BlinkTrace", "overlay cleared L996 page=$pageIndex")
             enhancedOverlay.setImageBitmap(null)
             enhancedOverlay.isVisible = false
             enhancedBitmap?.recycle()
@@ -1159,6 +1166,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     fun setImage(drawable: Drawable, config: Config) {
+        android.util.Log.i("BlinkTrace", "setImage(drawable) page=$pageIndex")
         imageRevision++
         hasDisplayedImage = false
         pendingInitialEnhancement = null
@@ -1177,6 +1185,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     fun setImage(source: BufferedSource, isAnimated: Boolean, config: Config, streamFn: (() -> java.io.InputStream)? = null) {
+        android.util.Log.i("BlinkTrace", "setImage(source) page=$pageIndex")
         imageRevision++
         hasDisplayedImage = false
         pendingInitialEnhancement = null
@@ -1198,6 +1207,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     fun recycle() {
+        android.util.Log.i("BlinkTrace", "recycle page=$pageIndex")
         stripRequest?.dispose()
         stripRequest = null
         imageRevision++
@@ -1220,6 +1230,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
             // The upscaled preview hides the page by making it fully transparent. Dropping the preview without
             // making the page opaque again leaves the next page shown in this view invisible (black).
             it.alpha = 1f
+            android.util.Log.i("BlinkTrace", "overlay cleared L1223 page=$pageIndex")
             enhancedOverlay.setImageBitmap(null)
             enhancedOverlay.isVisible = false
             enhancedBitmap?.recycle()
@@ -1739,6 +1750,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         processingJob?.cancel()
         processingJob = null
 
+        android.util.Log.i("BlinkTrace", "overlay cleared L1742 page=$pageIndex")
         enhancedOverlay.setImageBitmap(null)
         enhancedBitmap?.recycle()
         enhancedBitmap = null
