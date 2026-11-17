@@ -905,8 +905,11 @@ class DiscoverRefresher(
         /** Titles kept for "My genres", more than are shown because some are not in any of the user's sources. */
         private const val MY_GENRES_POOL = 150
 
-        /** Best "My genres" matches that stay at the front of the row every day. */
-        private const val MY_GENRES_PINNED = 6
+        /**
+         * Best "My genres" matches that stay at the front of the row every day. Only two: about six cards fit on
+         * the screen, so with six pinned the part of the row the user sees never changed.
+         */
+        private const val MY_GENRES_PINNED = 2
 
         /** Titles past a priority row's limit searched up front, for the ones not found in any source. */
         private const val PRIORITY_SPARE = 15
