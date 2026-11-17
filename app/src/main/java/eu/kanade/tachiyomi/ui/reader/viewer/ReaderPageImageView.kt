@@ -72,7 +72,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.produceIn
 import kotlinx.coroutines.isActive
@@ -1572,6 +1571,10 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         } else {
                             updateStatus(context.stringResource(MR.strings.reader_status_finishing))
                         }
+                    } else if (ImageEnhancementCache.isSavePending(mId, cId, pIdx, pageVariant, configHash)) {
+                        // Processing is done but the result is still being written; the Saved event follows.
+                        // Leaving here dropped that event and the page stayed on the original.
+                        updateStatus(context.stringResource(MR.strings.reader_status_finishing))
                     } else {
                         // Not in queue, not cached - might need to re-enqueue
                         val current = currentGlobalPageIndex
@@ -1596,8 +1599,18 @@ open class ReaderPageImageView @JvmOverloads constructor(
                                     "ahead=$enhanceAheadSize",
                             )
                             updateStatus(context.stringResource(MR.strings.reader_status_raw))
-                            delay(2000)
-                            return@launchIO
+                            // The current page index is shared and can still hold the previous chapter's page,
+                            // and another path may be enhancing this page. Keep listening a while, so a result
+                            // that lands late is still shown, before giving up.
+                            val late = withTimeoutOrNull(LATE_RESULT_WAIT_MILLIS) { cacheEvents.receive() }
+                            if (late !is ImageEnhancementCache.CacheEvent.Saved &&
+                                late !is ImageEnhancementCache.CacheEvent.Skipped
+                            ) {
+                                return@launchIO
+                            }
+                            android.util.Log.i("SwapTrace", "late result page=$pIdx/$pageVariant")
+                            shouldCheckCache = true
+                            continue
                         }
                     }
 
@@ -1793,3 +1806,6 @@ open class ReaderPageImageView @JvmOverloads constructor(
 private const val MAX_ZOOM_SCALE = 5F
 private const val PROCESSED_SWAP_DURATION_MS = 280L
 private const val ENHANCED_FADE_MS = 300L
+
+// How long the enhancement poll keeps listening for a result after it found nothing queued for its page
+private const val LATE_RESULT_WAIT_MILLIS = 30_000L
