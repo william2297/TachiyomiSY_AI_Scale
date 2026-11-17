@@ -285,6 +285,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
     private var imageRevision = 0
     private var hasDisplayedImage = false
     private var pendingInitialEnhancement: (() -> Unit)? = null
+
+    // Direction of a selection that came before the image was shown, run again by onImageLoaded
+    private var selectedBeforeDisplay: Boolean? = null
     private var currentCachedFile: java.io.File? = null
     private var originalStreamFn: (() -> java.io.InputStream)? = null
     private var enhancedRecoveryCount = 0
@@ -393,6 +396,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
             enhancedBitmap?.recycle()
             enhancedBitmap = null
             isSettingProcessedImage = false
+        }
+
+        selectedBeforeDisplay?.let { forward ->
+            selectedBeforeDisplay = null
+            onPageSelected(forward)
         }
     }
 
@@ -1017,7 +1025,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
     }
 
     open fun onPageSelected(forward: Boolean) {
-        // Pruning Logic: Triggered only when this page is actually selected/viewed
+        // A chapter's first page is selected before its image has loaded. The enhancement work below needs the image
+        // on screen, so it was skipped and nothing ran it later: in long strip the page kept the original even after
+        // its upscale was done. Run the selection again once the image is shown.
+        selectedBeforeDisplay = if (hasDisplayedImage) null else forward
+        android.util.Log.i("SwapTrace", "selected page=$pageIndex displayed=$hasDisplayedImage")
         // Pruning Logic: Triggered only when this page is actually selected/viewed
         val mId = readerPage?.chapter?.chapter?.mangaId ?: mangaId
         val cId = readerPage?.chapter?.chapter?.id ?: chapterId
@@ -1213,6 +1225,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         imageRevision++
         hasDisplayedImage = false
         pendingInitialEnhancement = null
+        selectedBeforeDisplay = null
         updateStatus(null)
         currentCachedFile = null
         originalStreamFn = null
