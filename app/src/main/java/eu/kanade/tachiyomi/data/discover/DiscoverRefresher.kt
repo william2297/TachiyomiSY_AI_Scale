@@ -67,12 +67,16 @@ class DiscoverRefresher(
         // for the search budget
         // The rows the user set up themselves ("Because you like" and "My genres") are searched first and whole
         val priorityKeys = setOf(PICKED_SEED_KEY, MY_GENRES_KEY)
-        val myTitles = extraPlans.filter { it.key in priorityKeys }.flatMap { it.titles }
+        // Only what those rows show today goes first: "My genres" keeps a pool of 150 that rotates by day, and
+        // searching all of it first would leave the other rows without budget. The rest of the pool goes last.
+        val priorityPlans = extraPlans.filter { it.key in priorityKeys }
+        val myTitles = priorityPlans.flatMap { it.titles.take(it.limit + PRIORITY_SPARE) }
+        val myLater = priorityPlans.flatMap { it.titles.drop(it.limit + PRIORITY_SPARE) }
         val allPicks = picks.values.toList() + extraPlans.filter { it.key !in priorityKeys }.map { it.titles }
         // The shown 12 of every row are taken in turns (first of each row, then second of each...), so no row waits
         // behind the others for the search budget
         val shown = (0 until DISPLAY_SIZE).flatMap { index -> allPicks.mapNotNull { it.getOrNull(index) } }
-        val ordered = (myTitles + shown + allPicks.flatMap { it.drop(DISPLAY_SIZE) }).distinctBy { it.id }
+        val ordered = (myTitles + shown + allPicks.flatMap { it.drop(DISPLAY_SIZE) } + myLater).distinctBy { it.id }
         val sourceIds = sources.map(SearchSource::id)
 
         fun sectionsFor(matches: Map<Long, MatchRecord>): Map<String, List<StoredEntry>> {
@@ -188,6 +192,21 @@ class DiscoverRefresher(
     private class MyGenresResult(val plan: ExtraPlan?, val pick: MyGenresPick)
 
     /**
+     * The row shows [MY_GENRES_SHOWN] of the pool. Sorted the same way every day it showed the same titles, so the
+     * [MY_GENRES_PINNED] best matches stay in front and the rest of the row starts one block further down the ranked
+     * pool each day (wrapping around).
+     */
+    private fun List<AniListTitle>.rotatedForDay(day: Long): List<AniListTitle> {
+        if (size <= MY_GENRES_SHOWN) return this
+        val pinned = take(MY_GENRES_PINNED)
+        val rest = drop(MY_GENRES_PINNED)
+        val block = MY_GENRES_SHOWN - MY_GENRES_PINNED
+        val blocks = (rest.size + block - 1) / block
+        val start = ((Math.floorMod(day, blocks.toLong())).toInt() * block).coerceAtMost(rest.size - 1)
+        return pinned + rest.drop(start) + rest.take(start)
+    }
+
+    /**
      * "My genres": the user's own genres, any of them, so one request per genre and a merge; a title that matches more
      * of the genres ranks higher. The ranked list is kept and reused until the local day or the genres change, so the
      * row does not reshuffle between refreshes.
@@ -220,6 +239,7 @@ class DiscoverRefresher(
                         .thenBy { it.id },
                 )
                 .take(MY_GENRES_POOL)
+                .rotatedForDay(day)
             pick = when {
                 ranked.isNotEmpty() -> MyGenresPick(day, genres, ranked, MY_GENRES_RANKING)
                 // Nothing came back: keep yesterday's list for the same genres, show nothing for new genres
@@ -883,7 +903,13 @@ class DiscoverRefresher(
         const val MY_GENRES_SHOWN = 30
 
         /** Titles kept for "My genres", more than are shown because some are not in any of the user's sources. */
-        private const val MY_GENRES_POOL = 45
+        private const val MY_GENRES_POOL = 150
+
+        /** Best "My genres" matches that stay at the front of the row every day. */
+        private const val MY_GENRES_PINNED = 6
+
+        /** Titles past a priority row's limit searched up front, for the ones not found in any source. */
+        private const val PRIORITY_SPARE = 15
 
         /** Bumped when the "My genres" ranking changes, so a list built earlier today is rebuilt. */
         private const val MY_GENRES_RANKING = 2
