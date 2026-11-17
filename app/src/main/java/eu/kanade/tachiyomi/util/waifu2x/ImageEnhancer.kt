@@ -41,6 +41,22 @@ object ImageEnhancer {
     // within the same generation while the previous attempt is still unwinding.
     private val pendingRequests = ConcurrentHashMap<String, EnhanceRequest>()
 
+    // "chapterId:index" of source slices the paged viewer only shows inside a rebuilt page
+    private val coveredSlices = ConcurrentHashMap.newKeySet<String>()
+
+    /**
+     * Source pages of a chapter that the paged viewer joined into rebuilt pages. Only the rebuilt pages are shown,
+     * so upscaling each slice as well kept the NPU busy for nothing; their queued requests are dropped here and the
+     * page loaders stop queueing them. The long strip, which shows the slices, does not rebuild and is unaffected.
+     */
+    fun markSlicesCovered(mangaId: Long, chapterId: Long, indices: Collection<Int>) {
+        for (index in indices) {
+            if (coveredSlices.add("$chapterId:$index")) cancel(mangaId, chapterId, index)
+        }
+    }
+
+    fun isSliceCovered(chapterId: Long, index: Int): Boolean = "$chapterId:$index" in coveredSlices
+
     // Priority Queue order:
     // 1. Current visible primary page
     // 2. Current visible secondary page in double-page mode

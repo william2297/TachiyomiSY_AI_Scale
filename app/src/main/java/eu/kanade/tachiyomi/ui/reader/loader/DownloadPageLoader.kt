@@ -73,7 +73,10 @@ internal class DownloadPageLoader(
     override suspend fun loadPage(page: ReaderPage) {
         archivePageLoader?.loadPage(page)
 
-        if (preferences.realCuganEnabled().get()) {
+        if (
+            preferences.realCuganEnabled().get() &&
+            !ImageEnhancer.isSliceCovered(page.chapter.chapter.id, page.index)
+        ) {
             ImageEnhancer.enhance(context, page)
         }
     }

@@ -12,6 +12,7 @@ import eu.kanade.tachiyomi.source.model.Page
 import eu.kanade.tachiyomi.ui.reader.model.ReaderChapter
 import eu.kanade.tachiyomi.ui.reader.model.ReaderPage
 import eu.kanade.tachiyomi.ui.reader.model.RebuiltPage
+import eu.kanade.tachiyomi.util.waifu2x.ImageEnhancer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +84,9 @@ internal class PagedSliceRebuilder(
      */
     private val settled = ConcurrentHashMap<Long, Pair<List<ReaderPage>, BooleanArray>>()
 
+    // Source index of a page on screen that waits for its rebuild, by chapter id; the analysis starts there
+    private val waitingAt = ConcurrentHashMap<Long, Int>()
+
     /**
      * True while [page] may still be replaced by a rebuilt page: showing it would put a slice on screen and swap it
      * for the whole page a moment later, which reads as a blink. The holder shows its spinner instead.
@@ -98,8 +102,10 @@ internal class PagedSliceRebuilder(
         if (shown != null && shown.none { it === page }) return true
         val index = source.indexOfFirst { it === page }
         if (index < 0) return false // a rebuilt page, final when published
-        val (maskSource, mask) = settled[id] ?: return true
-        return maskSource !== source || !mask.getOrElse(index) { false }
+        val (maskSource, mask) = settled[id] ?: return true.also { waitingAt[id] = index }
+        val waits = maskSource !== source || !mask.getOrElse(index) { false }
+        if (waits) waitingAt[id] = index
+        return waits
     }
 
     fun isRebuilt(chapter: ReaderChapter): Boolean {
@@ -218,7 +224,9 @@ internal class PagedSliceRebuilder(
             var changed = false
             // The pages around where the reader is come first, a few at a time, so the page on screen is
             // rebuilt within a moment instead of after the whole chapter was looked at.
-            val around = chapter.requestedPage.coerceIn(0, count - 1)
+            // A page the reader already waits on wins over where the chapter was opened (entering the previous
+            // chapter lands on its last page while the analysis started at its first)
+            val around = (waitingAt[chapter.chapter.id] ?: chapter.requestedPage).coerceIn(0, count - 1)
             val batch = (0 until count)
                 .filter { !looked[it] && pages[it].status == Page.State.Ready }
                 .sortedBy { abs(it - around) }
@@ -229,7 +237,10 @@ internal class PagedSliceRebuilder(
                 looked[i] = true
                 changed = true
             }
-            if (changed) latest = assemble(chapter, pages, profiles, looked, built)
+            if (changed) {
+                latest = assemble(chapter, pages, profiles, looked, built)
+                latest?.let { coverJoinedSlices(chapter, it) }
+            }
             val complete = looked.all { it }
             val assembly = latest
             if (complete) {
@@ -635,6 +646,16 @@ internal class PagedSliceRebuilder(
                 height,
                 listOf(RebuiltPage.Piece(source, profile.width, 0, profile.height, 0, height)),
             )
+        }
+    }
+
+    /** Slices joined into rebuilt pages are never shown on their own, so they need no upscale of their own. */
+    private fun coverJoinedSlices(chapter: ReaderChapter, assembly: Assembly) {
+        val covered = assembly.pages.filterIsInstance<RebuiltPage>()
+            .flatMap { page -> page.pieces.map { it.source.index } }
+            .toSet()
+        if (covered.isNotEmpty()) {
+            ImageEnhancer.markSlicesCovered(chapter.chapter.mangaId, chapter.chapter.id, covered)
         }
     }
 

@@ -290,7 +290,11 @@ internal class HttpPageLoader(
             page.stream = streamSource
             page.status = Page.State.Ready
 
-            if (preferences.realCuganEnabled().get() && !preferences.automaticSplitsPage().get()) {
+            if (
+                preferences.realCuganEnabled().get() &&
+                !preferences.automaticSplitsPage().get() &&
+                !ImageEnhancer.isSliceCovered(chapter.chapter.id, page.index)
+            ) {
                 scope.launch {
                     try {
                         val context = Injekt.get<android.app.Application>()
