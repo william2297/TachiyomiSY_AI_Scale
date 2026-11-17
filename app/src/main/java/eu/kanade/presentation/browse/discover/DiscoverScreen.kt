@@ -108,6 +108,19 @@ fun DiscoverScreen(
                             onRefresh = onRefresh,
                         )
                     }
+                    // Over old results the refresh showed only a spinner, so a run that waited or worked for
+                    // minutes looked stuck. Say what it is doing.
+                    val progress = state.status
+                    if (state.loading && progress != null) {
+                        item(key = "progress") {
+                            Text(
+                                text = progress,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
                     if (state.error != null) {
                         item(key = "offline") { OfflineBanner() }
                     }
