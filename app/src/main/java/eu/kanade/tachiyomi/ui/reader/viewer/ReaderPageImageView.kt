@@ -405,6 +405,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 if (revision != imageRevision || !hasDisplayedImage) return@displayed
                 val enhance = pendingInitialEnhancement
                 pendingInitialEnhancement = null
+                android.util.Log.i("SwapTrace", "displayed page=$pageIndex enhance=${enhance != null}")
                 enhance?.invoke()
                 if (isVisibleOnScreen()) {
                     ImageEnhancer.onVisibleImageDisplayed(
@@ -1324,7 +1325,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
         streamFn: (() -> java.io.InputStream)? = null,
         allowEnhancement: Boolean = true,
     ) = (pageView as? SubsamplingScaleImageView)?.apply {
-        pendingInitialEnhancement = if (allowEnhancement && realCuganEnabled && pageIndex >= 0 && mangaId != -1L) {
+        // Same IDs as processImageHelper: the view's own mangaId is set once when the holder is made and is still
+        // -1 when a chapter opens before the manga has loaded, which left that page without enhancement for good.
+        val gateMangaId = readerPage?.chapter?.chapter?.mangaId ?: mangaId
+        val gatePage = readerPage?.index ?: pageIndex
+        android.util.Log.i(
+            "SwapTrace",
+            "gate page=$gatePage manga=$gateMangaId viewManga=$mangaId allow=$allowEnhancement " +
+                "on=$realCuganEnabled",
+        )
+        pendingInitialEnhancement = if (allowEnhancement && realCuganEnabled && gatePage >= 0 && gateMangaId != -1L) {
             {
                 processImageHelper(
                     streamFn = streamFn,
@@ -1387,6 +1397,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
         val mId = readerPage?.chapter?.chapter?.mangaId ?: mangaId
         val cId = readerPage?.chapter?.chapter?.id ?: chapterId
         val pIdx = readerPage?.index ?: pageIndex
+        android.util.Log.i("SwapTrace", "helper page=$pIdx manga=$mId chapter=$cId")
 
         if (pIdx < 0 || mId == -1L || cId == -1L) {
             logcat(LogPriority.DEBUG) {
