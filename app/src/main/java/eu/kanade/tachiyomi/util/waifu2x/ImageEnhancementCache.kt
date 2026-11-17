@@ -30,8 +30,8 @@ import kotlin.concurrent.write
 object ImageEnhancementCache {
     private const val CACHE_DIR_NAME = "realcugan_cache"
 
-    // Input decoding now preserves source resolution before enhancement.
-    private const val ENHANCEMENT_INPUT_DECODE_REVISION = 1
+    // 1: input keeps the source resolution. 2: pages far over the processing cap are no longer shrunk first.
+    private const val ENHANCEMENT_INPUT_DECODE_REVISION = 2
     private const val REAL_CUGAN_TEXTURE_OCCUPANCY_REVISION = 3
     private const val MONOCHROME_INPUT_NORMALIZATION_REVISION = 3
     private const val REAL_ESRGAN_PHOTO_NCNN_REVISION = 2

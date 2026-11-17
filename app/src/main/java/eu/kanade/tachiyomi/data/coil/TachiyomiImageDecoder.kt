@@ -305,7 +305,24 @@ class TachiyomiImageDecoder(private val resources: ImageSource, private val opti
                                             }
                                             val ratio = maxResolutionRatio
 
-                                            if (ratio in 0f..<1f) {
+                                            if (ratio in 0f..<PRESCALE_MIN_RATIO) {
+                                                // Shrinking a large page to the processing cap and upscaling it
+                                                // again throws away more detail than the model brings back, so
+                                                // the result looked softer than the original. Show the original.
+                                                android.util.Log.i(
+                                                    "UpscaleTrace",
+                                                    "page $pageIndex skipped, source ${bitmap.width}x" +
+                                                        "${bitmap.height} over processing cap ${processMaxWidth}x$processMaxHeight",
+                                                )
+                                                ImageEnhancementCache.saveSkippedToCache(
+                                                    mangaId,
+                                                    chapterId,
+                                                    pageIndex,
+                                                    configHash,
+                                                    pageVariant,
+                                                )
+                                                shouldSkipEnhancement = true
+                                            } else if (ratio in 0f..<1f) {
                                                 val newWidth = max(1, (bitmap.width * ratio).roundToInt())
                                                 val newHeight = max(1, (bitmap.height * ratio).roundToInt())
                                                 logcat(LogPriority.DEBUG) {
@@ -420,6 +437,13 @@ class TachiyomiImageDecoder(private val resources: ImageSource, private val opti
                                                     logcat(LogPriority.DEBUG) {
                                                         "TachiyomiImageDecoder: Page $pageIndex enhanced result: ${result.width}x${result.height}, DEVICE_TEXTURE_LIMIT=$textureLimit"
                                                     }
+                                                    android.util.Log.i(
+                                                        "UpscaleTrace",
+                                                        "page $pageIndex/$pageVariant source ${bitmap.width}x" +
+                                                            "${bitmap.height}, input ${enhancementInput.width}x" +
+                                                            "${enhancementInput.height}, result ${result.width}x" +
+                                                            "${result.height}, model=$model noise=$noise",
+                                                    )
 
                                                     if (result.width > textureLimit || result.height > textureLimit) {
                                                         val widthRatio = textureLimit.toFloat() / result.width
@@ -580,6 +604,9 @@ class TachiyomiImageDecoder(private val resources: ImageSource, private val opti
 
     companion object {
         private val decodeSemaphore = Semaphore(1)
+
+        // Sources this close to the processing cap are shrunk a little and enhanced; larger ones stay original
+        private const val PRESCALE_MIN_RATIO = 0.9f
     }
 }
 
