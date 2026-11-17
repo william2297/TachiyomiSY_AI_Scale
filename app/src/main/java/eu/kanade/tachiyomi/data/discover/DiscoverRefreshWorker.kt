@@ -165,9 +165,11 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
         private val ADULT_SOURCE_NAME =Regex("hentai|doujin|\\bh-?manga\\b|18\\+", RegexOption.IGNORE_CASE)
 
         private fun wifiConstraints(): Constraints {
-            // Any Wi-Fi counts, including one the system calls metered (a phone hotspot, some routers)
+            // Any Wi-Fi counts, including one the system calls metered (a phone hotspot, some routers). The builder
+            // asks for NOT_VPN by default, so with a VPN on (an ad blocker, for one) the refresh never started.
             val request = NetworkRequest.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
                 .build()
             return Constraints.Builder()
                 .setRequiredNetworkRequest(request, NetworkType.CONNECTED)
@@ -175,13 +177,13 @@ class DiscoverRefreshWorker(private val context: Context, workerParams: WorkerPa
                 .build()
         }
 
-        /** Keeps one daily refresh scheduled; calling it again does not restart the clock. */
+        /** Keeps one daily refresh scheduled; calling it again keeps the clock but applies new constraints. */
         fun setupTask(context: Context) {
             val request = PeriodicWorkRequestBuilder<DiscoverRefreshWorker>(1, TimeUnit.DAYS, 2, TimeUnit.HOURS)
                 .setConstraints(wifiConstraints())
                 .setBackoffCriteria(BackoffPolicy.LINEAR, 30, TimeUnit.MINUTES)
                 .build()
-            context.workManager.enqueueUniquePeriodicWork(WORK_NAME_AUTO, ExistingPeriodicWorkPolicy.KEEP, request)
+            context.workManager.enqueueUniquePeriodicWork(WORK_NAME_AUTO, ExistingPeriodicWorkPolicy.UPDATE, request)
         }
 
         /**

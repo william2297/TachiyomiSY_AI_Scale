@@ -1512,10 +1512,16 @@ open class ReaderPageImageView @JvmOverloads constructor(
                     if (shouldCheckCache) {
                         shouldCheckCache = false
                         if (ImageEnhancementCache.isSkipped(mId, cId, pIdx, configHash, pageVariant)) {
+                            android.util.Log.i("SwapTrace", "poll end page=$pIdx: skipped")
                             withUIContext { updateStatus(context.stringResource(MR.strings.reader_status_raw)) }
                             return@launchIO
                         }
                         val file = ImageEnhancementCache.getCachedImage(mId, cId, pIdx, configHash, pageVariant)
+                        android.util.Log.i(
+                            "SwapTrace",
+                            "poll check page=$pIdx/$pageVariant cached=${file != null} " +
+                                "factory=${enhancedImageSourceFactory != null}",
+                        )
                         if (file != null) {
                             logcat(LogPriority.DEBUG) {
                                 "ReaderPageImageView: Page $pIdx/$pageVariant found in cache after cache event: ${file.absolutePath}"
@@ -1584,6 +1590,11 @@ open class ReaderPageImageView @JvmOverloads constructor(
                                 streamFn = streamFn,
                             )
                         } else {
+                            android.util.Log.i(
+                                "SwapTrace",
+                                "poll end page=$pIdx/$pageVariant: not queued, current=$current " +
+                                    "ahead=$enhanceAheadSize",
+                            )
                             updateStatus(context.stringResource(MR.strings.reader_status_raw))
                             delay(2000)
                             return@launchIO
@@ -1597,6 +1608,7 @@ open class ReaderPageImageView @JvmOverloads constructor(
                         event is ImageEnhancementCache.CacheEvent.Skipped
                 }
             } catch (_: CancellationException) {
+                android.util.Log.i("SwapTrace", "poll cancelled page=$pIdx")
                 return@launchIO
             } catch (e: Exception) {
                 android.util.Log.e("ReaderPageImageView", "Error in polling for page $pIdx", e)
