@@ -75,7 +75,7 @@ internal class DownloadPageLoader(
 
         if (
             preferences.realCuganEnabled().get() &&
-            !ImageEnhancer.isSliceCovered(page.chapter.chapter.id, page.index)
+            !ImageEnhancer.isChapterRebuilt(page.chapter.chapter.id)
         ) {
             ImageEnhancer.enhance(context, page)
         }

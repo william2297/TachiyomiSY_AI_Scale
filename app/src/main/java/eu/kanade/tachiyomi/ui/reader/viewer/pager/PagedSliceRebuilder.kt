@@ -118,6 +118,7 @@ internal class PagedSliceRebuilder(
     fun ensure(chapter: ReaderChapter) {
         val source = chapter.pages ?: return
         val id = chapter.chapter.id ?: return
+        ImageEnhancer.markChapterRebuilt(id)
         val current = running[id]
         if (current != null && current.sourcePages === source && current.job.isActive) return
         val result = results[id]

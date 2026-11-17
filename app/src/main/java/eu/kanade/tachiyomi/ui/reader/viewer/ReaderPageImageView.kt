@@ -915,7 +915,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
                 val page = pages[index]
                 val ready = page.status == eu.kanade.tachiyomi.source.model.Page.State.Ready
                 states.append(index).append(if (ready) "R " else "- ")
-                if (ready) ImageEnhancer.enhance(appContext, page, false)
+                // In the paged viewer a slice joined into a rebuilt page is never shown on its own
+                val covered = !isWebtoon && ImageEnhancer.isSliceCovered(page.chapter.chapter.id, page.index)
+                if (ready && !covered) ImageEnhancer.enhance(appContext, page, false)
             }
             android.util.Log.i("EnhanceTrace", "ahead from $pIdx: $states(R = downloaded, queued low)")
         }

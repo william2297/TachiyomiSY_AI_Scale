@@ -57,6 +57,22 @@ object ImageEnhancer {
 
     fun isSliceCovered(chapterId: Long, index: Int): Boolean = "$chapterId:$index" in coveredSlices
 
+    // Chapters the paged viewer rebuilds from slices
+    private val rebuiltChapters = ConcurrentHashMap.newKeySet<Long>()
+
+    /**
+     * A chapter the paged viewer rebuilds. Its views queue the pages they show, so the page loaders queue nothing
+     * for it: they ran ahead of the analysis and upscaled slices before they could be marked covered. Preload
+     * requests the loaders queued before this point are dropped.
+     */
+    fun markChapterRebuilt(chapterId: Long) {
+        if (!rebuiltChapters.add(chapterId)) return
+        queue.filter { it.chapterId == chapterId && it.pageVariant.isEmpty() && it.priority == 0 }
+            .forEach { cancel(it.mangaId, it.chapterId, it.pageIndex) }
+    }
+
+    fun isChapterRebuilt(chapterId: Long): Boolean = chapterId in rebuiltChapters
+
     // Priority Queue order:
     // 1. Current visible primary page
     // 2. Current visible secondary page in double-page mode

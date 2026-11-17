@@ -293,7 +293,7 @@ internal class HttpPageLoader(
             if (
                 preferences.realCuganEnabled().get() &&
                 !preferences.automaticSplitsPage().get() &&
-                !ImageEnhancer.isSliceCovered(chapter.chapter.id, page.index)
+                !ImageEnhancer.isChapterRebuilt(chapter.chapter.id)
             ) {
                 scope.launch {
                     try {
