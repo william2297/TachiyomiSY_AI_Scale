@@ -400,7 +400,9 @@ open class ReaderPageImageView @JvmOverloads constructor(
 
         selectedBeforeDisplay?.let { forward ->
             selectedBeforeDisplay = null
-            onPageSelected(forward)
+            // Only while it is still the page being read: a page flipped past before it loaded must not pull the
+            // enhancement queue back to itself
+            if (currentGlobalPageIndex == (readerPage?.index ?: pageIndex)) onPageSelected(forward)
         }
     }
 
