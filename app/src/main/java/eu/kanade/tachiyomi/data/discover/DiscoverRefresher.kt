@@ -714,7 +714,18 @@ class DiscoverRefresher(
 
         /** Tries the sources for one title in priority order; null when the budget ran out first. */
         suspend fun searchTitle(title: AniListTitle): MatchRecord? {
-            for (source in sources) {
+            // A title already found on one of these sources only needs the sources ranked above that one: if none of
+            // them has it, the old match is still the best. Without this a new source order searched every title on
+            // every source again, the budget covered ~35 titles a refresh, and the rest kept old aggregator matches.
+            val previous = matches[title.id]?.takeIf { it.found }
+            val previousRank = previous?.let { old -> sources.indexOfFirst { it.id == old.sourceId } } ?: -1
+            val toTry = when {
+                previousRank < 0 -> sources
+                // Another aggregator above it would not be a better copy
+                isAggregator(previous!!.sourceName) -> sources.take(previousRank).filterNot { isAggregator(it.name) }
+                else -> sources.take(previousRank)
+            }
+            for (source in toTry) {
                 if ((failures[source.id] ?: 0) >= MAX_SOURCE_FAILURES) continue
                 // An adult-only site has parody doujin under the exact names of mainstream series
                 if (source.adultOnly && !title.isAdult) continue
@@ -734,6 +745,9 @@ class DiscoverRefresher(
                     failures[source.id] = 0
                     return MatchRecord(true, source.id, source.name, best.first.url, now(), sourcesKey)
                 }
+            }
+            if (previous != null && previousRank >= 0) {
+                return previous.copy(checkedAtMillis = now(), sourcesKey = sourcesKey)
             }
             return MatchRecord(false, checkedAtMillis = now(), sourcesKey = sourcesKey)
         }
@@ -843,7 +857,7 @@ class DiscoverRefresher(
 
         /** Most titles a row can hold; "See all" opens up to this many. */
         const val MAX_PER_SECTION = 50
-        const val DEFAULT_MAX_SEARCHES = 250
+        const val DEFAULT_MAX_SEARCHES = 500
         const val DEFAULT_MAX_DURATION_MILLIS = 7 * 60 * 1000L
         private const val MAX_SOURCE_FAILURES = 3
         private const val MAX_GENRES = 3
