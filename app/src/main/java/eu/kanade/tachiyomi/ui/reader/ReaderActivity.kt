@@ -755,7 +755,6 @@ class ReaderActivity : BaseActivity() {
         virtualTouchJob = lifecycleScope.launch {
             var missed = 0
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                val location = IntArray(2)
                 while (missed < VIRTUAL_TOUCH_MAX_MISSES) {
                     val blocked = !readerPreferences.virtualTouch.get() || !VirtualTouch.available ||
                         viewModel.state.value.menuVisible || !hasWindowFocus() || fingerDown ||
@@ -765,12 +764,12 @@ class ReaderActivity : BaseActivity() {
                         continue
                     }
                     val decor = window.decorView
-                    decor.getLocationOnScreen(location)
                     val before = VirtualTouch.receivedCount
                     val sentAt = android.os.SystemClock.uptimeMillis()
                     val sent = VirtualTouch.tap(
-                        location[0] + decor.width * VIRTUAL_TOUCH_X,
-                        location[1] + decor.height * VIRTUAL_TOUCH_Y,
+                        window,
+                        decor.width * VIRTUAL_TOUCH_X,
+                        decor.height * VIRTUAL_TOUCH_Y,
                     )
                     delay(readerPreferences.virtualTouchMillis.get().coerceAtLeast(300).toLong())
                     // A tap that did not arrive went to whatever lies over the reader (a floating window): stop.
@@ -780,12 +779,16 @@ class ReaderActivity : BaseActivity() {
                     } else if (sent && lastFingerMillis < sentAt) {
                         missed++
                         android.util.Log.i(VirtualTouch.TAG, "tap $missed did not reach the reader")
+                        if (missed >= VIRTUAL_TOUCH_MAX_MISSES && VirtualTouch.ownWindowWorks) {
+                            VirtualTouch.giveUpOwnWindow()
+                            missed = 0
+                        }
                     }
                     if (VirtualTouch.receivedCount % 10 == 0) {
                         val stats = eu.kanade.tachiyomi.util.system.FrameJankMonitor.stats.value
                         android.util.Log.i(
                             VirtualTouch.TAG,
-                            "received=${VirtualTouch.receivedCount} service=${VirtualTouch.serviceEnabled} " +
+                            "received=${VirtualTouch.receivedCount} method=${VirtualTouch.status} " +
                                 "fps=${stats.fps} full=${stats.smooth} half=${stats.halfRate} " +
                                 "hitch=${stats.hitches} slow=${stats.slowFrames}",
                         )
@@ -852,6 +855,9 @@ class ReaderActivity : BaseActivity() {
                 preferredDisplayModeId = if (enabled) fastest?.modeId ?: 0 else 0
             }
             if (Build.VERSION.SDK_INT >= 35) {
+                // Experiment, switched over USB: adb shell setprop log.tag.VT_POWER DEBUG
+                window.isFrameRatePowerSavingsBalanced =
+                    !enabled || !android.util.Log.isLoggable("VT_POWER", android.util.Log.DEBUG)
                 val target = viewModel.state.value.viewer?.getView() ?: return@runCatching
                 target.requestedFrameRate = if (enabled) {
                     View.REQUESTED_FRAME_RATE_CATEGORY_HIGH
