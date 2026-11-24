@@ -208,14 +208,15 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         val virtualTouchMillis by virtualTouchMillisPref.collectAsState()
         SliderItem(
             value = virtualTouchMillis / 100,
-            valueRange = 3..30,
+            valueRange = 3..22,
             label = stringResource(MR.strings.reader_virtual_touch_interval),
             valueString = "$virtualTouchMillis ms",
             onChange = { virtualTouchMillisPref.set(it * 100) },
             pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
         Text(
-            text = "Method: ${VirtualTouch.status}, taps received: ${VirtualTouch.receivedCount}",
+            text = "Service ${if (VirtualTouch.serviceEnabled) "on" else "off"}, " +
+                "taps received: ${VirtualTouch.receivedCount}",
             modifier = Modifier.padding(horizontal = 24.dp),
             style = MaterialTheme.typography.bodySmall,
         )
