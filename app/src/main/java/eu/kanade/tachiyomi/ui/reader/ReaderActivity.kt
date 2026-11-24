@@ -876,6 +876,8 @@ class ReaderActivity : BaseActivity() {
         autoScrollJob?.cancel()
         autoScrollActive = true
         ReaderPageImageView.instantProcessedSwap = true
+        // The counters describe the last auto scroll, not all of them since the app started
+        eu.kanade.tachiyomi.util.system.FrameJankMonitor.reset()
         requestHighRefreshRate(true)
         startVirtualTouch()
         setMenuVisibility(false)

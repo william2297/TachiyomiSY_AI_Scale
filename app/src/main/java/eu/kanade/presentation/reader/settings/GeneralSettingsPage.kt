@@ -4,17 +4,22 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
 import eu.kanade.tachiyomi.ui.reader.touch.VirtualTouch
+import eu.kanade.tachiyomi.util.system.FrameJankMonitor
 import eu.kanade.tachiyomi.util.system.hasDisplayCutout
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.CheckboxItem
@@ -209,6 +214,11 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
             onChange = { virtualTouchMillisPref.set(it * 100) },
             pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
         )
+        Text(
+            text = "Method: ${VirtualTouch.status}, taps received: ${VirtualTouch.receivedCount}",
+            modifier = Modifier.padding(horizontal = 24.dp),
+            style = MaterialTheme.typography.bodySmall,
+        )
         if (!VirtualTouch.serviceEnabled) {
             val context = LocalContext.current
             TextButton(
@@ -220,6 +230,13 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
             }
         }
     }
+    val frameStats by FrameJankMonitor.stats.collectAsState()
+    Text(
+        text = "Last auto scroll: ${frameStats.fps.roundToInt()} fps, frames at full rate ${frameStats.smooth}, " +
+            "half rate ${frameStats.halfRate}, hitches ${frameStats.hitches}",
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+        style = MaterialTheme.typography.bodySmall,
+    )
     val tapScrollPercentPref = viewModel.preferences.tapScrollPercent
     val tapScrollPercent by tapScrollPercentPref.collectAsState()
     SliderItem(

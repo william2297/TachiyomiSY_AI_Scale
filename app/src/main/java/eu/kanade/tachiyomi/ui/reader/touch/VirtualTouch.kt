@@ -43,6 +43,15 @@ object VirtualTouch {
     var receivedCount = 0
         private set
 
+    /** For the settings page. */
+    val status: String
+        get() = when {
+            serviceEnabled -> "accessibility service"
+            instrumentationWorks && receivedCount > 0 -> "from the app"
+            instrumentationWorks -> "not tried yet"
+            else -> "blocked by Android, turn on the service"
+        }
+
     val available: Boolean get() = instrumentationWorks || serviceEnabled
 
     /** Sends one tap at screen coordinates; false when there is no way to send it. */
