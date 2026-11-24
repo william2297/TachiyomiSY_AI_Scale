@@ -45,6 +45,11 @@ class ReaderPreferences(
 
     val smoothAutoScroll: Preference<Boolean> = preferenceStore.getBoolean("pref_smooth_auto_scroll", true)
 
+    /** Taps the reader itself while auto scroll runs, for screens that run at full rate only after a touch. */
+    val virtualTouch: Preference<Boolean> = preferenceStore.getBoolean("pref_virtual_touch", true)
+
+    val virtualTouchMillis: Preference<Int> = preferenceStore.getInt("pref_virtual_touch_millis", 700)
+
     /**
      * Auto scroll shows a 2x2 pixel, nearly transparent surface that asks the screen for its top refresh rate.
      * Off by default: in the first test it raised the slow frames from 88 to 373 and made the stutter worse.

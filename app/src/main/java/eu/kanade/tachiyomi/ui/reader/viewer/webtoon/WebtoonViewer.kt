@@ -185,7 +185,10 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
             interruptAutoScrollDelay = true
         }
         // A finger arriving cuts the wait for the next step short, so the step after release is not a whole interval away
-        recycler.touchStartListener = { interruptAutoScrollDelay = true }
+        recycler.touchStartListener = {
+            interruptAutoScrollDelay = true
+            glideUntilMillis = 0L
+        }
         // SY <--
 
         config.imagePropertyChangedListener = {
@@ -429,16 +432,37 @@ class WebtoonViewer(val activity: ReaderActivity, val isContinuous: Boolean = tr
         tapRemaining += distance
     }
 
+    private var glideUntilMillis = 0L
+    private var glideStepMillis = 0L
+
     /**
-     * Scrolls one screen over [duration] at constant speed. Used by auto scroll.
+     * Scrolls at a constant speed of one screen per [duration]. Used by auto scroll, which calls it once per screen.
+     * One scroll covers many screens and is renewed before it ends: with a scroll per screen the list could stand
+     * still at every seam, because the call for the next screen does not come at exactly the right moment.
      */
     fun linearScroll(duration: Duration) {
+        val stepMillis = duration.inWholeMilliseconds
+        val now = SystemClock.uptimeMillis()
+        val gliding = recycler.scrollState == RecyclerView.SCROLL_STATE_SETTLING && stepMillis == glideStepMillis
+        if (gliding && glideUntilMillis - now > stepMillis + GLIDE_RENEW_MARGIN_MILLIS) return
+
+        val screens = (GLIDE_MAX_MILLIS / stepMillis).coerceIn(3L, GLIDE_MAX_SCREENS)
+        glideStepMillis = stepMillis
+        glideUntilMillis = now + stepMillis * screens
         recycler.smoothScrollBy(
             0,
-            activity.resources.displayMetrics.heightPixels,
+            activity.resources.displayMetrics.heightPixels * screens.toInt(),
             LinearInterpolator(),
-            duration.inWholeMilliseconds.toInt(),
+            (stepMillis * screens).toInt(),
         )
+    }
+
+    /** A running scroll follows the clock, so it must not go on while the reader is in the background. */
+    fun pauseGlide() {
+        if (glideUntilMillis == 0L) return
+        glideUntilMillis = 0L
+        recycler.stopScroll()
+        interruptAutoScrollDelay = true
     }
 
     /**
@@ -791,6 +815,9 @@ private const val TAP_SCROLL_FINISH_SPEED = 60f
 
 // SY -->
 private const val AUTO_SCROLL_POLL_DELAY_MILLIS = 100L
+private const val GLIDE_MAX_MILLIS = 120_000L
+private const val GLIDE_MAX_SCREENS = 30L
+private const val GLIDE_RENEW_MARGIN_MILLIS = 500L
 private const val AUTO_SCROLL_RESUME_DELAY_MILLIS = 700L
 private const val DEFAULT_AUTO_SCROLL_INTERVAL_MILLIS = 3_000L
 private const val MIN_AUTO_SCROLL_INTERVAL_MILLIS = 250L

@@ -94,6 +94,7 @@ import eu.kanade.tachiyomi.ui.reader.spatial.DepthSpatialPipeline
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialDepthSceneIO
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneControlsView
 import eu.kanade.tachiyomi.ui.reader.spatial.SpatialSceneView
+import eu.kanade.tachiyomi.ui.reader.touch.VirtualTouch
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderPageImageView
 import eu.kanade.tachiyomi.ui.reader.viewer.ReaderProgressIndicator
 import eu.kanade.tachiyomi.ui.reader.viewer.Viewer
@@ -148,6 +149,13 @@ class ReaderActivity : BaseActivity() {
     private val graph: AppGraph by lazy { metroGraph() }
 
     companion object {
+        private const val VIRTUAL_TOUCH_AFTER_FINGER_MILLIS = 600L
+        private const val VIRTUAL_TOUCH_MAX_MISSES = 2
+
+        // Away from the edges (back gesture) and from the corners, where floating windows sit
+        private const val VIRTUAL_TOUCH_X = 0.12f
+        private const val VIRTUAL_TOUCH_Y = 0.55f
+
         private const val UI_BUSY_COOLDOWN_MS = 1_000L
 
         fun newIntent(context: Context, mangaId: Long?, chapterId: Long?): Intent {
@@ -507,6 +515,7 @@ class ReaderActivity : BaseActivity() {
 
     override fun onPause() {
         spatialSceneView?.stopMotion()
+        (viewModel.state.value.viewer as? WebtoonViewer)?.pauseGlide()
         persistCurrentPagerPage()
         viewModel.saveHistory()
         super.onPause()
@@ -594,6 +603,11 @@ class ReaderActivity : BaseActivity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        if (ev != null) {
+            if (VirtualTouch.consume(ev)) return true
+            fingerDown = ev.actionMasked != MotionEvent.ACTION_UP && ev.actionMasked != MotionEvent.ACTION_CANCEL
+            lastFingerMillis = android.os.SystemClock.uptimeMillis()
+        }
         onUiInteracted()
         return super.dispatchTouchEvent(ev)
     }
@@ -731,6 +745,56 @@ class ReaderActivity : BaseActivity() {
         }
     }
 
+    private var virtualTouchJob: Job? = null
+    private var fingerDown = false
+    private var lastFingerMillis = 0L
+
+    /** Keeps tapping the reader's own window while auto scroll moves (see [VirtualTouch]). */
+    private fun startVirtualTouch() {
+        virtualTouchJob?.cancel()
+        virtualTouchJob = lifecycleScope.launch {
+            var missed = 0
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                val location = IntArray(2)
+                while (missed < VIRTUAL_TOUCH_MAX_MISSES) {
+                    val blocked = !readerPreferences.virtualTouch.get() || !VirtualTouch.available ||
+                        viewModel.state.value.menuVisible || !hasWindowFocus() || fingerDown ||
+                        android.os.SystemClock.uptimeMillis() - lastFingerMillis < VIRTUAL_TOUCH_AFTER_FINGER_MILLIS
+                    if (blocked) {
+                        delay(100)
+                        continue
+                    }
+                    val decor = window.decorView
+                    decor.getLocationOnScreen(location)
+                    val before = VirtualTouch.receivedCount
+                    val sentAt = android.os.SystemClock.uptimeMillis()
+                    val sent = VirtualTouch.tap(
+                        location[0] + decor.width * VIRTUAL_TOUCH_X,
+                        location[1] + decor.height * VIRTUAL_TOUCH_Y,
+                    )
+                    delay(readerPreferences.virtualTouchMillis.get().coerceAtLeast(300).toLong())
+                    // A tap that did not arrive went to whatever lies over the reader (a floating window): stop.
+                    // A finger that arrived meanwhile cancels the tap, which is no miss.
+                    if (VirtualTouch.receivedCount != before) {
+                        missed = 0
+                    } else if (sent && lastFingerMillis < sentAt) {
+                        missed++
+                        android.util.Log.i(VirtualTouch.TAG, "tap $missed did not reach the reader")
+                    }
+                    if (VirtualTouch.receivedCount % 10 == 0) {
+                        val stats = eu.kanade.tachiyomi.util.system.FrameJankMonitor.stats.value
+                        android.util.Log.i(
+                            VirtualTouch.TAG,
+                            "received=${VirtualTouch.receivedCount} service=${VirtualTouch.serviceEnabled} " +
+                                "fps=${stats.fps} full=${stats.smooth} half=${stats.halfRate} " +
+                                "hitch=${stats.hitches} slow=${stats.slowFrames}",
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private fun stopAutoScroll() {
         (viewModel.state.value.viewer as? WebtoonViewer)?.syncAutoScrollSettings(false, 0.seconds)
         onAutoScrollStoppedByViewer()
@@ -740,6 +804,8 @@ class ReaderActivity : BaseActivity() {
     fun onAutoScrollStoppedByViewer() {
         ReaderPageImageView.instantProcessedSwap = false
         requestHighRefreshRate(false)
+        virtualTouchJob?.cancel()
+        virtualTouchJob = null
         autoScrollJob?.cancel()
         autoScrollJob = null
         autoScrollActive = false
@@ -811,6 +877,7 @@ class ReaderActivity : BaseActivity() {
         autoScrollActive = true
         ReaderPageImageView.instantProcessedSwap = true
         requestHighRefreshRate(true)
+        startVirtualTouch()
         setMenuVisibility(false)
         readerPreferences.autoscrollGesturesEnabled.get().let {
             (viewModel.state.value.viewer as? WebtoonViewer)?.setAutoScrollGesturesEnabled(it)

@@ -1,15 +1,20 @@
 package eu.kanade.presentation.reader.settings
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderPreferences
 import eu.kanade.tachiyomi.ui.reader.setting.ReaderSettingsViewModel
 import eu.kanade.tachiyomi.ui.reader.setting.ReadingMode
+import eu.kanade.tachiyomi.ui.reader.touch.VirtualTouch
 import eu.kanade.tachiyomi.util.system.hasDisplayCutout
 import tachiyomi.i18n.MR
 import tachiyomi.presentation.core.components.CheckboxItem
@@ -188,6 +193,33 @@ internal fun ColumnScope.GeneralPage(viewModel: ReaderSettingsViewModel) {
         label = stringResource(MR.strings.reader_auto_scroll_smooth),
         pref = viewModel.preferences.smoothAutoScroll,
     )
+    CheckboxItem(
+        label = stringResource(MR.strings.reader_virtual_touch),
+        pref = viewModel.preferences.virtualTouch,
+    )
+    val virtualTouch by viewModel.preferences.virtualTouch.collectAsState()
+    if (virtualTouch) {
+        val virtualTouchMillisPref = viewModel.preferences.virtualTouchMillis
+        val virtualTouchMillis by virtualTouchMillisPref.collectAsState()
+        SliderItem(
+            value = virtualTouchMillis / 100,
+            valueRange = 3..30,
+            label = stringResource(MR.strings.reader_virtual_touch_interval),
+            valueString = "$virtualTouchMillis ms",
+            onChange = { virtualTouchMillisPref.set(it * 100) },
+            pillColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        )
+        if (!VirtualTouch.serviceEnabled) {
+            val context = LocalContext.current
+            TextButton(
+                onClick = {
+                    runCatching { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+                },
+            ) {
+                Text(stringResource(MR.strings.reader_virtual_touch_enable))
+            }
+        }
+    }
     val tapScrollPercentPref = viewModel.preferences.tapScrollPercent
     val tapScrollPercent by tapScrollPercentPref.collectAsState()
     SliderItem(

@@ -227,6 +227,19 @@
             android:exported="false" />
 
         <service
+            android:name=".ui.reader.touch.VirtualTouchService"
+            android:exported="true"
+            android:label="@string/reader_virtual_touch_service"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/virtual_touch_service" />
+        </service>
+
+        <service
             android:name=".extension.util.ExtensionInstallService"
             android:exported="false"
             android:foregroundServiceType="shortService" />
