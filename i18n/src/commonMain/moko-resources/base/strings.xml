@@ -1189,6 +1189,7 @@
     <string name="reader_auto_scroll_speed">Auto scroll speed (right is faster)</string>
     <string name="reader_auto_scroll_seconds">%1$d s</string>
     <string name="reader_virtual_touch">Virtual touch during auto scroll (keeps 120 Hz)</string>
+    <string name="reader_virtual_touch_off">The virtual touch service is off, so auto scroll may look rough. Turn on \"Mihon virtual touch\" in Accessibility, or untick virtual touch in Reader settings &gt; General.</string>
     <string name="reader_virtual_touch_interval">Virtual touch every</string>
     <string name="reader_virtual_touch_enable">Turn on the virtual touch service</string>
     <string name="reader_virtual_touch_service">Mihon virtual touch</string>

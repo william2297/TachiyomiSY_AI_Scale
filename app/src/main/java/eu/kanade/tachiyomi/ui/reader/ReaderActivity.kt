@@ -151,6 +151,8 @@ class ReaderActivity : BaseActivity() {
     companion object {
         private const val VIRTUAL_TOUCH_AFTER_FINGER_MILLIS = 600L
         private const val VIRTUAL_TOUCH_MAX_MISSES = 2
+        private const val VIRTUAL_TOUCH_SERVICE_WAIT_MILLIS = 1_000L
+        private var virtualTouchWarned = false
 
         // Away from the edges (back gesture) and from the corners, where floating windows sit
         private const val VIRTUAL_TOUCH_X = 0.12f
@@ -749,10 +751,30 @@ class ReaderActivity : BaseActivity() {
     private var fingerDown = false
     private var lastFingerMillis = 0L
 
+    /**
+     * The system can turn the service off (a restart or an update did), and then auto scroll quietly runs at half the
+     * rate. Said once per app start, so it does not get in the way of reading without the service.
+     */
+    private fun warnVirtualTouchOff() {
+        if (virtualTouchWarned || !readerPreferences.virtualTouch.get() || VirtualTouch.serviceEnabled) return
+        if (isFinishing || !lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
+        virtualTouchWarned = true
+        android.app.AlertDialog.Builder(this)
+            .setMessage(stringResource(MR.strings.reader_virtual_touch_off))
+            .setPositiveButton(stringResource(MR.strings.action_settings)) { _, _ ->
+                runCatching { startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
+            }
+            .setNegativeButton(stringResource(MR.strings.action_not_now), null)
+            .show()
+    }
+
     /** Keeps tapping the reader's own window while auto scroll moves (see [VirtualTouch]). */
     private fun startVirtualTouch() {
         virtualTouchJob?.cancel()
         virtualTouchJob = lifecycleScope.launch {
+            // Right after the app starts the system may still be connecting the service
+            delay(VIRTUAL_TOUCH_SERVICE_WAIT_MILLIS)
+            warnVirtualTouchOff()
             var missed = 0
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 while (missed < VIRTUAL_TOUCH_MAX_MISSES) {
